@@ -27,9 +27,9 @@ It consolidates all sessions into a real-time, interactive local dashboard runni
 
 The screens below use sample data. No local sessions or project names are included.
 
-[![Token Larper usage overview](docs/media/overview.jpg)](docs/media/walkthrough.mp4)
-
-[Watch the 20-second video walkthrough (MP4)](docs/media/walkthrough.mp4)
+<video src="https://github.com/user-attachments/assets/104c8036-694e-474b-81e1-d33576f2cc30" controls playsinline poster="https://raw.githubusercontent.com/YarooqH/tokenlarper/main/docs/media/overview.jpg" width="820">
+  <a href="docs/media/walkthrough.mp4">Watch the 20-second walkthrough</a>
+</video>
 
 | Usage breakdown | Projects |
 | --- | --- |
