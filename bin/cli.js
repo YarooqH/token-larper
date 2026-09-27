@@ -28,7 +28,7 @@ if (typeof Bun !== "undefined") {
     } else {
       console.error("  curl -fsSL https://bun.sh/install | bash");
     }
-    console.error("\nMore info: https://github.com/your-username/tokenlarper\n");
+    console.error("\nMore info: https://github.com/YarooqH/tokenlarper\n");
     process.exit(1);
   }
 }

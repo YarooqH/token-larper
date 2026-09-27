@@ -103,7 +103,7 @@ bunx tokenlarper
 #### Step 1: Get the Code
 Clone the repository (or click **Code → Download ZIP** on GitHub and extract it):
 ```bash
-git clone https://github.com/your-username/tokenlarper.git
+git clone https://github.com/YarooqH/tokenlarper.git
 cd tokenlarper
 ```
 

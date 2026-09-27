@@ -4,6 +4,15 @@
   "description": "Token Larper — Multi-Harness AI Coding Usage & Cost Telemetry Dashboard powered by ccusage",
   "type": "module",
   "license": "MIT",
+  "author": "YarooqH",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YarooqH/tokenlarper.git"
+  },
+  "homepage": "https://github.com/YarooqH/tokenlarper#readme",
+  "bugs": {
+    "url": "https://github.com/YarooqH/tokenlarper/issues"
+  },
   "files": [
     "bin",
     "scripts",
