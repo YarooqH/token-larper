@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Token goblin</title>
+  <circle cx="32" cy="32" r="30" fill="#203a2b"/>
+  <path d="M19 25 8 18l5 18 7 1m25-12 11-7-5 18-7 1" fill="#a9c895" stroke="#203a2b" stroke-linejoin="round" stroke-width="2"/>
+  <path d="M16 29c0-9 7-15 16-15s16 6 16 15v7c0 9-7 14-16 14s-16-5-16-14z" fill="#a9c895"/>
+  <path d="m21 28 9 3-9 2m22-5-9 3 9 2" fill="#203a2b"/>
+  <circle cx="32" cy="45" r="13" fill="#efd27d" stroke="#203a2b" stroke-width="2"/>
+  <path d="M29 38h5m-2.5 0v14" stroke="#a97d36" stroke-linecap="round" stroke-width="2"/>
+  <path d="M17 41c3-1 6 0 8 3l-2 5c-4 0-7-2-8-5m32-3c-3-1-6 0-8 3l2 5c4 0 7-2 8-5" fill="#a9c895" stroke="#203a2b" stroke-linejoin="round" stroke-width="1.5"/>
+</svg>

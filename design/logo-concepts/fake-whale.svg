@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Fake whale</title>
+  <circle cx="32" cy="32" r="30" fill="#203a2b"/>
+  <path d="M43 28c6-2 9-7 13-8-1 5-3 8-3 11 2 3 4 5 4 9-5-1-8-4-14-6" fill="#a9c9ba" stroke="#203a2b" stroke-linejoin="round" stroke-width="2"/>
+  <path d="M9 31c0-9 9-15 21-15 13 0 20 7 20 17 0 9-8 15-21 15C17 48 9 41 9 31Z" fill="#a9c9ba" stroke="#203a2b" stroke-width="2"/>
+  <path d="m26 17-3-6m5 6 2-6" stroke="#a9c9ba" stroke-linecap="round" stroke-width="2.5"/>
+  <circle cx="22" cy="29" r="2" fill="#203a2b"/>
+  <path d="M13 36c3 2 6 2 9 1" fill="none" stroke="#567c69" stroke-linecap="round" stroke-width="2"/>
+  <circle cx="42" cy="43" r="11" fill="#efd27d" stroke="#203a2b" stroke-width="2"/>
+  <path d="M42 37v12" stroke="#a97d36" stroke-linecap="round" stroke-width="2"/>
+  <path d="M29 39c3 3 6 3 9 2" fill="none" stroke="#567c69" stroke-linecap="round" stroke-width="3"/>
+</svg>

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "token-larper-preview",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["--watch", "src/server.ts"],
+      "env": { "PORT": "4271", "NO_TRAY": "1" },
+      "port": 4271
+    }
+  ]
+}

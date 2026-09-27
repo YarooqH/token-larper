@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token Larper — lettermark studies</title>
+  <style>
+    :root { font-family: "Segoe UI", Arial, sans-serif; color: #203628; background: #f4f5f1; }
+    * { box-sizing: border-box; }
+    body { max-width: 930px; margin: 0 auto; padding: 44px 24px 64px; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: -.045em; }
+    header p { margin: 8px 0 30px; color: #627466; font-size: 14px; }
+    main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    article { min-width: 0; padding: 24px; border: 1px solid #d8ded6; border-radius: 8px; background: #fff; }
+    article h2 { margin: 18px 0 5px; font-size: 16px; }
+    article p { margin: 0; color: #627466; font-size: 13px; line-height: 1.45; }
+    .sizes { min-height: 152px; display: flex; align-items: end; gap: 18px; }
+    .size { display: grid; justify-items: center; align-items: end; gap: 9px; }
+    .size img { display: block; }
+    .size span { color: #829083; font-size: 11px; }
+    .large img { width: 128px; height: 128px; }
+    .medium img { width: 32px; height: 32px; }
+    .small img { width: 16px; height: 16px; }
+    .dark-check { width: max-content; display: flex; gap: 15px; align-items: center; margin-top: 17px; padding: 9px 11px; background: #17241b; border-radius: 5px; }
+    .dark-check img { width: 32px; height: 32px; filter: brightness(0) invert(.88); }
+    .dark-check span { color: #acb8ad; font-size: 11px; }
+    @media (max-width: 650px) { body { padding: 28px 16px; } main { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>t / l lettermarks</h1>
+    <p>Four standalone sketches · compare the 16 px read before choosing a direction</p>
+  </header>
+  <main>
+    <article>
+      <div class="sizes">
+        <div class="size large"><img src="almost-l.svg" alt="Almost-l mark"><span>128 px</span></div>
+        <div class="size medium"><img src="almost-l.svg" alt=""><span>32 px</span></div>
+        <div class="size small"><img src="almost-l.svg" alt=""><span>16 px</span></div>
+      </div>
+      <h2>1 · Almost-l</h2><p>One tall stem and a right-only crossbar.</p>
+      <div class="dark-check"><img src="almost-l.svg" alt=""><span>Dark surface</span></div>
+    </article>
+    <article>
+      <div class="sizes">
+        <div class="size large"><img src="off-center-t.svg" alt="Off-center t mark"><span>128 px</span></div>
+        <div class="size medium"><img src="off-center-t.svg" alt=""><span>32 px</span></div>
+        <div class="size small"><img src="off-center-t.svg" alt=""><span>16 px</span></div>
+      </div>
+      <h2>2 · Off-center t</h2><p>A high crossbar weighted to the left.</p>
+      <div class="dark-check"><img src="off-center-t.svg" alt=""><span>Dark surface</span></div>
+    </article>
+    <article>
+      <div class="sizes">
+        <div class="size large"><img src="cutout-t.svg" alt="Cutout t mark"><span>128 px</span></div>
+        <div class="size medium"><img src="cutout-t.svg" alt=""><span>32 px</span></div>
+        <div class="size small"><img src="cutout-t.svg" alt=""><span>16 px</span></div>
+      </div>
+      <h2>3 · Cutout t</h2><p>An l silhouette interrupted by a small notch.</p>
+      <div class="dark-check"><img src="cutout-t.svg" alt=""><span>Dark surface</span></div>
+    </article>
+    <article>
+      <div class="sizes">
+        <div class="size large"><img src="shared-tl.svg" alt="Shared tl ligature"><span>128 px</span></div>
+        <div class="size medium"><img src="shared-tl.svg" alt=""><span>32 px</span></div>
+        <div class="size small"><img src="shared-tl.svg" alt=""><span>16 px</span></div>
+      </div>
+      <h2>4 · Shared tl</h2><p>Two stems tied together by one crossbar.</p>
+      <div class="dark-check"><img src="shared-tl.svg" alt=""><span>Dark surface</span></div>
+    </article>
+  </main>
+</body>
+</html>

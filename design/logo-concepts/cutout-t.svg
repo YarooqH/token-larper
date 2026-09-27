@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Cutout t monogram</title>
+  <mask id="notch">
+    <rect width="64" height="64" fill="white"/>
+    <path d="M19 23h15v5H19z" fill="black"/>
+  </mask>
+  <path d="M24 7c0-1.7 1.3-3 3-3h9c1.7 0 3 1.3 3 3v42c0 4 1.5 5.5 5 5.5h2V60h-3c-10 0-16-4.5-16-14.5V7Z" fill="#244332" mask="url(#notch)"/>
+</svg>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // An explicit choice wins; otherwise follow the OS setting.
+      var stored = null;
+      try { stored = localStorage.getItem("token-larper-theme"); } catch {}
+      document.documentElement.dataset.theme =
+        stored === "dark" || stored === "light"
+          ? stored
+          : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      var savedPalette = null;
+      try { savedPalette = localStorage.getItem("token-larper-palette"); } catch {}
+      var palettes = ["pine", "slate", "ocean", "iris", "clay", "rose", "custom"];
+      var palette = palettes.includes(savedPalette) ? savedPalette : "pine";
+      document.documentElement.dataset.palette = palette;
+      if (palette === "custom") {
+        try {
+          var imported = JSON.parse(localStorage.getItem("token-larper-imported-theme") || "null");
+          var tokens = imported && imported[document.documentElement.dataset.theme];
+          var properties = [
+            "--bg", "--surface", "--surface-2", "--surface-3", "--border", "--border-strong",
+            "--text", "--text-2", "--text-3", "--accent", "--accent-ink", "--accent-soft", "--gold", "--focus",
+            "--warning-bg", "--warning-border", "--warning-text", "--error-bg", "--error-border", "--error-text",
+            "--series-1", "--series-2", "--series-3", "--series-4", "--series-5", "--series-6", "--series-7",
+            "--series-other", "--heat-0", "--heat-1", "--heat-2", "--heat-3", "--heat-4",
+          ];
+          properties.forEach(function (property) {
+            var value = tokens && tokens[property];
+            if (typeof value === "string" && value.length <= 180 && !/[;{}]|\bvar\s*\(|url\s*\(/i.test(value) && CSS.supports("color", value)) {
+              document.documentElement.style.setProperty(property, value);
+            }
+          });
+          ["--radius", "--radius-sm"].forEach(function (property) {
+            var radius = tokens && tokens[property];
+            if (typeof radius === "string" && /^\d+(?:\.\d+)?(?:px|rem|em)$/.test(radius)) {
+              document.documentElement.style.setProperty(property, radius);
+            }
+          });
+        } catch {}
+      }
+    </script>
+    <meta name="theme-color" content="#f8f9f7" />
+    <title>Token Larper — Usage overview</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
