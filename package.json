@@ -22,8 +22,8 @@
     "llms.txt"
   ],
   "bin": {
-    "token-larper": "./bin/cli.js",
-    "tokenlarper": "./bin/cli.js"
+    "token-larper": "bin/cli.js",
+    "tokenlarper": "bin/cli.js"
   },
   "keywords": [
     "claude-code",
