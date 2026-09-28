@@ -48,23 +48,49 @@ function isAllowedMutation(req: Request, port: number): boolean {
   return (req.headers.get("content-type") || "").toLowerCase().startsWith("application/json");
 }
 
+// Check if Token Larper is already running on the target port
+try {
+  const existing = await fetch(`http://127.0.0.1:${PORT}/api/tray-status`, {
+    signal: AbortSignal.timeout(600),
+  });
+  if (existing.ok) {
+    console.log(`🔥 Token Larper is already running at http://localhost:${PORT}`);
+    console.log(`🚀 Opening dashboard in your default browser...`);
+    const cmd =
+      process.platform === "win32"
+        ? `start http://localhost:${PORT}`
+        : process.platform === "darwin"
+        ? `open http://localhost:${PORT}`
+        : `xdg-open http://localhost:${PORT}`;
+    const { exec } = await import("node:child_process");
+    exec(cmd);
+    process.exit(0);
+  }
+} catch {
+  // Not running, proceed with startup
+}
+
 // Warm cached usage before the first dashboard request.
 void getDashboardData();
 
-const server = Bun.serve({
-  port: PORT,
-  hostname: "127.0.0.1",
-  idleTimeout: 120,
-  async fetch(req) {
-    const url = new URL(req.url);
-    const port = server.port ?? PORT;
+function startServer(preferredPort: number) {
+  let port = preferredPort;
+  while (port < preferredPort + 10) {
+    try {
+      return Bun.serve({
+        port,
+        hostname: "127.0.0.1",
+        idleTimeout: 120,
+        async fetch(req) {
+          const url = new URL(req.url);
+          const activePort = server?.port ?? port;
 
-    if (!isAllowedHost(req.headers.get("host"), port)) {
-      return new Response("Forbidden", { status: 403 });
-    }
-    if (req.method !== "GET" && req.method !== "HEAD" && !isAllowedMutation(req, port)) {
-      return new Response("Forbidden", { status: 403 });
-    }
+          if (!isAllowedHost(req.headers.get("host"), activePort)) {
+            return new Response("Forbidden", { status: 403 });
+          }
+          if (req.method !== "GET" && req.method !== "HEAD" && !isAllowedMutation(req, activePort)) {
+            return new Response("Forbidden", { status: 403 });
+          }
 
     if (url.pathname === "/" || url.pathname === "/index.html") {
       return new Response(Bun.file(join(CLIENT_DIR, "index.html")), {
@@ -155,10 +181,22 @@ const server = Bun.serve({
       return Response.json({ ok: true, message: "Shutting down Token Larper..." });
     }
 
-    return new Response("Not Found", { status: 404 });
-  },
-});
+          return new Response("Not Found", { status: 404 });
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === "EADDRINUSE" || String(err).includes("EADDRINUSE")) {
+        console.warn(`Port ${port} in use, trying port ${port + 1}...`);
+        port++;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error(`Could not find an open port starting from ${preferredPort}`);
+}
 
+const server = startServer(PORT);
 startSystemTray(server.port ?? PORT);
 
 process.on("SIGINT", () => {

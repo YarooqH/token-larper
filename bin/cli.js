@@ -8,6 +8,29 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, "..");
 const serverScript = join(rootDir, "src", "server.ts");
 
+// Check if Token Larper is already running on the requested port
+const port = process.env.PORT || 4269;
+try {
+  const res = await fetch(`http://127.0.0.1:${port}/api/tray-status`, {
+    signal: AbortSignal.timeout(600),
+  });
+  if (res.ok) {
+    console.log(`🔥 Token Larper is already running at http://localhost:${port}`);
+    console.log(`🚀 Opening dashboard in your default browser...`);
+    const cmd =
+      process.platform === "win32"
+        ? `start http://localhost:${port}`
+        : process.platform === "darwin"
+        ? `open http://localhost:${port}`
+        : `xdg-open http://localhost:${port}`;
+    const { exec } = await import("node:child_process");
+    exec(cmd);
+    process.exit(0);
+  }
+} catch {
+  // Server is not running yet, proceed with startup
+}
+
 // If executed directly inside Bun runtime
 if (typeof Bun !== "undefined") {
   await import(serverScript);
