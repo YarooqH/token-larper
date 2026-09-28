@@ -32,7 +32,7 @@ It consolidates all sessions into a real-time, interactive local dashboard runni
 
 The screens below use sample data. No local sessions or project names are included.
 
-<video src="https://github.com/user-attachments/assets/104c8036-694e-474b-81e1-d33576f2cc30" controls playsinline poster="https://raw.githubusercontent.com/YarooqH/tokenlarper/main/docs/media/overview.jpg" width="820">
+<video src="https://github.com/user-attachments/assets/104c8036-694e-474b-81e1-d33576f2cc30" controls playsinline poster="https://raw.githubusercontent.com/YarooqH/token-larper/main/docs/media/overview.jpg" width="820">
   <a href="docs/media/walkthrough.mp4">Watch the 20-second walkthrough</a>
 </video>
 
@@ -108,8 +108,8 @@ bunx tokenlarper
 #### Step 1: Get the Code
 Clone the repository (or click **Code → Download ZIP** on GitHub and extract it):
 ```bash
-git clone https://github.com/YarooqH/tokenlarper.git
-cd tokenlarper
+git clone https://github.com/YarooqH/token-larper.git
+cd token-larper
 ```
 
 ### Step 2: Install Dependencies
