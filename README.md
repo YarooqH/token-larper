@@ -1,9 +1,10 @@
 # 🔥 Token Larper
 
 > **Multi-Harness AI Coding Usage & Cost Telemetry Dashboard**  
-> Aggregate, visualize, and gamify local token burn across 18+ AI coding agents with a native Windows System Tray widget and zero cloud dependencies.
+> Built on top of [`ccusage`](https://github.com/ccusage/ccusage) to aggregate, visualize, and gamify local token burn across 18+ AI coding agents with a native Windows System Tray widget and zero cloud dependencies.
 
 [![Bun](https://img.shields.io/badge/Bun-v1.1+-f472b6?logo=bun&logoColor=white)](https://bun.sh)
+[![ccusage](https://img.shields.io/badge/Powered%20by-ccusage-blue?logo=npm)](https://github.com/ccusage/ccusage)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4?logo=linux&logoColor=white)](https://github.com)
 [![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local%20%26%20Offline-success)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
@@ -12,10 +13,14 @@
 
 ## 📖 Overview
 
+> [!NOTE]
+> **Built on top of [`ccusage`](https://github.com/ccusage/ccusage)**: Token Larper is built directly on top of the open-source `ccusage` engine by [@ccusage](https://github.com/ccusage). While `ccusage` provides the foundational CLI scraping and cost calculation for local agent logs, Token Larper wraps it into a rich desktop experience—adding an interactive web dashboard, shadcn-style date range calendar, multi-agent project indexing, native Windows System Tray monitoring, and the gamified Hall of Larp.
+
 Token Larper passively reads session files, SQLite databases, and telemetry logs created on your local disk by CLI and IDE coding agents (**Claude Code**, **Codex**, **Antigravity**, **GitHub Copilot CLI**, **OpenCode**, and 13 others). 
 
 It consolidates all sessions into a real-time, interactive local dashboard running on [`http://localhost:4269`](http://localhost:4269) on **Windows, macOS, and Linux**. On Windows, it also lives quietly in your notification area as a lightweight, DPI-aware system tray icon.
 
+* **Powered by `ccusage`**: Uses `ccusage` v20+ for cross-platform log parsing, token counting, and verified frontier model pricing.
 * **100% Private & Offline**: No API keys required, no external proxies to configure, and zero analytics or telemetry sent to the cloud.
 * **Cross-Platform Core**: The telemetry engine, 18 harness scrapers, and React dashboard run identically across Windows, macOS (Apple Silicon & Intel), and Linux.
 * **Gamified Hall of Larp**: Track your lifetime token burn, unlock 14 achievements, climb an 11-tier ranking ladder past rival personas, and export a shareable 1200×630 flex badge.
@@ -128,7 +133,7 @@ bun run tray
 
 * A green **`t.`** monogram icon will appear in your notification tray.
 * Hover over the icon to see your real-time token count and cost estimate.
-* Right-click the icon to open the dashboard, trigger an instant sync, or configure boot auto-start.
+* Left-click the icon for a compact usage popup with an **Open dashboard** button. Right-click it to sync or configure boot auto-start.
 
 #### Option B: Terminal Mode (Logs & Development)
 ```powershell
@@ -158,7 +163,7 @@ bun run dev        # Live reload on changes
 Open your browser and navigate to:
 👉 **[http://localhost:4269](http://localhost:4269)**
 
-*(On Windows, you can also double-click the **`t.`** tray icon, or right-click it and choose **Open Dashboard**).*
+*(On Windows, left-click the **`t.`** tray icon and select **Open dashboard**, or choose **Open Dashboard** from its right-click menu.)*
 
 ---
 
@@ -326,6 +331,15 @@ tokenlarper/
 │       ├── views/            # Overview, Tools, Models, Sessions, Projects, Rank
 │       └── styles.css        # Custom responsive CSS design system (Dark/Light)
 ```
+
+---
+
+## 🙏 Acknowledgments & Credits
+
+Token Larper is built directly on top of the work of the open-source community:
+* **[`ccusage`](https://github.com/ccusage/ccusage)** — The core telemetry engine powering local session scraping, token counting, and cost calculations across AI coding harnesses.
+* **[Bun](https://bun.sh)** — Fast all-in-one JavaScript runtime and bundler.
+* **[Lucide Icons](https://lucide.dev)** — Clean and consistent iconography for the web dashboard.
 
 ---
 
