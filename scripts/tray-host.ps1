@@ -2,7 +2,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $ServerPort = 4269
-$ServerPid = 8904
+$ServerPid = 41396
 $BaseUrl = "http://127.0.0.1:$ServerPort"
 
 # Opt into DPI awareness so the icon is drawn at the tray's real pixel size
@@ -56,6 +56,137 @@ $notifyIcon.Icon = $icon
 $notifyIcon.Text = "Token Larper - AI Coding Telemetry (Port $ServerPort)"
 $notifyIcon.Visible = $true
 
+# Compact left-click popup. Its values come from the same local status endpoint as the menu.
+$popup = New-Object System.Windows.Forms.Form
+$popup.Text = "Token Larper"
+$popup.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+$popup.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
+$popup.ShowInTaskbar = $false
+$popup.TopMost = $true
+$popup.KeyPreview = $true
+$popup.ClientSize = New-Object System.Drawing.Size(300, 226)
+$popup.BackColor = [System.Drawing.Color]::FromArgb(23, 35, 29)
+
+$popupText = [System.Drawing.Color]::FromArgb(244, 242, 233)
+$popupMuted = [System.Drawing.Color]::FromArgb(177, 192, 181)
+$popupAccent = [System.Drawing.Color]::FromArgb(169, 219, 182)
+
+$popupTitle = New-Object System.Windows.Forms.Label
+$popupTitle.Text = "Token Larper"
+$popupTitle.Location = New-Object System.Drawing.Point(18, 15)
+$popupTitle.Size = New-Object System.Drawing.Size(264, 22)
+$popupTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$popupTitle.ForeColor = $popupText
+$popup.Controls.Add($popupTitle)
+
+$popupCaption = New-Object System.Windows.Forms.Label
+$popupCaption.Text = "Total tokens"
+$popupCaption.Location = New-Object System.Drawing.Point(18, 52)
+$popupCaption.Size = New-Object System.Drawing.Size(264, 19)
+$popupCaption.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$popupCaption.ForeColor = $popupMuted
+$popup.Controls.Add($popupCaption)
+
+$popupTokens = New-Object System.Windows.Forms.Label
+$popupTokens.Text = "Loading..."
+$popupTokens.Location = New-Object System.Drawing.Point(16, 71)
+$popupTokens.Size = New-Object System.Drawing.Size(266, 43)
+$popupTokens.Font = New-Object System.Drawing.Font("Segoe UI", 23, [System.Drawing.FontStyle]::Bold)
+$popupTokens.ForeColor = $popupText
+$popup.Controls.Add($popupTokens)
+
+$popupRule = New-Object System.Windows.Forms.Panel
+$popupRule.Location = New-Object System.Drawing.Point(18, 123)
+$popupRule.Size = New-Object System.Drawing.Size(264, 1)
+$popupRule.BackColor = [System.Drawing.Color]::FromArgb(57, 72, 62)
+$popup.Controls.Add($popupRule)
+
+$verifiedCaption = New-Object System.Windows.Forms.Label
+$verifiedCaption.Text = "Verified cost"
+$verifiedCaption.Location = New-Object System.Drawing.Point(18, 136)
+$verifiedCaption.Size = New-Object System.Drawing.Size(126, 18)
+$verifiedCaption.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+$verifiedCaption.ForeColor = $popupMuted
+$popup.Controls.Add($verifiedCaption)
+
+$popupVerified = New-Object System.Windows.Forms.Label
+$popupVerified.Text = "—"
+$popupVerified.Location = New-Object System.Drawing.Point(18, 153)
+$popupVerified.Size = New-Object System.Drawing.Size(126, 25)
+$popupVerified.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$popupVerified.ForeColor = $popupText
+$popup.Controls.Add($popupVerified)
+
+$estimatedCaption = New-Object System.Windows.Forms.Label
+$estimatedCaption.Text = "LARP value"
+$estimatedCaption.Location = New-Object System.Drawing.Point(154, 136)
+$estimatedCaption.Size = New-Object System.Drawing.Size(128, 18)
+$estimatedCaption.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+$estimatedCaption.ForeColor = $popupMuted
+$popup.Controls.Add($estimatedCaption)
+
+$popupEstimated = New-Object System.Windows.Forms.Label
+$popupEstimated.Text = "—"
+$popupEstimated.Location = New-Object System.Drawing.Point(154, 153)
+$popupEstimated.Size = New-Object System.Drawing.Size(128, 25)
+$popupEstimated.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$popupEstimated.ForeColor = $popupText
+$popup.Controls.Add($popupEstimated)
+
+$popupOpen = New-Object System.Windows.Forms.Button
+$popupOpen.Text = "Open dashboard"
+$popupOpen.Location = New-Object System.Drawing.Point(18, 187)
+$popupOpen.Size = New-Object System.Drawing.Size(264, 30)
+$popupOpen.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$popupOpen.FlatAppearance.BorderSize = 0
+$popupOpen.BackColor = [System.Drawing.Color]::FromArgb(47, 90, 67)
+$popupOpen.ForeColor = $popupText
+$popupOpen.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$popupOpen.Cursor = [System.Windows.Forms.Cursors]::Hand
+$popup.Controls.Add($popupOpen)
+
+function Open-Dashboard {
+  $popup.Hide()
+  try {
+    Start-Process -FilePath $BaseUrl -ErrorAction Stop
+  } catch {
+    $notifyIcon.ShowBalloonTip(4000, "Token Larper", "Could not open the browser. Visit $BaseUrl manually.", [System.Windows.Forms.ToolTipIcon]::Warning)
+  }
+}
+
+$popupOpen.Add_Click({ Open-Dashboard })
+$popup.Add_KeyDown({
+  param($sender, $eventArgs)
+  if ($eventArgs.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
+    $popup.Hide()
+    $eventArgs.Handled = $true
+  }
+})
+$script:lastPopupDismissedAt = -1000
+$popup.Add_Deactivate({
+  if ($popup.Visible) {
+    $popup.Hide()
+    $script:lastPopupDismissedAt = [Environment]::TickCount
+  }
+})
+
+function Show-StatusPopup {
+  $cursor = [System.Windows.Forms.Cursor]::Position
+  $area = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
+  $x = [Math]::Max($area.Left + 8, [Math]::Min($cursor.X - $popup.Width + 24, $area.Right - $popup.Width - 8))
+  if ($cursor.Y -ge $area.Bottom) {
+    $y = $area.Bottom - $popup.Height - 8
+  } elseif ($cursor.Y -lt $area.Top) {
+    $y = $area.Top + 8
+  } else {
+    $y = [Math]::Max($area.Top + 8, [Math]::Min($cursor.Y - $popup.Height - 12, $area.Bottom - $popup.Height - 8))
+  }
+  $popup.Location = New-Object System.Drawing.Point($x, $y)
+  $popup.Show()
+  $popup.Activate() | Out-Null
+  $popupOpen.Focus() | Out-Null
+}
+
 # Context Menu
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 
@@ -71,9 +202,7 @@ $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
 $itemOpen = New-Object System.Windows.Forms.ToolStripMenuItem("Open Dashboard (http://localhost:$ServerPort)")
 $itemOpen.Font = New-Object System.Drawing.Font($itemOpen.Font, [System.Drawing.FontStyle]::Bold)
-$itemOpen.Add_Click({
-  Start-Process "$BaseUrl"
-})
+$itemOpen.Add_Click({ Open-Dashboard })
 $menu.Items.Add($itemOpen) | Out-Null
 
 $itemSync = New-Object System.Windows.Forms.ToolStripMenuItem("Sync Harnesses Now (ccusage)")
@@ -122,6 +251,8 @@ $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 $itemQuit = New-Object System.Windows.Forms.ToolStripMenuItem("Quit Token Larper")
 $itemQuit.Add_Click({
   $notifyIcon.Visible = $false
+  $popup.Close()
+  $popup.Dispose()
   try {
     Invoke-RestMethod -Uri "$BaseUrl/api/shutdown" -Method Post -ContentType "application/json" -TimeoutSec 3 | Out-Null
   } catch {}
@@ -135,9 +266,18 @@ $menu.Items.Add($itemQuit) | Out-Null
 
 $notifyIcon.ContextMenuStrip = $menu
 
-# Double-click tray icon opens dashboard
-$notifyIcon.Add_DoubleClick({
-  Start-Process "$BaseUrl"
+# Left-click toggles the status popup; right-click keeps the context menu.
+$notifyIcon.Add_MouseClick({
+  param($sender, $eventArgs)
+  if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+    if ($popup.Visible) {
+      $popup.Hide()
+    } elseif ([Environment]::TickCount - $script:lastPopupDismissedAt -gt 250) {
+      Show-StatusPopup
+    }
+  } elseif ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Right) {
+    $popup.Hide()
+  }
 })
 
 function Update-TrayStatus {
@@ -150,10 +290,17 @@ function Update-TrayStatus {
         $tooltip = $tooltip.Substring(0, 63)
       }
       $notifyIcon.Text = $tooltip
+      $popupTokens.Text = $st.totalTokensText
+      $popupVerified.Text = $st.verifiedCostText
+      $popupEstimated.Text = $st.estimatedCostText
       $itemBoot.Checked = [bool]$st.bootEnabled
       $itemOpenOnBoot.Checked = [bool]$st.openBrowserOnBoot
     }
-  } catch {}
+  } catch {
+    $popupTokens.Text = "Unavailable"
+    $popupVerified.Text = "—"
+    $popupEstimated.Text = "—"
+  }
 }
 
 # Timer to check parent Bun server health & update stats
@@ -164,6 +311,8 @@ $timer.Add_Tick({
   $proc = Get-Process -Id $ServerPid -ErrorAction SilentlyContinue
   if ($null -eq $proc) {
     $notifyIcon.Visible = $false
+    $popup.Close()
+    $popup.Dispose()
     $notifyIcon.Dispose()
     [System.Windows.Forms.Application]::Exit()
     return
@@ -176,6 +325,6 @@ $timer.Add_Tick({
 $timer.Start()
 
 Update-TrayStatus
-$notifyIcon.ShowBalloonTip(2500, "Token Larper Running", "Right-click or double-click the green t. icon in your system tray.", [System.Windows.Forms.ToolTipIcon]::Info)
+$notifyIcon.ShowBalloonTip(2500, "Token Larper Running", "Left-click the t. icon for usage; right-click for options.", [System.Windows.Forms.ToolTipIcon]::Info)
 
 [System.Windows.Forms.Application]::Run()

@@ -135,6 +135,9 @@ function startServer(preferredPort: number) {
       return Response.json({
         summaryText: `${tokStr} tokens · ${verStr} (${estStr} LARP) · ${data.totals.activeHarnesses} harnesses`,
         shortTooltip: `${tokStr} tok · ${estStr} LARP`,
+        totalTokensText: tokStr,
+        verifiedCostText: verStr,
+        estimatedCostText: estStr,
         bootEnabled: startup.enabled,
         openBrowserOnBoot: startup.openBrowserOnBoot,
       });
