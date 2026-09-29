@@ -1,0 +1,36 @@
+# Typecheck and test every pull request, including the version bump check.
+
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit -p .
+      - run: bun test
+
+      - name: Version is bumped
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          head=$(node -p "require('./package.json').version")
+          base=$(git show "origin/$BASE:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          echo "base $base, this PR $head"
+          node -e '
+            const [a, b] = process.argv.slice(1).map((v) => v.split("-")[0].split(".").map(Number));
+            for (let i = 0; i < 3; i++) if (a[i] !== b[i]) process.exit(a[i] > b[i] ? 0 : 1);
+            process.exit(1);
+          ' "$head" "$base" || { echo "::error file=package.json::Bump the version in package.json (base is $base)."; exit 1; }

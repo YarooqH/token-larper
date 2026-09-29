@@ -1,0 +1,75 @@
+# Publishes to npm and creates a GitHub Release whenever main has a version that
+# npm doesn't. Every PR bumps package.json, so each merge becomes one release.
+#
+# npm trusts this workflow directly (trusted publishing), so there is no npm token
+# to store. One-time setup on npmjs.com: token-larper > Settings > Trusted Publisher >
+# GitHub Actions, with user YarooqH, repository token-larper, workflow release.yml.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # tag and GitHub Release
+  id-token: write # npm trusted publishing and provenance
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Read version
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if npm view "token-larper@$version" version >/dev/null 2>&1; then
+            echo "token-larper@$version is already on npm; nothing to release."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.version.outputs.publish == 'true'
+
+      - uses: actions/setup-node@v6
+        if: steps.version.outputs.publish == 'true'
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Check
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          bun install --frozen-lockfile
+          bunx tsc --noEmit -p .
+          bun test
+
+      - name: Publish to npm
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          # Trusted publishing needs npm 11.5.1 or later.
+          npm install -g npm@latest
+          npm publish --access public
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists."
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+          fi
