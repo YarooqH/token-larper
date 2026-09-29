@@ -48,15 +48,39 @@ export async function checkForUpdates(force = false): Promise<UpdateStatus> {
 }
 
 /**
- * Start the latest version in the background. The new copy sees this server running
- * an older version, asks it to shut down, and takes over the same port (bin/cli.js).
+ * Run a program in the background, independent of this server.
+ *
+ * On Windows every child of this server inherits its listening socket, which keeps the
+ * port taken until the child exits. Start-Process launches the program through the shell
+ * instead, so it inherits nothing, and gives it a hidden console that anything it starts
+ * shares instead of opening windows of their own. Arguments must not contain double quotes.
  */
-export function startUpdate(port: number): void {
-  const child = spawn(process.execPath, ["x", `${PACKAGE}@latest`], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true,
-    env: { ...process.env, PORT: String(port), TOKEN_LARPER_NO_BROWSER: "1" },
+export function launchIndependent(program: string, args: string[], env: Record<string, string | undefined>): void {
+  if (process.platform === "win32") {
+    const quote = (value: string) => `'${value.replace(/'/g, "''")}'`;
+    const command = `Start-Process -WindowStyle Hidden -FilePath ${quote(program)} -ArgumentList ${args.map((a) => quote(`"${a}"`)).join(",")}`;
+    // Not detached: a PowerShell without any console fails to start the program.
+    spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
+      stdio: "ignore",
+      windowsHide: true,
+      env,
+    }).unref();
+    return;
+  }
+  spawn(program, args, { detached: true, stdio: "ignore", env }).unref();
+}
+
+/**
+ * Start the given version in the background. The new copy sees this server running an
+ * older version, asks it to shut down, and takes over the same port (src/server.ts).
+ * The exact version is installed because `@latest` can resolve from bun's cached
+ * package list and bring back the version already running.
+ */
+export function startUpdate(port: number, version: string): void {
+  if (!/^\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(version)) throw new Error(`Unexpected version "${version}"`);
+  launchIndependent(process.execPath, ["x", `${PACKAGE}@${version}`], {
+    ...process.env,
+    PORT: String(port),
+    TOKEN_LARPER_NO_BROWSER: "1",
   });
-  child.unref();
 }
