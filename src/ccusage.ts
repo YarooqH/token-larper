@@ -14,6 +14,7 @@ import type {
 import { isoWeek, localDateKey } from "./client/utils.ts";
 import { opencodeSessionUpdated, resolveSessionProject, saveSessionProjects } from "./projects.ts";
 import { APP_ROOT, DATA_DIR } from "./paths.ts";
+import { pricing, type Rates } from "./pricing.ts";
 
 const ROOT_DIR = APP_ROOT;
 const CACHE_DIR = DATA_DIR;
@@ -261,12 +262,6 @@ function resolveCcusageBinary(): { cmd: string[]; version: string } {
 }
 
 /**
- * Estimates realistic frontier API cost in USD when ccusage reports missingPricing: true or 0 cost
- * (e.g. for bleeding-edge models like claude-opus-5-5, gpt-6-sol, minimax-m3-free, etc.).
- */
-type Rates = [input: number, output: number, cacheWrite: number, cacheRead: number];
-
-/**
  * Anthropic list prices per 1M tokens, by family and version. Opus dropped from $15/$75
  * at 4.5, so a single "opus" rate overstated newer models about threefold. Names come in
  * both orders ("claude-opus-4-1-20250805", "claude-3-5-haiku"); an unversioned name
@@ -295,6 +290,11 @@ export function claudeRates(model: string): Rates | null {
   return [0.25, 1.25, 0.3, 0.03];
 }
 
+/**
+ * Estimates realistic frontier API cost in USD when ccusage reports missingPricing: true or 0 cost
+ * (e.g. for bleeding-edge models like claude-opus-5-5, gpt-6-sol, minimax-m3-free, etc.).
+ * Rates come from OpenRouter's price list when it lists the model, otherwise the built-in ones below.
+ */
 export function estimateFrontierCost(params: {
   modelName: string;
   inputTokens: number;
@@ -309,9 +309,9 @@ export function estimateFrontierCost(params: {
   // Pricing in USD per 1M tokens: [input, output, cacheWrite, cacheRead]
   let rates: Rates = [2.0, 8.0, 2.5, 0.2];
 
-  const claude = claudeRates(m);
-  if (claude) {
-    rates = claude;
+  const known = pricing.lookup(m) ?? claudeRates(m);
+  if (known) {
+    rates = known;
   } else if (m.includes("gpt-6") || m.includes("gpt-5") || m.includes("o3") || m.includes("o4")) {
     rates = [2.5, 10.0, 2.5, 0.25];
   } else if (m.includes("gemini") && m.includes("pro")) {
@@ -601,6 +601,10 @@ async function syncAntigravityInBackground(): Promise<void> {
 async function runHarnessRefresh(options?: { forceDeepScan?: boolean }): Promise<DashboardPayload> {
   mkdirSync(CACHE_DIR, { recursive: true });
 
+  // Starts now so the price download overlaps the ccusage runs below; estimates are
+  // built after they finish, and ensure() never throws or blocks for long.
+  const pricesReady = pricing.ensure();
+
   // Seed antigravity from disk cache immediately if available
   const diskAg = loadAntigravityFromDiskCache();
   if (diskAg && !inMemoryHarnessStore.has("antigravity")) {
@@ -642,6 +646,7 @@ async function runHarnessRefresh(options?: { forceDeepScan?: boolean }): Promise
     }
   }
 
+  await pricesReady;
   cachedDashboardPayload = buildDashboardPayloadFromStore();
   try {
     writeFileSync(DASHBOARD_CACHE_FILE, JSON.stringify(cachedDashboardPayload), "utf8");

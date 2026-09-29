@@ -21,11 +21,11 @@ Token Larper passively reads session files, SQLite databases, and telemetry logs
 It consolidates all sessions into a real-time, interactive local dashboard running on [`http://localhost:4269`](http://localhost:4269) on **Windows, macOS, and Linux**. On Windows, it also lives quietly in your notification area as a lightweight, DPI-aware system tray icon.
 
 * **Powered by `ccusage`**: Uses `ccusage` v20+ for cross-platform log parsing, token counting, and verified frontier model pricing.
-* **100% Private & Offline**: No API keys required, no external proxies to configure, and zero analytics or telemetry sent to the cloud. The one outbound request is an optional update check that asks npm for the latest version number; turn it off in **Settings → Updates**.
+* **100% Private & Offline**: No API keys required, no external proxies to configure, and zero analytics or telemetry sent to the cloud. The only outbound requests are two optional ones that send nothing about your usage: an update check that asks npm for the latest version number (turn it off in **Settings → Updates**), and a once-a-day download of OpenRouter's public model price list for cost estimates (set `TOKEN_LARPER_OFFLINE=1` to skip it).
 * **Cross-Platform Core**: The telemetry engine, 18 harness scrapers, and React dashboard run identically across Windows, macOS (Apple Silicon & Intel), and Linux.
 * **Gamified Hall of Larp**: Track your lifetime token burn, unlock 14 achievements, climb an 11-tier ranking ladder past rival personas, and export a shareable 1200×630 flex badge.
 * **Six Styles, Your Colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corner radius, spacing, borders, and shadows, not just colors. Pick a base color that tints backgrounds, borders, and text, and an accent for highlights, from presets or any custom color. Or import a tweakcn/shadcn CSS theme on top.
-* **Subscription-Aware**: Distinguishes between strict verified API billing and estimated **"LARP Value"** (the theoretical API cost of tokens consumed through flat-rate subscriptions like Claude Pro/Max, Copilot, or Antigravity).
+* **Subscription-Aware**: Distinguishes between strict verified API billing and estimated **"LARP Value"** (the theoretical API cost of tokens consumed through flat-rate subscriptions like Claude Pro/Max, Copilot, or Antigravity). Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
 
 ---
 
@@ -246,6 +246,11 @@ Set `TOKEN_LARPER_DATA_DIR` to use another folder. Versions before 1.5.0 kept th
 
 ### Updates
 When a new version is on npm, the dashboard shows a banner. **Update now** starts `bunx token-larper@latest` in the background; the new version replaces the running one on the same port and the dashboard reloads. You can also check from **Settings → Updates**, or turn automatic checks off there. A copy cloned from git updates with `git pull`.
+
+### Estimated Prices
+When ccusage has no price for a model (a brand-new one, or usage through a flat-rate subscription), Token Larper estimates the cost from list prices. It downloads OpenRouter's public model price list once a day, keeps it in the data folder as `openrouter-pricing.json`, and prices any model on that list from it. Other models use rates built into the app. Only the price list is downloaded; nothing about your usage is sent, and if the download fails the last saved list is used.
+
+Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may fall back to the built-in rates. Verified costs from ccusage are never changed. Set `TOKEN_LARPER_OFFLINE=1` to skip the download and use only the saved list (if any) and the built-in rates.
 
 ### Headless Server Mode
 If running on a remote headless server or Docker container, you can explicitly disable the tray icon (automatically disabled on macOS/Linux):
