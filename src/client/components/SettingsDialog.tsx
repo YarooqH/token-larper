@@ -4,22 +4,23 @@ import type { StartupConfig } from "../../types.ts";
 import { ThemeSettings } from "./ThemeSettings.tsx";
 import { UpdateSettings } from "./UpdateSettings.tsx";
 import type { Updates } from "../lib/updates.ts";
-import type { ImportedTheme, ThemeMode, ThemePalette } from "../themes.ts";
+import type { Appearance, ImportedTheme, ThemeMode } from "../themes.ts";
 
 interface Props {
   startup: StartupConfig | null;
   startupError: string | null;
   saving: boolean;
   themeMode: ThemeMode;
-  palette: ThemePalette;
+  followsSystemTheme: boolean;
+  appearance: Appearance;
   importedTheme: ImportedTheme | null;
   showRanks: boolean;
   updates: Updates;
   checkUpdates: boolean;
   onCheckUpdatesChange: (checkUpdates: boolean) => void;
   onClose: () => void;
-  onThemeModeChange: (mode: ThemeMode) => void;
-  onPaletteChange: (palette: ThemePalette) => void;
+  onThemeModeChange: (mode: ThemeMode | "system") => void;
+  onAppearanceChange: (appearance: Appearance) => void;
   onImportTheme: (theme: ImportedTheme) => void;
   onShowRanksChange: (showRanks: boolean) => void;
   onToggleStartup: (enabled: boolean, openBrowserOnBoot?: boolean) => void;
@@ -32,7 +33,8 @@ export function SettingsDialog({
   startupError,
   saving,
   themeMode,
-  palette,
+  followsSystemTheme,
+  appearance,
   importedTheme,
   showRanks,
   updates,
@@ -40,7 +42,7 @@ export function SettingsDialog({
   onCheckUpdatesChange,
   onClose,
   onThemeModeChange,
-  onPaletteChange,
+  onAppearanceChange,
   onImportTheme,
   onShowRanksChange,
   onToggleStartup,
@@ -103,10 +105,11 @@ export function SettingsDialog({
           {startupError && <div className="inline-error" role="alert">{startupError}</div>}
           <ThemeSettings
             mode={themeMode}
-            palette={palette}
+            followsSystem={followsSystemTheme}
+            appearance={appearance}
             importedTheme={importedTheme}
             onModeChange={onThemeModeChange}
-            onPaletteChange={onPaletteChange}
+            onAppearanceChange={onAppearanceChange}
             onImportTheme={onImportTheme}
           />
           <section className="settings-section" aria-labelledby="settings-dashboard-heading">

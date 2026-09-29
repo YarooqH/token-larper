@@ -1,7 +1,7 @@
 /* Token Larper: one theme, defined by tokens. Light is the default; dark swaps the
    tokens on html[data-theme="dark"] (set before first paint by index.html). */
 
-:root {
+:root, [data-style="grove"] {
   color-scheme: light;
   --bg: #f7f8f6;
   --surface: #ffffff;
@@ -47,7 +47,7 @@
   --radius-sm: 6px;
 }
 
-html[data-theme="dark"] {
+html[data-theme="dark"], [data-theme="dark"] [data-style="grove"] {
   color-scheme: dark;
   --bg: #141916;
   --surface: #1b221e;
@@ -86,77 +86,184 @@ html[data-theme="dark"] {
   --heat-4: #a6d8b0;
 }
 
-html[data-palette] {
-  --heat-0: color-mix(in srgb, var(--bg) 97%, var(--accent));
-  --heat-1: color-mix(in srgb, var(--bg) 84%, var(--accent));
-  --heat-2: color-mix(in srgb, var(--bg) 65%, var(--accent));
-  --heat-3: color-mix(in srgb, var(--bg) 42%, var(--accent));
-  --heat-4: color-mix(in srgb, var(--bg) 18%, var(--accent));
+/* ---------- Styles ----------
+   A style is the whole look: fonts, radius, spacing, borders, shadows and label casing,
+   plus its own light and dark colors. These blocks also match the preview tiles in
+   Settings (an element with data-style), which is how each tile renders in its own style.
+   Grove's structure tokens are the defaults for every style (and tile); the style layer
+   further down applies them. */
+
+:root, [data-style] {
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-heading: var(--font);
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --heading-weight: 700;
+  --heading-tracking: -0.01em;
+  --label-transform: none;
+  --label-tracking: 0;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-control: 6px;
+  --radius-pill: 999px;
+  --bar-radius: 4px 4px 0 0;
+  --border-w: 1px;
+  --panel-border: var(--border);
+  --shadow-card: none;
+  --shadow-control: none;
+  --pad: 20px 22px;
+  --kpi-pad: 18px 20px 16px;
+  --gap: 20px;
+  --control-h: 34px;
+  --cell-y: 10px;
 }
 
-html[data-palette="slate"] {
-  color-scheme: light;
-  --bg: #f5f6f8; --surface: #fff; --surface-2: #eef1f4; --surface-3: #e5e9ee;
-  --border: #dce1e7; --border-strong: #c1cad5; --text: #202833; --text-2: #4c5967; --text-3: #667381;
-  --accent: #495d75; --accent-ink: #fff; --accent-soft: #e6edf4; --focus: #536b89;
+/* Terminal: monospace everywhere, square corners, dense rows, uppercase labels. */
+[data-style="terminal"] {
+  --font: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --font-heading: var(--font);
+  --font-display: var(--font);
+  --heading-weight: 700;
+  --heading-tracking: 0;
+  --label-transform: uppercase;
+  --label-tracking: 0.06em;
+  --radius: 2px;
+  --radius-sm: 2px;
+  --radius-control: 2px;
+  --radius-pill: 2px;
+  --bar-radius: 0;
+  --pad: 16px 18px;
+  --kpi-pad: 14px 16px 12px;
+  --gap: 14px;
+  --control-h: 30px;
+  --cell-y: 7px;
+  --bg: #f4f6f1; --surface: #fbfcf8; --surface-2: #eef2ea; --surface-3: #e3e9dd;
+  --border: #d3dccd; --border-strong: #aab8a3; --panel-border: var(--border);
+  --text: #121a13; --text-2: #34473a; --text-3: #4b5f50;
+  --accent: #146c36; --accent-ink: #ffffff; --accent-soft: #dcecdf; --focus: #146c36; --gold: #8a6412;
 }
-html[data-palette="slate"][data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #14181d; --surface: #1b2128; --surface-2: #232b34; --surface-3: #2c3641;
-  --border: #303a45; --border-strong: #46525f; --text: #e8edf3; --text-2: #bbc5d0; --text-3: #9da8b4;
-  --accent: #9bb4d2; --accent-ink: #111a24; --accent-soft: #2a3747; --focus: #bfd4eb;
-}
-
-html[data-palette="ocean"] {
-  color-scheme: light;
-  --bg: #f3f8fb; --surface: #fff; --surface-2: #eaf2f6; --surface-3: #dce9ef;
-  --border: #d4e1e8; --border-strong: #b5cbd6; --text: #18303a; --text-2: #41616e; --text-3: #5d7782;
-  --accent: #17627a; --accent-ink: #fff; --accent-soft: #deedf2; --focus: #19718d;
-}
-html[data-palette="ocean"][data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #111a20; --surface: #17232a; --surface-2: #202f37; --surface-3: #293b44;
-  --border: #2a3a43; --border-strong: #405761; --text: #e5f0f3; --text-2: #b0c8d0; --text-3: #91adb7;
-  --accent: #78c5d8; --accent-ink: #10232a; --accent-soft: #203d47; --focus: #a5ddeb;
-}
-
-html[data-palette="iris"] {
-  color-scheme: light;
-  --bg: #f7f5fb; --surface: #fff; --surface-2: #f0edf6; --surface-3: #e7e1f0;
-  --border: #e0d9eb; --border-strong: #c9bddb; --text: #2c2438; --text-2: #5d526d; --text-3: #756a85;
-  --accent: #68518f; --accent-ink: #fff; --accent-soft: #ebe5f4; --focus: #765ba2;
-}
-html[data-palette="iris"][data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #171420; --surface: #201b2b; --surface-2: #2a2437; --surface-3: #352d44;
-  --border: #393148; --border-strong: #53476a; --text: #f0eaf8; --text-2: #c7bad8; --text-3: #aa9bbf;
-  --accent: #c0a4ec; --accent-ink: #21172f; --accent-soft: #352845; --focus: #d4c2f2;
+[data-theme="dark"][data-style="terminal"], [data-theme="dark"] [data-style="terminal"] {
+  --bg: #0b0f0c; --surface: #0f1511; --surface-2: #141c16; --surface-3: #1b261e;
+  --border: #1f3024; --border-strong: #2f4a36; --panel-border: var(--border);
+  --text: #c8f7d0; --text-2: #8fd19a; --text-3: #74b481;
+  --accent: #5cf08a; --accent-ink: #06140a; --accent-soft: #123020; --focus: #5cf08a; --gold: #e8c35a;
 }
 
-html[data-palette="clay"] {
-  color-scheme: light;
-  --bg: #faf5f0; --surface: #fff; --surface-2: #f4ece4; --surface-3: #ebdfd3;
-  --border: #e7d9ca; --border-strong: #ceb9a5; --text: #34271f; --text-2: #665246; --text-3: #806a5d;
-  --accent: #995431; --accent-ink: #fff; --accent-soft: #f2e4d8; --focus: #a55e37;
+/* Paper: serif headings on warm paper, hairlines, and generous spacing. */
+[data-style="paper"] {
+  --font-heading: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --font-display: var(--font-heading);
+  --heading-weight: 600;
+  --heading-tracking: 0;
+  --radius: 4px;
+  --radius-sm: 3px;
+  --radius-control: 3px;
+  --bar-radius: 1px 1px 0 0;
+  --pad: 26px 28px;
+  --kpi-pad: 22px 24px 20px;
+  --gap: 28px;
+  --control-h: 36px;
+  --cell-y: 12px;
+  --bg: #f5efe3; --surface: #fbf7ee; --surface-2: #f1e9d9; --surface-3: #e7dcc6;
+  --border: #e2d6bf; --border-strong: #cbb994; --panel-border: var(--border);
+  --text: #2a2118; --text-2: #5b4c3a; --text-3: #6b5a46;
+  --accent: #8c2f2b; --accent-ink: #ffffff; --accent-soft: #f1dfd6; --focus: #8c2f2b; --gold: #9a6b16;
 }
-html[data-palette="clay"][data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #1c1713; --surface: #261e19; --surface-2: #312720; --surface-3: #3b3027;
-  --border: #403329; --border-strong: #5a4739; --text: #f2e9e1; --text-2: #cdb9a8; --text-3: #b09a87;
-  --accent: #e1a177; --accent-ink: #2d1b11; --accent-soft: #3b2a20; --focus: #efbd9b;
+[data-theme="dark"][data-style="paper"], [data-theme="dark"] [data-style="paper"] {
+  --bg: #1b1712; --surface: #221d17; --surface-2: #2a241c; --surface-3: #342c22;
+  --border: #3a3127; --border-strong: #56483a; --panel-border: var(--border);
+  --text: #f1e8da; --text-2: #cdbca4; --text-3: #b3a189;
+  --accent: #e0907f; --accent-ink: #2a120e; --accent-soft: #3a2520; --focus: #e0907f; --gold: #e2b867;
 }
 
-html[data-palette="rose"] {
-  color-scheme: light;
-  --bg: #fbf5f7; --surface: #fff; --surface-2: #f5edf0; --surface-3: #eddee5;
-  --border: #e8d8e0; --border-strong: #d1b9c4; --text: #35242c; --text-2: #664d58; --text-3: #816976;
-  --accent: #934f67; --accent-ink: #fff; --accent-soft: #f3e5eb; --focus: #a65875;
+/* Brutal: thick ink outlines, hard offset shadows, no rounding, heavy headings. */
+[data-style="brutal"] {
+  --font-heading: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-display: var(--font-heading);
+  --heading-weight: 800;
+  --heading-tracking: -0.02em;
+  --label-transform: uppercase;
+  --label-tracking: 0.04em;
+  --radius: 0;
+  --radius-sm: 0;
+  --radius-control: 0;
+  --radius-pill: 0;
+  --bar-radius: 0;
+  --border-w: 2px;
+  --pad: 18px 20px;
+  --gap: 22px;
+  --control-h: 36px;
+  --cell-y: 9px;
+  --bg: #fff8e7; --surface: #ffffff; --surface-2: #fff1c9; --surface-3: #ffe79c;
+  --border: #111111; --border-strong: #111111; --panel-border: #111111;
+  --text: #111111; --text-2: #333333; --text-3: #474747;
+  --accent: #d81b60; --accent-ink: #ffffff; --accent-soft: #ffd6e6; --focus: #111111; --gold: #a06d00;
+  --shadow-card: 4px 4px 0 #111111;
+  --shadow-control: 2px 2px 0 #111111;
 }
-html[data-palette="rose"][data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #1e151a; --surface: #281c22; --surface-2: #35252d; --surface-3: #402d37;
-  --border: #45303a; --border-strong: #604450; --text: #f4e9ee; --text-2: #d0b8c2; --text-3: #b499a5;
-  --accent: #dfa1b4; --accent-ink: #301a22; --accent-soft: #402a34; --focus: #efbdcc;
+[data-theme="dark"][data-style="brutal"], [data-theme="dark"] [data-style="brutal"] {
+  --bg: #121212; --surface: #1c1c1c; --surface-2: #262626; --surface-3: #333333;
+  --border: #f5f5f5; --border-strong: #f5f5f5; --panel-border: #f5f5f5;
+  --text: #f5f5f5; --text-2: #d4d4d4; --text-3: #bdbdbd;
+  --accent: #ff79b0; --accent-ink: #1a0010; --accent-soft: #3d1628; --focus: #ff79b0; --gold: #ffd166;
+  --shadow-card: 4px 4px 0 #ff79b0;
+  --shadow-control: 2px 2px 0 #ff79b0;
+}
+
+/* Soft: big radii, pill controls, borderless cards on soft shadows. */
+[data-style="soft"] {
+  --font: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-heading: var(--font);
+  --heading-weight: 650;
+  --heading-tracking: -0.015em;
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-control: 999px;
+  --bar-radius: 999px 999px 0 0;
+  --pad: 24px 26px;
+  --kpi-pad: 20px 22px 18px;
+  --gap: 24px;
+  --control-h: 36px;
+  --cell-y: 11px;
+  --bg: #f4f2fb; --surface: #ffffff; --surface-2: #f1eefa; --surface-3: #e6e1f5;
+  --border: #e7e2f3; --border-strong: #d4cdea; --panel-border: transparent;
+  --text: #26213a; --text-2: #585173; --text-3: #635c80;
+  --accent: #6d5bd0; --accent-ink: #ffffff; --accent-soft: #ece8fb; --focus: #6d5bd0; --gold: #a86d12;
+  --shadow-card: 0 1px 2px rgb(38 33 58 / 6%), 0 10px 30px rgb(38 33 58 / 8%);
+}
+[data-theme="dark"][data-style="soft"], [data-theme="dark"] [data-style="soft"] {
+  --bg: #16141f; --surface: #1f1c2b; --surface-2: #272337; --surface-3: #302b42;
+  --border: #2e2940; --border-strong: #443d5c; --panel-border: transparent;
+  --text: #efecf8; --text-2: #c3bddb; --text-3: #a59fc0;
+  --accent: #b3a6ff; --accent-ink: #1b1535; --accent-soft: #2c2645; --focus: #b3a6ff; --gold: #e8b95c;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
+}
+
+/* Mono: black on white in light mode, white on black in dark; the accent is the ink.
+   Chart series keep their colors, since tools must stay distinguishable. */
+[data-style="mono"] {
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-control: 6px;
+  --bar-radius: 2px 2px 0 0;
+  --bg: #ffffff; --surface: #ffffff; --surface-2: #f4f4f4; --surface-3: #e8e8e8;
+  --border: #e2e2e2; --border-strong: #c4c4c4; --panel-border: var(--border);
+  --text: #0a0a0a; --text-2: #404040; --text-3: #595959;
+  --accent: #0a0a0a; --accent-ink: #ffffff; --accent-soft: #efefef; --focus: #0a0a0a; --gold: #3a3a3a;
+}
+[data-theme="dark"][data-style="mono"], [data-theme="dark"] [data-style="mono"] {
+  --bg: #000000; --surface: #0a0a0a; --surface-2: #161616; --surface-3: #222222;
+  --border: #262626; --border-strong: #3d3d3d; --panel-border: var(--border);
+  --text: #fafafa; --text-2: #c4c4c4; --text-3: #a3a3a3;
+  --accent: #fafafa; --accent-ink: #0a0a0a; --accent-soft: #1f1f1f; --focus: #fafafa; --gold: #d4d4d4;
+}
+
+/* Styles other than Grove, and any accent override, derive the calendar ramp from the accent. */
+html[data-style]:not([data-style="grove"]), html[data-accent="custom"] {
+  --heat-0: color-mix(in srgb, var(--bg) 94%, var(--text));
+  --heat-1: color-mix(in srgb, var(--bg) 78%, var(--accent));
+  --heat-2: color-mix(in srgb, var(--bg) 55%, var(--accent));
+  --heat-3: color-mix(in srgb, var(--bg) 30%, var(--accent));
+  --heat-4: var(--accent);
 }
 
 /* ---------- Base ---------- */
@@ -956,12 +1063,6 @@ img { display: block; }
 .settings-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .settings-section-heading h4 { font-size: 12.5px; }
 .settings-section-heading span { color: var(--text-3); font-size: 12px; }
-.theme-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0 10px; color: var(--text-2); font-size: 12.5px; }
-.palette-picker { margin-bottom: 5px; }
-.palette-picker .select-menu-trigger { height: 50px; padding: 5px 10px; }
-.palette-picker .select-menu-list { width: 100%; }
-.palette-picker .select-menu-option { min-height: 46px; }
-.palette-color { display: block; width: 24px; height: 24px; flex: 0 0 24px; border-radius: 5px; }
 .theme-import { margin-top: 14px; border-top: 1px solid var(--border); }
 .theme-import > summary {
   display: flex;
@@ -1082,6 +1183,134 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 }
 .splash-card h2 { color: var(--text); font-size: 19px; }
 .splash-logo { width: 64px; height: 64px; color: var(--text); }
+
+/* ---------- Style layer ----------
+   Maps the style tokens onto components. It sits after the component rules so a style
+   can change them, and before the responsive rules so small screens still win. */
+
+.brand h1, .intro h2, .panel-head h2, .kpi-value, .mix-list dd strong, .modal-header h3, .splash-card h2 {
+  font-family: var(--font-heading);
+  font-weight: var(--heading-weight);
+  letter-spacing: var(--heading-tracking);
+}
+.sheet { --sheet-serif: var(--font-display); }
+.field-label, .kpi-label, .table th, .subhead, .sheet-row-label, .sheet-numbers dt, .settings-section-heading h4, .theme-row-label {
+  text-transform: var(--label-transform);
+  letter-spacing: var(--label-tracking);
+}
+
+.content, .split { gap: var(--gap); }
+.panel, .kpi-grid {
+  border-width: var(--border-w);
+  border-color: var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+.panel { padding: var(--pad); }
+.kpi { padding: var(--kpi-pad); }
+.kpi + .kpi { border-left-width: var(--border-w); border-left-color: var(--panel-border); }
+.table td { padding-top: var(--cell-y); padding-bottom: var(--cell-y); }
+.uchart-stack { border-radius: var(--bar-radius); }
+
+.btn, .icon-btn, .field select, .range-trigger, .search, .select-menu-trigger, .segmented {
+  border-width: var(--border-w);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-control);
+}
+.btn { min-height: var(--control-h); }
+.icon-btn { width: var(--control-h); height: var(--control-h); }
+.segmented button { border-radius: max(0px, calc(var(--radius-control) - 2px)); }
+.pill, .rank-chip { border-radius: var(--radius-pill); }
+.rank-chip { border-width: var(--border-w); }
+.modal, .range-popover, .uchart-tip, .splash-card { border-width: var(--border-w); border-radius: var(--radius); }
+
+/* Brutal controls press into their shadow. */
+[data-style="brutal"] .btn:active, [data-style="brutal"] .icon-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+/* ---------- Appearance settings ---------- */
+
+.theme-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0 10px; }
+.theme-row-label { color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.theme-block { display: grid; gap: 8px; padding: 8px 0 10px; }
+
+.style-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
+.style-card {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+}
+.style-card:hover { border-color: var(--border-strong); }
+.style-card[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.style-card-text { display: grid; gap: 1px; padding: 0 3px 2px; }
+.style-card-text strong { color: var(--text); font-size: 12.5px; font-weight: 650; }
+.style-card-text span { color: var(--text-3); font-size: 11.5px; line-height: 1.35; }
+.style-card-check { position: absolute; top: 12px; right: 12px; padding: 2px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); }
+
+/* Everything inside the preview reads the tile's own style tokens. */
+.style-preview {
+  display: block;
+  height: 66px;
+  padding: 8px;
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-heading);
+  overflow: hidden;
+}
+.sp-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  height: 100%;
+  padding: 6px 9px;
+  border: var(--border-w) solid var(--panel-border);
+  border-radius: min(var(--radius), 10px);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.sp-title { align-self: center; font-size: 19px; font-weight: var(--heading-weight); letter-spacing: var(--heading-tracking); line-height: 1; }
+.sp-bars { display: flex; align-items: flex-end; gap: 3px; height: 100%; }
+.sp-bars i { width: 8px; border-radius: var(--bar-radius); background: var(--accent); }
+.sp-button { align-self: center; width: 26px; height: 12px; border-radius: min(var(--radius-control), 6px); background: var(--accent); box-shadow: var(--shadow-control); }
+
+.accent-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.accent-default {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.accent-default[aria-checked="true"] { border-color: var(--text); color: var(--text); }
+.accent-swatch { width: 28px; height: 28px; border: 2px solid var(--surface); border-radius: 50%; box-shadow: 0 0 0 1px var(--border-strong); }
+.accent-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--text); }
+.accent-custom {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-2);
+  cursor: pointer;
+  overflow: hidden;
+}
+.accent-custom.is-selected { border: 2px solid var(--surface); box-shadow: 0 0 0 2px var(--text); color: #fff; }
+.accent-custom.is-selected svg { mix-blend-mode: difference; }
+.accent-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.accent-custom:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* ---------- Responsive ---------- */
 
