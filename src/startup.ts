@@ -42,7 +42,7 @@ function saveSettings(settings: SavedSettings): void {
 }
 
 async function runReg(args: string[]): Promise<{ code: number; output: string; error: string }> {
-  const proc = Bun.spawn(["reg.exe", ...args], { stdout: "pipe", stderr: "pipe" });
+  const proc = Bun.spawn(["reg.exe", ...args], { stdout: "pipe", stderr: "pipe", windowsHide: true });
   const [output, error, code] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),

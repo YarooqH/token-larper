@@ -444,6 +444,7 @@ export async function startSystemTray(port: number): Promise<void> {
       {
         stdout: "pipe",
         stderr: "ignore",
+        windowsHide: true,
       }
     );
     const out = (await new Response(proc.stdout).text()).trim();
@@ -462,6 +463,7 @@ export function stopSystemTray(): void {
       Bun.spawnSync(["taskkill.exe", "/PID", String(trayPid), "/F"], {
         stdout: "ignore",
         stderr: "ignore",
+        windowsHide: true,
       });
     } catch {
       // ignore

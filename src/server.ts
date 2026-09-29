@@ -1,5 +1,6 @@
+import "./logFile.ts";
 import { join, resolve } from "node:path";
-import { getDashboardData } from "./ccusage.ts";
+import { getDashboardData, stopCcusageRuns } from "./ccusage.ts";
 import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./startup.ts";
 import { startSystemTray, stopSystemTray } from "./tray.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
@@ -60,7 +61,7 @@ function openDashboard(port: number) {
       : process.platform === "darwin"
       ? `open http://localhost:${port}`
       : `xdg-open http://localhost:${port}`;
-  import("node:child_process").then(({ exec }) => exec(cmd));
+  import("node:child_process").then(({ exec }) => exec(cmd, { windowsHide: true }));
 }
 
 /** The version of a Token Larper already on the port, "0.0.0" for one too old to say, or null if none. */
@@ -82,6 +83,22 @@ async function runningVersion(port: number): Promise<string | null> {
   }
 }
 
+async function waitForPort(port: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let announced = false;
+  while (true) {
+    try {
+      Bun.serve({ port, hostname: "127.0.0.1", fetch: () => new Response() }).stop(true);
+      return true;
+    } catch {
+      if (Date.now() > deadline) return false;
+      if (!announced) console.log(`Waiting for port ${port} to be released...`);
+      announced = true;
+      await Bun.sleep(500);
+    }
+  }
+}
+
 // A newer copy (after an update, or a fresh npx run) replaces an older one on the
 // same port. The same or a newer version already running just gets opened.
 const running = await runningVersion(PORT);
@@ -98,6 +115,10 @@ if (running !== null && compareVersions(running, APP_VERSION) < 0) {
     // It may exit before answering.
   }
   for (let i = 0; i < 40 && (await runningVersion(PORT)) !== null; i++) await Bun.sleep(250);
+  // The old copy can stop answering before its port is free: on Windows, processes it
+  // started hold the socket until they exit. Wait for the port rather than moving to the
+  // next one, which the open dashboard isn't watching.
+  if (!(await waitForPort(PORT, 90_000))) console.warn(`Port ${PORT} is still taken after 90 s.`);
 } else if (running !== null) {
   console.log(`🔥 Token Larper is already running at http://localhost:${PORT}`);
   console.log(`🚀 Opening dashboard in your default browser...`);
@@ -231,8 +252,12 @@ function startServer(preferredPort: number) {
         return Response.json({ error: "This copy runs from a git checkout. Update it with git pull." }, { status: 409 });
       }
       try {
-        startUpdate(activePort);
-        return Response.json({ ok: true });
+        const status = await checkForUpdates();
+        if (!status.updateAvailable || !status.latest) {
+          return Response.json({ error: status.error ?? "Already on the latest version." }, { status: 409 });
+        }
+        startUpdate(activePort, status.latest);
+        return Response.json({ ok: true, version: status.latest });
       } catch (error) {
         return Response.json({ error: error instanceof Error ? error.message : "Could not start the update" }, { status: 500 });
       }
@@ -240,6 +265,7 @@ function startServer(preferredPort: number) {
 
     if (url.pathname === "/api/shutdown" && req.method === "POST") {
       setTimeout(() => {
+        stopCcusageRuns();
         stopSystemTray();
         server.stop(true);
         process.exit(0);
@@ -266,13 +292,12 @@ const server = startServer(PORT);
 startSystemTray(server.port ?? PORT);
 void repointStartupIfStale();
 
-process.on("SIGINT", () => {
-  stopSystemTray();
-  process.exit(0);
-});
-process.on("SIGTERM", () => {
-  stopSystemTray();
-  process.exit(0);
-});
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    stopCcusageRuns();
+    stopSystemTray();
+    process.exit(0);
+  });
+}
 
 console.log(`🔥 Token Larper running at http://localhost:${server.port} (System Tray Icon Active)`);

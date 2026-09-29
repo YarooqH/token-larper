@@ -337,6 +337,21 @@ export function estimateFrontierCost(params: {
   );
 }
 
+// Runs still in progress. On Windows a child keeps the server's listening socket open, so
+// shutdown stops them; otherwise a newer copy can't take over the port.
+const activeRuns = new Set<ReturnType<typeof Bun.spawn>>();
+
+export function stopCcusageRuns(): void {
+  for (const proc of activeRuns) {
+    try {
+      proc.kill();
+    } catch {
+      // Already exited.
+    }
+  }
+  activeRuns.clear();
+}
+
 async function runCcusageJson(subcommandArgs: string[], timeoutMs = 25000): Promise<any | null> {
   const { cmd } = resolveCcusageBinary();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -345,7 +360,10 @@ async function runCcusageJson(subcommandArgs: string[], timeoutMs = 25000): Prom
     const proc = Bun.spawn([...cmd, ...subcommandArgs, "--json", "-O"], {
       stdout: "pipe",
       stderr: "ignore",
+      windowsHide: true,
     });
+    activeRuns.add(proc);
+    void proc.exited.finally(() => activeRuns.delete(proc));
 
     timer = setTimeout(() => {
       try {

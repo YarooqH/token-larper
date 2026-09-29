@@ -32,7 +32,7 @@ function dataDir() {
 
 function bunPath() {
   if (typeof Bun !== "undefined") return process.execPath;
-  if (spawnSync("bun", ["--version"], { stdio: "ignore" }).status === 0) return "bun";
+  if (spawnSync("bun", ["--version"], { stdio: "ignore", windowsHide: true }).status === 0) return "bun";
   console.error("🔥 Token Larper requires Bun (v1.1+) to run.");
   console.error("\nInstall Bun with one command:");
   if (process.platform === "win32") {
@@ -85,26 +85,47 @@ async function foreground() {
   process.exit(child.status ?? 0);
 }
 
+/**
+ * Start the server so it outlives this terminal. On Windows it goes through Start-Process:
+ * the server then gets a hidden console that everything it starts shares (a process with
+ * no console at all makes Windows open a window for each console program it runs), and it
+ * inherits no handles, so it can't end up holding an older copy's port when this CLI was
+ * itself started by one during an update. The server writes its own log (src/logFile.ts).
+ */
+function startServerProcess(bun, env) {
+  if (process.platform === "win32") {
+    const quote = (value) => `'${value.replace(/'/g, "''")}'`;
+    const command = [
+      "Start-Process -WindowStyle Hidden",
+      `-FilePath ${quote(bun)}`,
+      `-ArgumentList ${quote(`"${serverScript}"`)}`,
+      `-WorkingDirectory ${quote(rootDir)}`,
+    ].join(" ");
+    const hop = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
+      stdio: "ignore",
+      windowsHide: true,
+      env,
+    });
+    return hop.status === 0;
+  }
+  spawn(bun, [serverScript], { cwd: rootDir, detached: true, stdio: "ignore", env }).unref();
+  return true;
+}
+
 async function background(open) {
   const bun = bunPath();
   const dir = dataDir();
   mkdirSync(dir, { recursive: true });
   const logFile = join(dir, "server.log");
-  const log = openSync(logFile, "w");
+  closeSync(openSync(logFile, "w"));
 
   // The server moves to the next free port if another program has this one, and takes
   // over from an older Token Larper on the same port (see src/server.ts).
-  const child = spawn(bun, [serverScript], {
-    cwd: rootDir,
-    detached: true,
-    windowsHide: true,
-    stdio: ["ignore", log, log],
-    env: { ...process.env, TOKEN_LARPER_NO_BROWSER: "1" },
+  const started = startServerProcess(bun, {
+    ...process.env,
+    TOKEN_LARPER_NO_BROWSER: "1",
+    TOKEN_LARPER_LOG_FILE: logFile,
   });
-  let exited = false;
-  child.on("exit", () => (exited = true));
-  child.unref();
-  closeSync(log);
 
   const readLog = () => {
     try {
@@ -117,10 +138,22 @@ async function background(open) {
   // Ready once the server says where it is listening. A copy of the same version that
   // is already running says so too ("already running at ..."), then the new one exits.
   let url = null;
-  for (let i = 0; i < 120 && !url; i++) {
+  let waitingForPort = false;
+  for (let i = 0; started && i < 120 && !url; i++) {
     await sleep(250);
-    url = readLog().match(/running at (http:\/\/localhost:\d+)/)?.[1] ?? null;
-    if (!url && exited) break;
+    const text = readLog();
+    url = text.match(/running at (http:\/\/localhost:\d+)/)?.[1] ?? null;
+    // Taking over from an older copy can take a minute while its port is released. This
+    // CLI may be holding that port itself (when the old copy started it for an update),
+    // so leave now instead of waiting.
+    waitingForPort = !url && text.includes("Waiting for port");
+    if (waitingForPort) break;
+    if (/Token Larper stopped:/.test(text)) break;
+  }
+
+  if (waitingForPort) {
+    console.log(`🔥 Token Larper is replacing an older copy. It will be at http://localhost:${port} in a minute.`);
+    process.exit(0);
   }
 
   if (!url) {
