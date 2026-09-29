@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">Token Larper</title>
-  <!-- The tray icon in src/tray.ts draws this same geometry; keep the two in sync. -->
-  <rect x="3" y="3" width="58" height="58" rx="14" fill="#2f5a43"/>
-  <path d="M20 12h8v31.5c0 1.7.8 2.5 2.5 2.5H35v7h-6.5C22.8 53 20 50.2 20 44.5z" fill="#f3e3bf"/>
-  <rect x="13" y="21" width="22" height="7" fill="#f3e3bf"/>
-  <circle cx="45" cy="47.5" r="5.5" fill="#e1b75c"/>
-</svg>

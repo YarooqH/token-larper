@@ -1,3 +1,4 @@
+import { logoPaths } from "../logoMark.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 import { formatSpan } from "./range.ts";
 import { lastDefeated, nextRival, rankFor, TIERS, type LifetimeStats } from "./rank.ts";
@@ -94,12 +95,7 @@ export function shareCardSvg(stats: LifetimeStats, opts: CardOptions, c: CardCol
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}" viewBox="0 0 ${CARD_W} ${CARD_H}" font-family="${FONT}">
 <rect width="${CARD_W}" height="${CARD_H}" fill="${c.bg}"/>
-<g transform="translate(80 64) scale(0.875)">
-<rect x="3" y="3" width="58" height="58" rx="14" fill="${c.accent}"/>
-<path d="M20 12h8v31.5c0 1.7.8 2.5 2.5 2.5H35v7h-6.5C22.8 53 20 50.2 20 44.5z" fill="${c.accentInk}"/>
-<rect x="13" y="21" width="22" height="7" fill="${c.accentInk}"/>
-<circle cx="45" cy="47.5" r="5.5" fill="${c.gold}"/>
-</g>
+<g transform="translate(80 64) scale(0.875)">${logoPaths(c.text)}</g>
 <text x="148" y="104" font-size="28" font-weight="700" fill="${c.text}">Token Larper</text>
 <text x="${CARD_W - 80}" y="104" font-size="20" fill="${c.text3}" text-anchor="end">${esc(since)}</text>
 <text x="80" y="196" font-size="22" font-weight="700" letter-spacing="3" fill="${c.gold}">LARP RANK · LEVEL ${rank.tier.level} OF ${TIERS.length}</text>
