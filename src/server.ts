@@ -188,11 +188,6 @@ function startServer(preferredPort: number) {
       return Response.json({ ok: true });
     }
 
-    if (url.pathname === "/api/tray/ensure" && req.method === "POST") {
-      const active = await startSystemTray(PORT);
-      return Response.json({ active }, { status: active ? 200 : 503 });
-    }
-
     if (url.pathname === "/api/startup" && req.method === "GET") {
       const status = await getStartupStatus(PORT);
       return Response.json(status);

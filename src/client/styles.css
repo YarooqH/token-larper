@@ -1184,10 +1184,6 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 
 /* ---------- Credit ---------- */
 
-.credit { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 48px; color: var(--text-3); font-size: 12px; }
-.credit a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
-.credit a:hover { color: var(--text); text-decoration-color: currentColor; }
-.credit-heart { vertical-align: -1px; color: var(--accent); fill: currentColor; }
 
 /* ---------- Splash screens ---------- */
 

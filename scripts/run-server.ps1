@@ -25,28 +25,14 @@ try {
 }
 
 $baseUrl = "http://127.0.0.1:$port"
-$serverRunning = $false
 try {
   $status = Invoke-RestMethod -Uri "$baseUrl/api/tray-status" -TimeoutSec 2
   if ($null -ne $status.shortTooltip) {
-    $serverRunning = $true
+    if ($openBrowser) { Start-Process $baseUrl }
+    exit 0
   }
 } catch {
   # The server is not running yet.
-}
-
-if ($serverRunning) {
-  try {
-    $tray = Invoke-RestMethod -Uri "$baseUrl/api/tray/ensure" -Method Post -ContentType "application/json" -TimeoutSec 10
-    if (-not $tray.active) { throw "The tray icon could not be started" }
-    Remove-Item -LiteralPath (Join-Path $cacheDir "startup-error.log") -ErrorAction SilentlyContinue
-    if ($openBrowser) { Start-Process $baseUrl }
-    exit 0
-  } catch {
-    New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $cacheDir "startup-error.log") -Value $_.Exception.Message
-    exit 1
-  }
 }
 
 try {

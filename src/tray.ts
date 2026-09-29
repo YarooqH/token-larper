@@ -373,7 +373,7 @@ $notifyIcon.ShowBalloonTip(2500, "Token Larper Running", "Left-click the t. icon
 [System.Windows.Forms.Application]::Run()
 `.trim();
 
-  writeFileSync(TRAY_PS1_PATH, `\uFEFF${psScript}`, "utf8");
+  writeFileSync(TRAY_PS1_PATH, psScript, "utf8");
 
   // Generate WinSta0\Default desktop trampoline so even sandboxed terminals attach to Explorer's tray
   const launcherScript = `
@@ -421,21 +421,13 @@ $launchedPid = [DefaultDesktopLauncher]::LaunchOnDefaultDesktop($cmd, "${ROOT_DI
 Write-Output $launchedPid
 `.trim();
 
-  writeFileSync(TRAY_LAUNCHER_PS1, `\uFEFF${launcherScript}`, "utf8");
+  writeFileSync(TRAY_LAUNCHER_PS1, launcherScript, "utf8");
   return TRAY_LAUNCHER_PS1;
 }
 
-export async function startSystemTray(port: number): Promise<boolean> {
-  if (process.platform !== "win32" || process.env.NO_TRAY === "1") return false;
-
-  if (trayPid) {
-    try {
-      process.kill(trayPid, 0);
-      return true;
-    } catch {
-      trayPid = null;
-    }
-  }
+export async function startSystemTray(port: number): Promise<void> {
+  if (process.platform !== "win32") return;
+  if (process.env.NO_TRAY === "1") return;
 
   try {
     const launcherPath = generateTrayScript(port, process.pid);
@@ -458,13 +450,10 @@ export async function startSystemTray(port: number): Promise<boolean> {
     const parsedPid = Number(out);
     if (Number.isFinite(parsedPid) && parsedPid > 0) {
       trayPid = parsedPid;
-      return true;
     }
-    console.error("Failed to launch system tray icon (launcher code):", out);
   } catch (err) {
     console.error("Failed to launch system tray icon:", err);
   }
-  return false;
 }
 
 export function stopSystemTray(): void {
