@@ -1,8 +1,9 @@
 import { Database } from "bun:sqlite";
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { HarnessId } from "./types.ts";
+import { dataPath } from "./paths.ts";
 
 // ccusage reports a usable project for only some harnesses, so the working directory is
 // read from each harness's own session files. A session's cwd never changes, so found
@@ -11,7 +12,7 @@ import type { HarnessId } from "./types.ts";
 const HOME = homedir();
 const cwdCache = new Map<string, string | null>();
 const repoCache = new Map<string, string | null>();
-const CACHE_FILE = join(resolve(import.meta.dir, ".."), ".cache", "session-projects.json");
+const CACHE_FILE = dataPath("session-projects.json");
 let diskLoaded = false;
 let dirty = false;
 let opencodeDirs: Map<string, { directory: string; updated: number }> | null = null;

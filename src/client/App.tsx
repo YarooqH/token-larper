@@ -8,6 +8,8 @@ import { Logo } from "./components/Logo.tsx";
 import { RankChip } from "./components/RankChip.tsx";
 import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
+import { UpdateBanner } from "./components/UpdateBanner.tsx";
+import { useUpdates } from "./lib/updates.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
 import { Models } from "./views/Models.tsx";
@@ -51,10 +53,13 @@ interface Prefs {
   customEnd?: string;
   bucket: Bucket;
   estimated: boolean;
+  checkUpdates: boolean;
+  /** The version whose banner was closed; a later version shows it again. */
+  dismissedUpdate?: string;
 }
 
 function loadPrefs(): Prefs {
-  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false };
+  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false, checkUpdates: true };
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     const saved: Partial<Prefs> = raw && typeof raw === "object" ? raw : {};
@@ -74,6 +79,8 @@ function loadPrefs(): Prefs {
       bucket,
       preset: preset === "custom" && !customDatesValid ? defaults.preset : preset,
       estimated: saved.estimated === true,
+      checkUpdates: saved.checkUpdates !== false,
+      ...(typeof saved.dismissedUpdate === "string" ? { dismissedUpdate: saved.dismissedUpdate } : {}),
       ...(customDatesValid ? { customStart: saved.customStart, customEnd: saved.customEnd } : {}),
     };
   } catch {
@@ -126,6 +133,9 @@ export function App() {
   const [importedTheme, setImportedTheme] = useState<ImportedTheme | null>(readImportedTheme);
 
   const updatePrefs = (patch: Partial<Prefs>) => setPrefs((p) => ({ ...p, ...patch }));
+  const updates = useUpdates(prefs.checkUpdates);
+  const showUpdateBanner = updates.phase !== "idle" || (prefs.checkUpdates && !!updates.status?.updateAvailable
+    && updates.status.latest !== prefs.dismissedUpdate);
 
   function setShowRanks(showRanks: boolean) {
     setPrefs((p) => ({ ...p, showRanks, view: !showRanks && p.view === "rank" ? "overview" : p.view }));
@@ -474,6 +484,10 @@ export function App() {
           </div>
         </header>
 
+        {showUpdateBanner && (
+          <UpdateBanner updates={updates} onDismiss={() => updatePrefs({ dismissedUpdate: updates.status?.latest ?? undefined })} />
+        )}
+
         <nav className="tabs" aria-label="Dashboard views">
           {VIEWS.filter((v) => v.id !== "rank" || prefs.showRanks).map((v) => (
             <button
@@ -554,6 +568,9 @@ export function App() {
             palette={palette}
             importedTheme={importedTheme}
             showRanks={prefs.showRanks}
+            updates={updates}
+            checkUpdates={prefs.checkUpdates}
+            onCheckUpdatesChange={(checkUpdates) => updatePrefs({ checkUpdates })}
             onClose={closeSettings}
             onThemeModeChange={changeThemeMode}
             onPaletteChange={changePalette}

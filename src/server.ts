@@ -1,9 +1,11 @@
 import { join, resolve } from "node:path";
 import { getDashboardData } from "./ccusage.ts";
-import { getStartupStatus, setStartupStatus } from "./startup.ts";
+import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./startup.ts";
 import { startSystemTray, stopSystemTray } from "./tray.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
 import { logoSvgFile } from "./client/logoMark.ts";
+import { APP_VERSION, RUNNING_FROM_SOURCE } from "./paths.ts";
+import { checkForUpdates, compareVersions, localStatus, startUpdate } from "./updates.ts";
 
 const ROOT_DIR = resolve(import.meta.dir, "..");
 const CLIENT_DIR = join(ROOT_DIR, "src", "client");
@@ -49,26 +51,56 @@ function isAllowedMutation(req: Request, port: number): boolean {
   return (req.headers.get("content-type") || "").toLowerCase().startsWith("application/json");
 }
 
-// Check if Token Larper is already running on the target port
-try {
-  const existing = await fetch(`http://127.0.0.1:${PORT}/api/tray-status`, {
-    signal: AbortSignal.timeout(600),
-  });
-  if (existing.ok) {
-    console.log(`🔥 Token Larper is already running at http://localhost:${PORT}`);
-    console.log(`🚀 Opening dashboard in your default browser...`);
-    const cmd =
-      process.platform === "win32"
-        ? `start http://localhost:${PORT}`
-        : process.platform === "darwin"
-        ? `open http://localhost:${PORT}`
-        : `xdg-open http://localhost:${PORT}`;
-    const { exec } = await import("node:child_process");
-    exec(cmd);
-    process.exit(0);
+function openDashboard(port: number) {
+  if (process.env.TOKEN_LARPER_NO_BROWSER === "1") return;
+  const cmd =
+    process.platform === "win32"
+      ? `start http://localhost:${port}`
+      : process.platform === "darwin"
+      ? `open http://localhost:${port}`
+      : `xdg-open http://localhost:${port}`;
+  import("node:child_process").then(({ exec }) => exec(cmd));
+}
+
+/** The version of a Token Larper already on the port, "0.0.0" for one too old to say, or null if none. */
+async function runningVersion(port: number): Promise<string | null> {
+  try {
+    const status = await fetch(`http://127.0.0.1:${port}/api/tray-status`, { signal: AbortSignal.timeout(600) });
+    if (!status.ok) return null;
+  } catch {
+    return null;
   }
-} catch {
-  // Not running, proceed with startup
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/version`, { signal: AbortSignal.timeout(600) });
+    const body = (await res.json()) as { current?: unknown };
+    return typeof body.current === "string" ? body.current : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+// A newer copy (after an update, or a fresh npx run) replaces an older one on the
+// same port. The same or a newer version already running just gets opened.
+const running = await runningVersion(PORT);
+if (running !== null && compareVersions(running, APP_VERSION) < 0) {
+  console.log(`⬆️  Replacing Token Larper ${running} with ${APP_VERSION}...`);
+  try {
+    await fetch(`http://127.0.0.1:${PORT}/api/shutdown`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch {
+    // It may exit before answering.
+  }
+  for (let i = 0; i < 40 && (await runningVersion(PORT)) !== null; i++) await Bun.sleep(250);
+} else if (running !== null) {
+  console.log(`🔥 Token Larper is already running at http://localhost:${PORT}`);
+  console.log(`🚀 Opening dashboard in your default browser...`);
+  openDashboard(PORT);
+  await Bun.sleep(300);
+  process.exit(0);
 }
 
 // Warm cached usage before the first dashboard request.
@@ -173,6 +205,24 @@ function startServer(preferredPort: number) {
       }
     }
 
+    if (url.pathname === "/api/version" && req.method === "GET") {
+      // Only a request from the dashboard reaches out to npm.
+      if (url.searchParams.get("check") !== "1") return Response.json(localStatus());
+      return Response.json(await checkForUpdates(url.searchParams.get("force") === "1"));
+    }
+
+    if (url.pathname === "/api/update" && req.method === "POST") {
+      if (RUNNING_FROM_SOURCE) {
+        return Response.json({ error: "This copy runs from a git checkout. Update it with git pull." }, { status: 409 });
+      }
+      try {
+        startUpdate(activePort);
+        return Response.json({ ok: true });
+      } catch (error) {
+        return Response.json({ error: error instanceof Error ? error.message : "Could not start the update" }, { status: 500 });
+      }
+    }
+
     if (url.pathname === "/api/shutdown" && req.method === "POST") {
       setTimeout(() => {
         stopSystemTray();
@@ -199,6 +249,7 @@ function startServer(preferredPort: number) {
 
 const server = startServer(PORT);
 startSystemTray(server.port ?? PORT);
+void repointStartupIfStale();
 
 process.on("SIGINT", () => {
   stopSystemTray();

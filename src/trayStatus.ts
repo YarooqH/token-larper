@@ -1,13 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import type { DashboardPayload, StartupConfig } from "./types.ts";
+import { dataPath } from "./paths.ts";
 import { rankFor } from "./client/lib/rank.ts";
 import { formatCurrency, localDateKey } from "./client/utils.ts";
 
 // Everything the tray shows is formatted here, so the PowerShell script only places
 // strings and never needs non-ASCII literals of its own.
 
-const THEME_FILE = join(resolve(import.meta.dir, ".."), ".cache", "ui-theme.json");
+const THEME_FILE = dataPath("ui-theme.json");
 const THEME_KEYS = ["surface", "text", "text2", "text3", "border", "accent", "accentInk", "gold"] as const;
 
 export type TrayTheme = Record<(typeof THEME_KEYS)[number], string> & { mode: "light" | "dark" };

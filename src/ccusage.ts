@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type {
   DashboardPayload,
   HarnessId,
@@ -13,9 +13,10 @@ import type {
 } from "./types.ts";
 import { isoWeek, localDateKey } from "./client/utils.ts";
 import { opencodeSessionUpdated, resolveSessionProject, saveSessionProjects } from "./projects.ts";
+import { APP_ROOT, DATA_DIR } from "./paths.ts";
 
-const ROOT_DIR = resolve(import.meta.dir, "..");
-const CACHE_DIR = join(ROOT_DIR, ".cache");
+const ROOT_DIR = APP_ROOT;
+const CACHE_DIR = DATA_DIR;
 const DASHBOARD_CACHE_FILE = join(CACHE_DIR, "dashboard-cache.json");
 const ANTIGRAVITY_DAILY_CACHE = join(CACHE_DIR, "antigravity-daily.json");
 const ANTIGRAVITY_SESSION_CACHE = join(CACHE_DIR, "antigravity-session.json");
