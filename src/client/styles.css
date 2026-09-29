@@ -218,7 +218,7 @@ img { display: block; }
 }
 
 .brand { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
-.brand-logo { width: 32px; height: 32px; }
+.brand-logo { width: 32px; height: 32px; color: var(--text); }
 .brand h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
@@ -1059,7 +1059,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
   text-align: center;
 }
 .splash-card h2 { color: var(--text); font-size: 19px; }
-.splash-logo { width: 64px; height: 64px; }
+.splash-logo { width: 64px; height: 64px; color: var(--text); }
 
 /* ---------- Responsive ---------- */
 

@@ -4,6 +4,7 @@ import type { DashboardPayload, HarnessId, StartupConfig } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";
 import { DateRangePicker } from "./components/DateRangePicker.tsx";
+import { Logo } from "./components/Logo.tsx";
 import { RankChip } from "./components/RankChip.tsx";
 import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
@@ -369,7 +370,7 @@ export function App() {
     return (
       <div className="splash">
         <div className="splash-card">
-          <img className="splash-logo" src="/logo.svg" alt="" />
+          <Logo className="splash-logo" />
           <h2>Summoning Token Larper…</h2>
           <p>Reading local usage from your coding tools with ccusage.</p>
         </div>
@@ -427,7 +428,7 @@ export function App() {
       <div className="app">
         <header className="topbar">
           <div className="brand">
-            <img className="brand-logo" src="/logo.svg" alt="" />
+            <Logo className="brand-logo" />
             <h1>Token Larper</h1>
             {data.syncingHarnesses.length > 0 && (
               <span className="pill">

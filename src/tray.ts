@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { flattenPath, LOGO_PATHS } from "./client/logoMark.ts";
 
 const ROOT_DIR = resolve(import.meta.dir, "..");
 const SCRIPTS_DIR = join(ROOT_DIR, "scripts");
@@ -10,6 +11,10 @@ let trayPid: number | null = null;
 
 export function generateTrayScript(port: number, serverPid: number): string {
   mkdirSync(SCRIPTS_DIR, { recursive: true });
+  const logoPolygons = [LOGO_PATHS.t, LOGO_PATHS.flame]
+    .flatMap((d) => flattenPath(d))
+    .map((poly) => `  @(${poly.flat().map((n) => n.toFixed(2)).join(", ")})`)
+    .join(",\n");
 
   const psScript = `
 Add-Type -AssemblyName System.Windows.Forms
@@ -24,46 +29,54 @@ $BaseUrl = "http://127.0.0.1:$ServerPort"
 Add-Type -Namespace TokenLarper -Name Dpi -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
 [TokenLarper.Dpi]::SetProcessDPIAware() | Out-Null
 
-# The t. monogram from src/client/logo.svg, drawn in its 64-unit coordinates.
-$iconSize = [Math]::Max(16, [System.Windows.Forms.SystemInformation]::SmallIconSize.Width)
-$bmp = New-Object System.Drawing.Bitmap($iconSize, $iconSize)
-$g = [System.Drawing.Graphics]::FromImage($bmp)
-$g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-$g.Clear([System.Drawing.Color]::Transparent)
-$g.ScaleTransform($iconSize / 64, $iconSize / 64)
+# The Burning t. logo from src/client/logoMark.ts, flattened to polygons in 64-unit
+# coordinates. It has no background, so it is black on a light taskbar and white on a
+# dark one, and redrawn if that Windows setting changes.
+Add-Type -Namespace TokenLarper -Name IconNative -MemberDefinition '[DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr handle);'
+$LogoPolygons = @(
+${logoPolygons}
+)
 
-$green = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 47, 90, 67))
-$cream = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 243, 227, 191))
-$gold = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 225, 183, 92))
+function Test-LightTaskbar {
+  try {
+    $value = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name SystemUsesLightTheme -ErrorAction Stop
+    return ($value -eq 1)
+  } catch {
+    return $false
+  }
+}
 
-# Rounded square: x 3, y 3, size 58, corner radius 14.
-$tile = New-Object System.Drawing.Drawing2D.GraphicsPath
-$tile.AddArc(3, 3, 28, 28, 180, 90)
-$tile.AddArc(33, 3, 28, 28, 270, 90)
-$tile.AddArc(33, 33, 28, 28, 0, 90)
-$tile.AddArc(3, 33, 28, 28, 90, 90)
-$tile.CloseFigure()
-$g.FillPath($green, $tile)
+function New-LogoIcon([bool]$light) {
+  $size = [Math]::Max(16, [System.Windows.Forms.SystemInformation]::SmallIconSize.Width)
+  $bmp = New-Object System.Drawing.Bitmap($size, $size)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $g.Clear([System.Drawing.Color]::Transparent)
+  $g.ScaleTransform($size / 64, $size / 64)
+  $color = if ($light) { [System.Drawing.Color]::FromArgb(255, 20, 20, 20) } else { [System.Drawing.Color]::FromArgb(255, 245, 245, 245) }
+  $brush = New-Object System.Drawing.SolidBrush($color)
+  # Alternate (even-odd) filling cuts the flame's core out of the flame.
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath([System.Drawing.Drawing2D.FillMode]::Alternate)
+  foreach ($poly in $LogoPolygons) {
+    $count = [int]($poly.Length / 2)
+    $points = New-Object 'System.Drawing.PointF[]' $count
+    for ($i = 0; $i -lt $count; $i++) {
+      $points[$i] = New-Object System.Drawing.PointF([single]$poly[2 * $i], [single]$poly[2 * $i + 1])
+    }
+    $path.AddPolygon($points)
+  }
+  $g.FillPath($brush, $path)
+  $path.Dispose()
+  $brush.Dispose()
+  $g.Dispose()
+  $icon = [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
+  $bmp.Dispose()
+  return $icon
+}
 
-# Letter t: a stem with a curved foot, plus the crossbar.
-$stem = New-Object System.Drawing.Drawing2D.GraphicsPath
-$stem.AddLine(20, 12, 28, 12)
-$stem.AddLine(28, 12, 28, 43.5)
-$stem.AddBezier(28, 43.5, 28, 45.2, 28.8, 46, 30.5, 46)
-$stem.AddLine(30.5, 46, 35, 46)
-$stem.AddLine(35, 46, 35, 53)
-$stem.AddLine(35, 53, 28.5, 53)
-$stem.AddBezier(28.5, 53, 22.8, 53, 20, 50.2, 20, 44.5)
-$stem.CloseFigure()
-$g.FillPath($cream, $stem)
-$g.FillRectangle($cream, 13, 21, 22, 7)
-
-# The dot.
-$g.FillEllipse($gold, 39.5, 42, 11, 11)
-
-$hIcon = $bmp.GetHicon()
-$icon = [System.Drawing.Icon]::FromHandle($hIcon)
+$script:lightTaskbar = Test-LightTaskbar
+$icon = New-LogoIcon $script:lightTaskbar
 
 $notifyIcon = New-Object System.Windows.Forms.NotifyIcon
 $notifyIcon.Icon = $icon
@@ -341,6 +354,13 @@ $timer.Add_Tick({
     return
   }
   $script:tickCount++
+  $nowLight = Test-LightTaskbar
+  if ($nowLight -ne $script:lightTaskbar) {
+    $script:lightTaskbar = $nowLight
+    $oldIcon = $notifyIcon.Icon
+    $notifyIcon.Icon = New-LogoIcon $nowLight
+    [TokenLarper.IconNative]::DestroyIcon($oldIcon.Handle) | Out-Null
+  }
   if ($script:tickCount -eq 1 -or ($script:tickCount % 3 -eq 0)) {
     Update-TrayStatus
   }

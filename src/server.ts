@@ -3,6 +3,7 @@ import { getDashboardData } from "./ccusage.ts";
 import { getStartupStatus, setStartupStatus } from "./startup.ts";
 import { startSystemTray, stopSystemTray } from "./tray.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
+import { logoSvgFile } from "./client/logoMark.ts";
 
 const ROOT_DIR = resolve(import.meta.dir, "..");
 const CLIENT_DIR = join(ROOT_DIR, "src", "client");
@@ -105,7 +106,7 @@ function startServer(preferredPort: number) {
     }
 
     if (url.pathname === "/logo.svg") {
-      return new Response(Bun.file(join(CLIENT_DIR, "logo.svg")), {
+      return new Response(logoSvgFile(), {
         headers: { "Content-Type": "image/svg+xml; charset=utf-8" },
       });
     }
