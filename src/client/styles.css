@@ -1036,6 +1036,13 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .settings-quit { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 8px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 600; }
 .settings-quit:hover { background: var(--surface-2); color: var(--error-text); }
 
+/* ---------- Credit ---------- */
+
+.credit { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 48px; color: var(--text-3); font-size: 12px; }
+.credit a { color: inherit; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.credit a:hover { color: var(--text); text-decoration-color: currentColor; }
+.credit-heart { vertical-align: -1px; color: var(--accent); fill: currentColor; }
+
 /* ---------- Splash screens ---------- */
 
 .splash { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
