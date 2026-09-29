@@ -308,6 +308,28 @@ img { display: block; }
   font-size: 13px;
 }
 
+/* ---------- Update banner ---------- */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 13px;
+}
+.update-banner > svg { flex: none; color: var(--accent); }
+.update-banner p { flex: 1; min-width: 0; }
+.update-banner p span { color: var(--text-2); }
+.update-banner-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.update-banner .btn { min-height: 30px; padding: 0 12px; }
+.update-link { color: var(--text-2); font-weight: 500; padding: 0 6px; text-decoration: none; }
+.update-link:hover { color: var(--text); text-decoration: underline; }
+.setting-copy code { font-size: 11.5px; }
+.setting-copy a { color: inherit; }
+
 /* ---------- Filters ---------- */
 
 .filters {
@@ -1071,6 +1093,8 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 }
 
 @media (max-width: 700px) {
+  .update-banner { flex-wrap: wrap; }
+  .update-banner-actions { width: 100%; justify-content: flex-end; }
   .app { padding: 0 16px 48px; }
   .topbar { margin: 0 -16px; padding: 12px 16px; }
   .updated { display: none; }

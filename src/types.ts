@@ -153,3 +153,13 @@ export interface StartupConfig {
   registryValue: string | null;
   launcherPath: string;
 }
+
+export interface UpdateStatus {
+  current: string;
+  latest: string | null;
+  updateAvailable: boolean;
+  checkedAt: string | null;
+  /** "npm" can update itself; "source" is a git checkout and updates with git pull. */
+  source: "npm" | "source";
+  error?: string;
+}
