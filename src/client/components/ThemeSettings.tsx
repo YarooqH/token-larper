@@ -1,14 +1,21 @@
 import React, { useState } from "react";
-import { ChevronDown } from "lucide-react";
-import { importThemeCss, THEME_PRESETS, type ImportedTheme, type ThemeMode, type ThemePalette } from "../themes.ts";
-import { SelectMenu, type SelectMenuOption } from "./SelectMenu.tsx";
+import { Check, ChevronDown, Pipette } from "lucide-react";
+import {
+  ACCENT_PRESETS,
+  importThemeCss,
+  STYLE_PRESETS,
+  type Appearance,
+  type ImportedTheme,
+  type ThemeMode,
+} from "../themes.ts";
 
 interface Props {
   mode: ThemeMode;
-  palette: ThemePalette;
+  followsSystem: boolean;
+  appearance: Appearance;
   importedTheme: ImportedTheme | null;
-  onModeChange: (mode: ThemeMode) => void;
-  onPaletteChange: (palette: ThemePalette) => void;
+  onModeChange: (mode: ThemeMode | "system") => void;
+  onAppearanceChange: (appearance: Appearance) => void;
   onImportTheme: (theme: ImportedTheme) => void;
 }
 
@@ -28,65 +35,132 @@ const SAMPLE_THEME = `:root {
   --accent-ink: #11261a;
 }`;
 
-export function ThemeSettings({ mode, palette, importedTheme, onModeChange, onPaletteChange, onImportTheme }: Props) {
+export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, onModeChange, onAppearanceChange, onImportTheme }: Props) {
   const [css, setCss] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const accent = appearance.accent;
+  const customColor = accent.kind === "custom" ? accent.color : "#6d5bd0";
 
   function applyPastedTheme() {
     try {
-      const imported = importThemeCss(css);
-      onImportTheme(imported);
+      onImportTheme(importThemeCss(css));
       setError(null);
-      setMessage("Theme applied.");
+      setMessage("Theme applied. Its colors now sit on top of the selected style.");
     } catch (cause) {
       setMessage(null);
       setError(cause instanceof Error ? cause.message : "Could not read this theme CSS.");
     }
   }
 
-  const paletteOptions: SelectMenuOption<ThemePalette>[] = THEME_PRESETS.map((preset) => ({
-    value: preset.id,
-    label: preset.name,
-    description: preset.description,
-    visual: <span className="palette-color" aria-hidden="true" style={{ backgroundColor: mode === "dark" ? preset.darkAccent : preset.accent }} />,
-  }));
-  if (importedTheme) {
-    const colors = importedTheme[mode];
-    paletteOptions.push({
-      value: "custom",
-      label: "Imported theme",
-      description: "Your saved CSS colors",
-      visual: <span className="palette-color" aria-hidden="true" style={{ backgroundColor: colors["--accent"] }} />,
-    });
-  }
+  const modeValue = followsSystem ? "system" : mode;
 
   return (
     <section className="settings-section theme-settings" aria-labelledby="settings-appearance-heading">
       <div className="settings-section-heading">
         <h4 id="settings-appearance-heading">Appearance</h4>
-        <span>{mode === "dark" ? "Dark mode" : "Light mode"}</span>
       </div>
 
-      <div className="theme-mode-row">
-        <span>Color mode</span>
-        <div className="segmented" role="group" aria-label="Color mode">
-          {(["light", "dark"] as const).map((option) => (
-            <button key={option} type="button" aria-pressed={mode === option} onClick={() => onModeChange(option)}>
-              {option === "light" ? "Light" : "Dark"}
+      <div className="theme-row">
+        <span className="theme-row-label" id="theme-mode-label">Mode</span>
+        <div className="segmented" role="group" aria-labelledby="theme-mode-label">
+          {(["system", "light", "dark"] as const).map((option) => (
+            <button key={option} type="button" aria-pressed={modeValue === option} onClick={() => onModeChange(option)}>
+              {option === "system" ? "System" : option === "light" ? "Light" : "Dark"}
             </button>
           ))}
         </div>
       </div>
 
-      <SelectMenu
-        label="Color palette"
-        value={palette}
-        options={paletteOptions}
-        onChange={onPaletteChange}
-        className="palette-picker"
-        showDescriptionInTrigger
-      />
+      <div className="theme-block">
+        <span className="theme-row-label" id="theme-style-label">Style</span>
+        <div className="style-grid" role="radiogroup" aria-labelledby="theme-style-label">
+          {STYLE_PRESETS.map((style) => {
+            const selected = appearance.style === style.id;
+            return (
+              <button
+                key={style.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                className="style-card"
+                onClick={() => onAppearanceChange({ ...appearance, style: style.id })}
+              >
+                {/* The preview renders with the style's own tokens, so it shows fonts, radius, borders and colors. */}
+                <span className="style-preview" data-style={style.id} aria-hidden="true">
+                  <span className="sp-panel">
+                    <span className="sp-title">Aa</span>
+                    <span className="sp-bars">
+                      <i style={{ height: "45%" }} />
+                      <i style={{ height: "80%" }} />
+                      <i style={{ height: "60%" }} />
+                    </span>
+                    <span className="sp-button" />
+                  </span>
+                </span>
+                <span className="style-card-text">
+                  <strong>{style.name}</strong>
+                  <span>{style.description}</span>
+                </span>
+                {selected && <Check size={14} className="style-card-check" aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="theme-block">
+        <span className="theme-row-label" id="theme-accent-label">Accent</span>
+        <div className="accent-row" role="radiogroup" aria-labelledby="theme-accent-label">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={accent.kind === "style"}
+            className="accent-default"
+            onClick={() => onAppearanceChange({ ...appearance, accent: { kind: "style" } })}
+          >
+            Style default
+          </button>
+          {ACCENT_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              role="radio"
+              aria-checked={accent.kind === "preset" && accent.id === preset.id}
+              aria-label={preset.name}
+              title={preset.name}
+              className="accent-swatch"
+              style={{ background: mode === "dark" ? preset.dark : preset.light }}
+              onClick={() => onAppearanceChange({ ...appearance, accent: { kind: "preset", id: preset.id } })}
+            />
+          ))}
+          <label className={`accent-custom ${accent.kind === "custom" ? "is-selected" : ""}`} title="Pick any color">
+            <Pipette size={14} aria-hidden="true" />
+            <span className="sr-only">Custom accent color</span>
+            <input
+              type="color"
+              value={customColor}
+              onChange={(event) => onAppearanceChange({ ...appearance, accent: { kind: "custom", color: event.target.value } })}
+            />
+          </label>
+        </div>
+      </div>
+
+      {importedTheme && (
+        <div className="theme-row">
+          <span className="theme-row-label" id="theme-imported-label">Imported colors</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={appearance.imported}
+            aria-labelledby="theme-imported-label"
+            className={`toggle ${appearance.imported ? "on" : ""}`}
+            onClick={() => onAppearanceChange({ ...appearance, imported: !appearance.imported })}
+          >
+            <span className="toggle-knob" />
+          </button>
+        </div>
+      )}
 
       <details className="theme-import">
         <summary>
@@ -95,7 +169,8 @@ export function ThemeSettings({ mode, palette, importedTheme, onModeChange, onPa
         </summary>
         <div className="theme-import-body">
           <p>
-            Paste light and dark CSS variable blocks. Use Token Larper colors or shadcn-style variables; extra CSS is ignored.
+            Paste light and dark CSS variable blocks, for example from tweakcn. Use Token Larper colors or
+            shadcn-style variables; the colors apply on top of the selected style, and extra CSS is ignored.
           </p>
           <details className="theme-format">
             <summary>Show example CSS <ChevronDown size={14} aria-hidden="true" /></summary>

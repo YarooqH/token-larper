@@ -1,25 +1,59 @@
 export type ThemeMode = "light" | "dark";
-export type ThemePalette = "pine" | "slate" | "ocean" | "iris" | "clay" | "rose" | "custom";
 
-export interface ThemePreset {
-  id: Exclude<ThemePalette, "custom">;
+// A theme is two independent choices. The style is the whole look and feel: fonts,
+// radius, spacing, borders, shadows, label casing, and its own light and dark colors
+// (all defined in styles.css under html[data-style]). The accent is either the style's
+// own, one of the preset colors below, or any color the user picks. An imported CSS
+// theme can replace the colors of whichever style is active.
+
+export type StyleId = "grove" | "terminal" | "paper" | "brutal" | "soft" | "mono";
+
+export interface StylePreset {
+  id: StyleId;
   name: string;
   description: string;
-  accent: string;
-  darkAccent: string;
+  /** Swatches for the picker preview: [background, surface, text, accent] per mode. */
+  light: [string, string, string, string];
+  dark: [string, string, string, string];
 }
 
-export const THEME_PRESETS: ThemePreset[] = [
-  { id: "pine", name: "Pine", description: "The original forest green", accent: "#2f5a43", darkAccent: "#9fcaa8" },
-  { id: "slate", name: "Slate", description: "Quiet blue gray", accent: "#495d75", darkAccent: "#9bb4d2" },
-  { id: "ocean", name: "Ocean", description: "Cool blue and teal", accent: "#17627a", darkAccent: "#78c5d8" },
-  { id: "iris", name: "Iris", description: "Soft violet", accent: "#68518f", darkAccent: "#c0a4ec" },
-  { id: "clay", name: "Clay", description: "Warm terracotta", accent: "#995431", darkAccent: "#e1a177" },
-  { id: "rose", name: "Rose", description: "Muted berry", accent: "#934f67", darkAccent: "#dfa1b4" },
+export const STYLE_PRESETS: StylePreset[] = [
+  { id: "grove", name: "Grove", description: "Calm and roomy, the original look", light: ["#f7f8f6", "#ffffff", "#1f2a23", "#2f5a43"], dark: ["#141916", "#1b221e", "#e8eee7", "#9fcaa8"] },
+  { id: "terminal", name: "Terminal", description: "Monospace, square, and dense", light: ["#f4f6f1", "#fbfcf8", "#121a13", "#146c36"], dark: ["#0b0f0c", "#0f1511", "#c8f7d0", "#5cf08a"] },
+  { id: "paper", name: "Paper", description: "Serif headings on warm paper", light: ["#f5efe3", "#fbf7ee", "#2a2118", "#8c2f2b"], dark: ["#1b1712", "#221d17", "#f1e8da", "#e0907f"] },
+  { id: "brutal", name: "Brutal", description: "Thick outlines and hard shadows", light: ["#fff8e7", "#ffffff", "#111111", "#d81b60"], dark: ["#121212", "#1c1c1c", "#f5f5f5", "#ff79b0"] },
+  { id: "soft", name: "Soft", description: "Rounded, borderless, and airy", light: ["#f4f2fb", "#ffffff", "#26213a", "#6d5bd0"], dark: ["#16141f", "#1f1c2b", "#efecf8", "#b3a6ff"] },
+  { id: "mono", name: "Mono", description: "Black and white, flips with the mode", light: ["#ffffff", "#ffffff", "#0a0a0a", "#0a0a0a"], dark: ["#000000", "#0a0a0a", "#fafafa", "#fafafa"] },
 ];
 
+export type AccentId = "pine" | "slate" | "ocean" | "iris" | "clay" | "rose";
+
+export const ACCENT_PRESETS: { id: AccentId; name: string; light: string; dark: string }[] = [
+  { id: "pine", name: "Pine", light: "#2f5a43", dark: "#9fcaa8" },
+  { id: "slate", name: "Slate", light: "#495d75", dark: "#9bb4d2" },
+  { id: "ocean", name: "Ocean", light: "#17627a", dark: "#78c5d8" },
+  { id: "iris", name: "Iris", light: "#68518f", dark: "#c0a4ec" },
+  { id: "clay", name: "Clay", light: "#995431", dark: "#e1a177" },
+  { id: "rose", name: "Rose", light: "#934f67", dark: "#dfa1b4" },
+];
+
+export type AccentChoice = { kind: "style" } | { kind: "preset"; id: AccentId } | { kind: "custom"; color: string };
+
+export interface Appearance {
+  style: StyleId;
+  accent: AccentChoice;
+  /** Use the imported CSS theme's colors on top of the style. */
+  imported: boolean;
+}
+
+export const DEFAULT_APPEARANCE: Appearance = { style: "grove", accent: { kind: "style" }, imported: false };
+
 export const THEME_MODE_STORAGE_KEY = "token-larper-theme";
-export const THEME_PALETTE_STORAGE_KEY = "token-larper-palette";
+export const APPEARANCE_STORAGE_KEY = "token-larper-appearance";
+/** Resolved inline variables for both modes; index.html applies them before first paint. */
+export const THEME_VARS_STORAGE_KEY = "token-larper-theme-vars";
+/** Earlier versions stored a color palette here; read once to migrate. */
+const LEGACY_PALETTE_STORAGE_KEY = "token-larper-palette";
 export const IMPORTED_THEME_STORAGE_KEY = "token-larper-imported-theme";
 
 const APP_COLOR_PROPERTIES = [
@@ -41,10 +75,6 @@ export interface ImportedTheme {
 }
 
 const REQUIRED_PROPERTIES: AppColorProperty[] = ["--bg", "--surface", "--text", "--accent", "--accent-ink"];
-
-export function isThemePalette(value: string | null): value is ThemePalette {
-  return value === "custom" || THEME_PRESETS.some((preset) => preset.id === value);
-}
 
 function validColor(value: unknown): value is string {
   return typeof value === "string"
@@ -86,31 +116,138 @@ export function readImportedTheme(): ImportedTheme | null {
   }
 }
 
-export function readThemePalette(): ThemePalette {
+const isStyle = (value: unknown): value is StyleId => STYLE_PRESETS.some((s) => s.id === value);
+const isAccentId = (value: unknown): value is AccentId => ACCENT_PRESETS.some((a) => a.id === value);
+const isHex = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
+
+function sanitizeAppearance(value: unknown): Appearance | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const a = (v.accent ?? {}) as Record<string, unknown>;
+  const accent: AccentChoice =
+    a.kind === "preset" && isAccentId(a.id)
+      ? { kind: "preset", id: a.id }
+      : a.kind === "custom" && isHex(a.color)
+        ? { kind: "custom", color: a.color.toLowerCase() }
+        : { kind: "style" };
+  return { style: isStyle(v.style) ? v.style : "grove", accent, imported: v.imported === true };
+}
+
+export function readAppearance(): Appearance {
   try {
-    const stored = localStorage.getItem(THEME_PALETTE_STORAGE_KEY);
-    if (!isThemePalette(stored)) return "pine";
-    return stored === "custom" && !readImportedTheme() ? "pine" : stored;
+    const saved = sanitizeAppearance(JSON.parse(localStorage.getItem(APPEARANCE_STORAGE_KEY) || "null"));
+    if (saved) return saved.imported && !readImportedTheme() ? { ...saved, imported: false } : saved;
+    // Migrate the old color-palette setting: its colors live on as the accent.
+    const legacy = localStorage.getItem(LEGACY_PALETTE_STORAGE_KEY);
+    if (legacy === "custom" && readImportedTheme()) return { ...DEFAULT_APPEARANCE, imported: true };
+    if (isAccentId(legacy) && legacy !== "pine") return { ...DEFAULT_APPEARANCE, accent: { kind: "preset", id: legacy } };
   } catch {
-    return "pine";
+    // Storage may be disabled.
+  }
+  return DEFAULT_APPEARANCE;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex([r, g, b]: [number, number, number]): string {
+  return `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function mix(a: string, b: string, weightOfA: number): string {
+  const x = hexToRgb(a);
+  const y = hexToRgb(b);
+  return rgbToHex([0, 1, 2].map((i) => x[i]! * weightOfA + y[i]! * (1 - weightOfA)) as [number, number, number]);
+}
+
+function luminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p) as [number, number];
+  return (x + 0.05) / (y + 0.05);
+}
+
+/** Whichever of white or near-black reads better on the accent (buttons, badges). */
+function inkFor(accent: string): string {
+  return contrast("#ffffff", accent) >= contrast("#101010", accent) ? "#ffffff" : "#101010";
+}
+
+/**
+ * The accent colors links, tab underlines and focus rings, so a custom pick is darkened
+ * (light mode) or lightened (dark mode) in small steps until it reads at 4.5:1 against
+ * a typical background. Picks that already pass are used unchanged.
+ */
+function accentFor(choice: AccentChoice, mode: ThemeMode): string | null {
+  if (choice.kind === "preset") {
+    const preset = ACCENT_PRESETS.find((a) => a.id === choice.id)!;
+    return mode === "dark" ? preset.dark : preset.light;
+  }
+  if (choice.kind === "custom") {
+    const [background, toward] = mode === "light" ? ["#ffffff", "#000000"] : ["#161616", "#ffffff"];
+    let color = choice.color;
+    for (let step = 0; step < 12 && contrast(color, background) < 4.5; step++) color = mix(color, toward, 0.88);
+    return color;
+  }
+  return null;
+}
+
+export type ThemeVars = Record<ThemeMode, Record<string, string>>;
+
+/** Inline variables for an accent override or an imported theme, for both modes. */
+export function resolveThemeVars(appearance: Appearance, importedTheme: ImportedTheme | null): ThemeVars {
+  const vars: ThemeVars = { light: {}, dark: {} };
+  for (const mode of ["light", "dark"] as const) {
+    const out = vars[mode];
+    if (appearance.imported && importedTheme) {
+      const tokens = importedTheme[mode];
+      for (const property of APP_COLOR_PROPERTIES) if (validColor(tokens[property])) out[property] = tokens[property]!;
+      for (const property of APP_RADIUS_PROPERTIES) if (validRadius(tokens[property])) out[property] = tokens[property]!;
+    }
+    const accent = accentFor(appearance.accent, mode);
+    if (accent) {
+      out["--accent"] = accent;
+      out["--focus"] = accent;
+      out["--accent-ink"] = inkFor(accent);
+      out["--accent-soft"] = `color-mix(in srgb, ${accent} ${mode === "dark" ? 18 : 12}%, var(--bg))`;
+    }
+  }
+  return vars;
+}
+
+let appliedProperties: string[] = [];
+
+export function applyTheme(mode: ThemeMode, appearance: Appearance, importedTheme: ImportedTheme | null): void {
+  const root = document.documentElement;
+  root.dataset.theme = mode;
+  root.dataset.style = appearance.style;
+  root.dataset.accent = appearance.accent.kind === "style" && !appearance.imported ? "style" : "custom";
+  // Clear what an earlier call (or index.html) set before applying the new values.
+  for (const property of new Set([...appliedProperties, ...APP_COLOR_PROPERTIES, ...APP_RADIUS_PROPERTIES])) {
+    root.style.removeProperty(property);
+  }
+  const vars = resolveThemeVars(appearance, importedTheme);
+  for (const [property, value] of Object.entries(vars[mode])) root.style.setProperty(property, value);
+  appliedProperties = Object.keys(vars[mode]);
+  try {
+    localStorage.setItem(THEME_VARS_STORAGE_KEY, JSON.stringify(vars));
+  } catch {
+    // Storage may be disabled; the theme still applies for this page.
   }
 }
 
-export function applyTheme(mode: ThemeMode, palette: ThemePalette, importedTheme: ImportedTheme | null): void {
-  const root = document.documentElement;
-  root.dataset.theme = mode;
-  root.dataset.palette = palette;
-  for (const property of APP_COLOR_PROPERTIES) root.style.removeProperty(property);
-  for (const property of APP_RADIUS_PROPERTIES) root.style.removeProperty(property);
-
-  if (palette !== "custom" || !importedTheme) return;
-  const tokens = importedTheme[mode];
-  for (const property of APP_COLOR_PROPERTIES) {
-    const value = tokens[property];
-    if (validColor(value)) root.style.setProperty(property, value);
-  }
-  for (const property of APP_RADIUS_PROPERTIES) {
-    if (validRadius(tokens[property])) root.style.setProperty(property, tokens[property]);
+export function saveAppearance(appearance: Appearance): void {
+  try {
+    localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(appearance));
+  } catch {
+    // Storage may be disabled.
   }
 }
 

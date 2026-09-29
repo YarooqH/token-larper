@@ -21,13 +21,13 @@ import { Tools } from "./views/Tools.tsx";
 import {
   applyTheme,
   IMPORTED_THEME_STORAGE_KEY,
+  readAppearance,
   readImportedTheme,
-  readThemePalette,
+  saveAppearance,
   THEME_MODE_STORAGE_KEY,
-  THEME_PALETTE_STORAGE_KEY,
+  type Appearance,
   type ImportedTheme,
   type ThemeMode,
-  type ThemePalette,
 } from "./themes.ts";
 import { localDateKey } from "./utils.ts";
 
@@ -129,7 +129,7 @@ export function App() {
       return true;
     }
   });
-  const [palette, setPalette] = useState<ThemePalette>(readThemePalette);
+  const [appearance, setAppearance] = useState<Appearance>(readAppearance);
   const [importedTheme, setImportedTheme] = useState<ImportedTheme | null>(readImportedTheme);
 
   const updatePrefs = (patch: Partial<Prefs>) => setPrefs((p) => ({ ...p, ...patch }));
@@ -162,8 +162,8 @@ export function App() {
   }, [prefs.showRanks]);
 
   useEffect(() => {
-    applyTheme(theme, palette, importedTheme);
-  }, [theme, palette, importedTheme]);
+    applyTheme(theme, appearance, importedTheme);
+  }, [theme, appearance, importedTheme]);
 
   useEffect(() => {
     if (!followsSystemTheme) return;
@@ -181,25 +181,28 @@ export function App() {
     try { localStorage.setItem(THEME_MODE_STORAGE_KEY, next); } catch { /* Storage may be disabled. */ }
   }
 
-  function changeThemeMode(mode: ThemeMode) {
+  function changeThemeMode(mode: ThemeMode | "system") {
+    if (mode === "system") {
+      setFollowsSystemTheme(true);
+      setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      try { localStorage.removeItem(THEME_MODE_STORAGE_KEY); } catch { /* Storage may be disabled. */ }
+      return;
+    }
     setFollowsSystemTheme(false);
     setTheme(mode);
     try { localStorage.setItem(THEME_MODE_STORAGE_KEY, mode); } catch { /* Storage may be disabled. */ }
   }
 
-  function changePalette(next: ThemePalette) {
-    if (next === "custom" && !importedTheme) return;
-    setPalette(next);
-    try { localStorage.setItem(THEME_PALETTE_STORAGE_KEY, next); } catch { /* Storage may be disabled. */ }
+  function changeAppearance(next: Appearance) {
+    const safe = next.imported && !importedTheme ? { ...next, imported: false } : next;
+    setAppearance(safe);
+    saveAppearance(safe);
   }
 
   function saveImportedTheme(next: ImportedTheme) {
     setImportedTheme(next);
-    setPalette("custom");
-    try {
-      localStorage.setItem(IMPORTED_THEME_STORAGE_KEY, JSON.stringify(next));
-      localStorage.setItem(THEME_PALETTE_STORAGE_KEY, "custom");
-    } catch { /* Storage may be disabled. */ }
+    changeAppearance({ ...appearance, imported: true });
+    try { localStorage.setItem(IMPORTED_THEME_STORAGE_KEY, JSON.stringify(next)); } catch { /* Storage may be disabled. */ }
   }
 
   async function fetchDashboard(opts?: { refresh?: boolean; forceDeepScan?: boolean }) {
@@ -565,7 +568,8 @@ export function App() {
             startupError={startupError}
             saving={savingStartup}
             themeMode={theme}
-            palette={palette}
+            followsSystemTheme={followsSystemTheme}
+            appearance={appearance}
             importedTheme={importedTheme}
             showRanks={prefs.showRanks}
             updates={updates}
@@ -573,7 +577,7 @@ export function App() {
             onCheckUpdatesChange={(checkUpdates) => updatePrefs({ checkUpdates })}
             onClose={closeSettings}
             onThemeModeChange={changeThemeMode}
-            onPaletteChange={changePalette}
+            onAppearanceChange={changeAppearance}
             onImportTheme={saveImportedTheme}
             onShowRanksChange={setShowRanks}
             onToggleStartup={(enabled, open) => void handleToggleStartup(enabled, open)}
