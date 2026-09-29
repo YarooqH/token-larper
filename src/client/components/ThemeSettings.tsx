@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Check, ChevronDown, Pipette } from "lucide-react";
 import {
   ACCENT_PRESETS,
+  BASE_PRESETS,
   importThemeCss,
   STYLE_PRESETS,
   type Appearance,
@@ -39,8 +40,6 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
   const [css, setCss] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const accent = appearance.accent;
-  const customColor = accent.kind === "custom" ? accent.color : "#6d5bd0";
 
   function applyPastedTheme() {
     try {
@@ -109,42 +108,26 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
         </div>
       </div>
 
-      <div className="theme-block">
-        <span className="theme-row-label" id="theme-accent-label">Accent</span>
-        <div className="accent-row" role="radiogroup" aria-labelledby="theme-accent-label">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={accent.kind === "style"}
-            className="accent-default"
-            onClick={() => onAppearanceChange({ ...appearance, accent: { kind: "style" } })}
-          >
-            Style default
-          </button>
-          {ACCENT_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              role="radio"
-              aria-checked={accent.kind === "preset" && accent.id === preset.id}
-              aria-label={preset.name}
-              title={preset.name}
-              className="accent-swatch"
-              style={{ background: mode === "dark" ? preset.dark : preset.light }}
-              onClick={() => onAppearanceChange({ ...appearance, accent: { kind: "preset", id: preset.id } })}
-            />
-          ))}
-          <label className={`accent-custom ${accent.kind === "custom" ? "is-selected" : ""}`} title="Pick any color">
-            <Pipette size={14} aria-hidden="true" />
-            <span className="sr-only">Custom accent color</span>
-            <input
-              type="color"
-              value={customColor}
-              onChange={(event) => onAppearanceChange({ ...appearance, accent: { kind: "custom", color: event.target.value } })}
-            />
-          </label>
-        </div>
-      </div>
+      <ColorChoices
+        id="theme-base"
+        label="Base"
+        hint={appearance.imported ? "Set by your imported colors" : "Backgrounds, borders and text"}
+        disabled={appearance.imported}
+        choice={appearance.base}
+        presets={BASE_PRESETS}
+        fallbackCustom="#5f7390"
+        onChange={(base) => onAppearanceChange({ ...appearance, base })}
+      />
+
+      <ColorChoices
+        id="theme-accent"
+        label="Accent"
+        hint="Buttons, links and highlights"
+        choice={appearance.accent}
+        presets={ACCENT_PRESETS.map((preset) => ({ ...preset, color: mode === "dark" ? preset.dark : preset.light }))}
+        fallbackCustom="#6d5bd0"
+        onChange={(accent) => onAppearanceChange({ ...appearance, accent })}
+      />
 
       {importedTheme && (
         <div className="theme-row">
@@ -202,5 +185,69 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
         </div>
       </details>
     </section>
+  );
+}
+
+type ColorChoice<Id extends string> = { kind: "style" } | { kind: "preset"; id: Id } | { kind: "custom"; color: string };
+
+/** "Style default", a row of preset swatches, and a picker for any color. */
+function ColorChoices<Id extends string>({ id, label, hint, disabled = false, choice, presets, fallbackCustom, onChange }: {
+  id: string;
+  label: string;
+  hint: string;
+  disabled?: boolean;
+  choice: ColorChoice<Id>;
+  presets: { id: Id; name: string; color: string }[];
+  fallbackCustom: string;
+  onChange: (choice: ColorChoice<Id>) => void;
+}) {
+  const labelId = `${id}-label`;
+  return (
+    <div className="theme-block">
+      <div className="theme-block-heading">
+        <span className="theme-row-label" id={labelId}>{label}</span>
+        <span className="theme-row-hint">{hint}</span>
+      </div>
+      <div className="accent-row" role="radiogroup" aria-labelledby={labelId} aria-disabled={disabled || undefined}>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={choice.kind === "style"}
+          className="accent-default"
+          disabled={disabled}
+          onClick={() => onChange({ kind: "style" })}
+        >
+          Style default
+        </button>
+        {presets.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            role="radio"
+            aria-checked={choice.kind === "preset" && choice.id === preset.id}
+            aria-label={preset.name}
+            title={preset.name}
+            className="accent-swatch"
+            disabled={disabled}
+            style={{ background: preset.color }}
+            onClick={() => onChange({ kind: "preset", id: preset.id })}
+          />
+        ))}
+        <label
+          className={`accent-custom ${choice.kind === "custom" ? "is-selected" : ""}`}
+          style={choice.kind === "custom" ? { background: choice.color } : undefined}
+          title="Pick any color"
+        >
+          <Pipette size={14} aria-hidden="true" />
+          <span className="sr-only">Custom {label.toLowerCase()} color</span>
+          <input
+            type="color"
+            disabled={disabled}
+            value={choice.kind === "custom" ? choice.color : fallbackCustom}
+            onChange={(event) => onChange({ kind: "custom", color: event.target.value })}
+          />
+        </label>
+      </div>
+    </div>
   );
 }

@@ -435,7 +435,7 @@ img { display: block; }
 .update-link { color: var(--text-2); font-weight: 500; padding: 0 6px; text-decoration: none; }
 .update-link:hover { color: var(--text); text-decoration: underline; }
 .setting-copy code { font-size: 11.5px; }
-.setting-copy a { color: inherit; }
+.setting-copy a { color: inherit; white-space: nowrap; }
 
 /* ---------- Filters ---------- */
 
@@ -1311,6 +1311,11 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .accent-custom.is-selected svg { mix-blend-mode: difference; }
 .accent-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .accent-custom:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.theme-block-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.theme-row-hint { color: var(--text-3); font-size: 12px; }
+.accent-row[aria-disabled="true"] { opacity: 0.45; }
+.accent-row[aria-disabled="true"] .accent-custom { cursor: not-allowed; }
 
 /* ---------- Responsive ---------- */
 
