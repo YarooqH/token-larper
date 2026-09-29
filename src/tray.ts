@@ -124,7 +124,7 @@ $verifiedCaption.ForeColor = $popupMuted
 $popup.Controls.Add($verifiedCaption)
 
 $popupVerified = New-Object System.Windows.Forms.Label
-$popupVerified.Text = "—"
+$popupVerified.Text = "--"
 $popupVerified.Location = New-Object System.Drawing.Point(18, 153)
 $popupVerified.Size = New-Object System.Drawing.Size(126, 25)
 $popupVerified.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
@@ -140,7 +140,7 @@ $estimatedCaption.ForeColor = $popupMuted
 $popup.Controls.Add($estimatedCaption)
 
 $popupEstimated = New-Object System.Windows.Forms.Label
-$popupEstimated.Text = "—"
+$popupEstimated.Text = "--"
 $popupEstimated.Location = New-Object System.Drawing.Point(154, 153)
 $popupEstimated.Size = New-Object System.Drawing.Size(128, 25)
 $popupEstimated.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
@@ -312,8 +312,8 @@ function Update-TrayStatus {
     }
   } catch {
     $popupTokens.Text = "Unavailable"
-    $popupVerified.Text = "—"
-    $popupEstimated.Text = "—"
+    $popupVerified.Text = "--"
+    $popupEstimated.Text = "--"
   }
 }
 
@@ -344,7 +344,7 @@ $notifyIcon.ShowBalloonTip(2500, "Token Larper Running", "Left-click the t. icon
 [System.Windows.Forms.Application]::Run()
 `.trim();
 
-  writeFileSync(TRAY_PS1_PATH, psScript, "utf8");
+  writeFileSync(TRAY_PS1_PATH, `\uFEFF${psScript}`, "utf8");
 
   // Generate WinSta0\Default desktop trampoline so even sandboxed terminals attach to Explorer's tray
   const launcherScript = `
@@ -392,13 +392,21 @@ $launchedPid = [DefaultDesktopLauncher]::LaunchOnDefaultDesktop($cmd, "${ROOT_DI
 Write-Output $launchedPid
 `.trim();
 
-  writeFileSync(TRAY_LAUNCHER_PS1, launcherScript, "utf8");
+  writeFileSync(TRAY_LAUNCHER_PS1, `\uFEFF${launcherScript}`, "utf8");
   return TRAY_LAUNCHER_PS1;
 }
 
-export async function startSystemTray(port: number): Promise<void> {
-  if (process.platform !== "win32") return;
-  if (process.env.NO_TRAY === "1") return;
+export async function startSystemTray(port: number): Promise<boolean> {
+  if (process.platform !== "win32" || process.env.NO_TRAY === "1") return false;
+
+  if (trayPid) {
+    try {
+      process.kill(trayPid, 0);
+      return true;
+    } catch {
+      trayPid = null;
+    }
+  }
 
   try {
     const launcherPath = generateTrayScript(port, process.pid);
@@ -421,10 +429,13 @@ export async function startSystemTray(port: number): Promise<void> {
     const parsedPid = Number(out);
     if (Number.isFinite(parsedPid) && parsedPid > 0) {
       trayPid = parsedPid;
+      return true;
     }
+    console.error("Failed to launch system tray icon (launcher code):", out);
   } catch (err) {
     console.error("Failed to launch system tray icon:", err);
   }
+  return false;
 }
 
 export function stopSystemTray(): void {

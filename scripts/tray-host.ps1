@@ -1,8 +1,8 @@
-Add-Type -AssemblyName System.Windows.Forms
+﻿Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $ServerPort = 4269
-$ServerPid = 41396
+$ServerPid = 48272
 $BaseUrl = "http://127.0.0.1:$ServerPort"
 
 # Opt into DPI awareness so the icon is drawn at the tray's real pixel size
@@ -110,7 +110,7 @@ $verifiedCaption.ForeColor = $popupMuted
 $popup.Controls.Add($verifiedCaption)
 
 $popupVerified = New-Object System.Windows.Forms.Label
-$popupVerified.Text = "—"
+$popupVerified.Text = "--"
 $popupVerified.Location = New-Object System.Drawing.Point(18, 153)
 $popupVerified.Size = New-Object System.Drawing.Size(126, 25)
 $popupVerified.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
@@ -126,7 +126,7 @@ $estimatedCaption.ForeColor = $popupMuted
 $popup.Controls.Add($estimatedCaption)
 
 $popupEstimated = New-Object System.Windows.Forms.Label
-$popupEstimated.Text = "—"
+$popupEstimated.Text = "--"
 $popupEstimated.Location = New-Object System.Drawing.Point(154, 153)
 $popupEstimated.Size = New-Object System.Drawing.Size(128, 25)
 $popupEstimated.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
@@ -298,8 +298,8 @@ function Update-TrayStatus {
     }
   } catch {
     $popupTokens.Text = "Unavailable"
-    $popupVerified.Text = "—"
-    $popupEstimated.Text = "—"
+    $popupVerified.Text = "--"
+    $popupEstimated.Text = "--"
   }
 }
 

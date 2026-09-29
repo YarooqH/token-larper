@@ -4,6 +4,7 @@ import type { DashboardPayload, HarnessId, StartupConfig } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";
 import { DateRangePicker } from "./components/DateRangePicker.tsx";
+import { AppFooter } from "./components/AppFooter.tsx";
 import { RankChip } from "./components/RankChip.tsx";
 import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
@@ -534,6 +535,8 @@ export function App() {
           {view.id === "sessions" && <Sessions />}
           {view.id === "rank" && <Rank />}
         </main>
+
+        <AppFooter />
 
         {showSettings && (
           <SettingsDialog
