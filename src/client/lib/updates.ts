@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { UpdateStatus } from "../../types.ts";
 
-export const RELEASES_URL = "https://github.com/YarooqH/token-larper/pulls?q=is%3Apr+is%3Amerged";
+export const RELEASES_URL = "https://github.com/YarooqH/token-larper/releases";
 export const UPDATE_COMMAND = "bunx token-larper@latest";
 
 export type UpdatePhase = "idle" | "updating" | "failed";
