@@ -1,36 +1,155 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { closeSync, mkdirSync, openSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, "..");
 const serverScript = join(rootDir, "src", "server.ts");
+const port = Number(process.env.PORT || 4269);
+const args = process.argv.slice(2);
 
-// server.ts handles a copy that is already running (and replaces it if older).
+const HELP = `Token Larper: a local dashboard for AI coding token usage.
 
-// If executed directly inside Bun runtime
-if (typeof Bun !== "undefined") {
-  await import(serverScript);
-} else {
-  // If executed via Node / npx, check for Bun and hand over
-  const bunCheck = spawnSync("bun", ["--version"], { stdio: "ignore" });
-  if (bunCheck.status === 0) {
-    const child = spawnSync("bun", [serverScript, ...process.argv.slice(2)], {
-      stdio: "inherit",
-      cwd: rootDir,
-    });
-    process.exit(child.status ?? 0);
+Usage:
+  token-larper                Start in the background and open the dashboard
+  token-larper --foreground   Run in this terminal and show logs (Ctrl+C stops it)
+  token-larper --no-open      Start without opening the browser
+  token-larper stop           Stop the running copy
+
+Environment: PORT (default 4269), TOKEN_LARPER_DATA_DIR, NO_TRAY=1`;
+
+// Same folder as src/paths.ts; the background server's log goes there.
+function dataDir() {
+  if (process.env.TOKEN_LARPER_DATA_DIR) return resolve(process.env.TOKEN_LARPER_DATA_DIR);
+  const home = homedir();
+  if (process.platform === "win32") return join(process.env.LOCALAPPDATA || join(home, "AppData", "Local"), "TokenLarper");
+  if (process.platform === "darwin") return join(home, "Library", "Application Support", "TokenLarper");
+  return join(process.env.XDG_DATA_HOME || join(home, ".local", "share"), "token-larper");
+}
+
+function bunPath() {
+  if (typeof Bun !== "undefined") return process.execPath;
+  if (spawnSync("bun", ["--version"], { stdio: "ignore" }).status === 0) return "bun";
+  console.error("🔥 Token Larper requires Bun (v1.1+) to run.");
+  console.error("\nInstall Bun with one command:");
+  if (process.platform === "win32") {
+    console.error('  powershell -c "irm bun.sh/install.ps1 | iex"');
   } else {
-    console.error("🔥 Token Larper requires Bun (v1.1+) to run.");
-    console.error("\nInstall Bun with one command:");
-    if (process.platform === "win32") {
-      console.error('  powershell -c "irm bun.sh/install.ps1 | iex"');
-    } else {
-      console.error("  curl -fsSL https://bun.sh/install | bash");
+    console.error("  curl -fsSL https://bun.sh/install | bash");
+  }
+  console.error("\nMore info: https://github.com/YarooqH/token-larper\n");
+  process.exit(1);
+}
+
+async function isRunning(p) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${p}/api/tray-status`, { signal: AbortSignal.timeout(800) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function openBrowser(url) {
+  const [cmd, cmdArgs] =
+    process.platform === "win32" ? ["cmd", ["/c", "start", "", url]]
+    : process.platform === "darwin" ? ["open", [url]]
+    : ["xdg-open", [url]];
+  spawn(cmd, cmdArgs, { stdio: "ignore", detached: true, windowsHide: true }).unref();
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function stop() {
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/shutdown`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch {
+    console.log(`Token Larper isn't running on port ${port}.`);
+    return;
+  }
+  for (let i = 0; i < 20 && (await isRunning(port)); i++) await sleep(250);
+  console.log("Stopped Token Larper.");
+}
+
+async function foreground() {
+  if (typeof Bun !== "undefined") return import(serverScript);
+  const child = spawnSync("bun", [serverScript], { stdio: "inherit", cwd: rootDir });
+  process.exit(child.status ?? 0);
+}
+
+async function background(open) {
+  const bun = bunPath();
+  const dir = dataDir();
+  mkdirSync(dir, { recursive: true });
+  const logFile = join(dir, "server.log");
+  const log = openSync(logFile, "w");
+
+  // The server moves to the next free port if another program has this one, and takes
+  // over from an older Token Larper on the same port (see src/server.ts).
+  const child = spawn(bun, [serverScript], {
+    cwd: rootDir,
+    detached: true,
+    windowsHide: true,
+    stdio: ["ignore", log, log],
+    env: { ...process.env, TOKEN_LARPER_NO_BROWSER: "1" },
+  });
+  let exited = false;
+  child.on("exit", () => (exited = true));
+  child.unref();
+  closeSync(log);
+
+  const readLog = () => {
+    try {
+      return readFileSync(logFile, "utf8");
+    } catch {
+      return "";
     }
-    console.error("\nMore info: https://github.com/YarooqH/token-larper\n");
+  };
+
+  // Ready once the server says where it is listening. A copy of the same version that
+  // is already running says so too ("already running at ..."), then the new one exits.
+  let url = null;
+  for (let i = 0; i < 120 && !url; i++) {
+    await sleep(250);
+    url = readLog().match(/running at (http:\/\/localhost:\d+)/)?.[1] ?? null;
+    if (!url && exited) break;
+  }
+
+  if (!url) {
+    console.error("🔥 Token Larper didn't start.");
+    const tail = readLog().trim().split(/\r?\n/).slice(-15).join("\n");
+    if (tail) console.error(`\n${tail}\n`);
+    console.error(`Full log: ${logFile}`);
+    console.error("Run with --foreground to see the server output live.");
     process.exit(1);
   }
+
+  console.log(`🔥 Token Larper is running at ${url}`);
+  console.log("   It keeps running after you close this window.");
+  console.log(
+    process.platform === "win32"
+      ? "   Quit it from the tray icon, or run: bunx token-larper stop"
+      : "   Stop it with: bunx token-larper stop"
+  );
+  if (open) openBrowser(url);
+  process.exit(0);
+}
+
+if (args.includes("--help") || args.includes("-h")) {
+  console.log(HELP);
+} else if (args[0] === "stop") {
+  await stop();
+} else if (args.includes("--foreground") || args.includes("-f")) {
+  bunPath();
+  await foreground();
+} else {
+  await background(!args.includes("--no-open") && process.env.TOKEN_LARPER_NO_BROWSER !== "1");
 }
