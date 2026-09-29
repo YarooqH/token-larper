@@ -2,7 +2,7 @@ import { join, resolve } from "node:path";
 import { getDashboardData } from "./ccusage.ts";
 import { getStartupStatus, setStartupStatus } from "./startup.ts";
 import { startSystemTray, stopSystemTray } from "./tray.ts";
-import { formatCompactNumber, formatCurrency } from "./client/utils.ts";
+import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
 
 const ROOT_DIR = resolve(import.meta.dir, "..");
 const CLIENT_DIR = join(ROOT_DIR, "src", "client");
@@ -129,18 +129,15 @@ function startServer(preferredPort: number) {
         getDashboardData({ refresh: false }),
         getStartupStatus(PORT),
       ]);
-      const tokStr = formatCompactNumber(data.totals.totalTokens);
-      const verStr = formatCurrency(data.totals.verifiedCost);
-      const estStr = formatCurrency(data.totals.estimatedCost);
-      return Response.json({
-        summaryText: `${tokStr} tokens · ${verStr} (${estStr} LARP) · ${data.totals.activeHarnesses} harnesses`,
-        shortTooltip: `${tokStr} tok · ${estStr} LARP`,
-        totalTokensText: tokStr,
-        verifiedCostText: verStr,
-        estimatedCostText: estStr,
-        bootEnabled: startup.enabled,
-        openBrowserOnBoot: startup.openBrowserOnBoot,
-      });
+      return Response.json(buildTrayStatus(data, startup));
+    }
+
+    // The dashboard reports its resolved theme colors so the tray popup can match them.
+    if (url.pathname === "/api/ui-theme" && req.method === "POST") {
+      const next = parseTheme(await req.json().catch(() => null));
+      if (!next) return Response.json({ error: "Expected #rrggbb colors" }, { status: 400 });
+      saveTheme(next);
+      return Response.json({ ok: true });
     }
 
     if (url.pathname === "/api/startup" && req.method === "GET") {
