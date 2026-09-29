@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Moon, Power, RefreshCw, Search, Settings, Sun } from "lucide-react";
+import { AlertTriangle, Heart, Moon, Power, RefreshCw, Search, Settings, Sun } from "lucide-react";
 import type { DashboardPayload, HarnessId, StartupConfig } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";
@@ -534,6 +534,15 @@ export function App() {
           {view.id === "sessions" && <Sessions />}
           {view.id === "rank" && <Rank />}
         </main>
+
+        <footer className="credit">
+          <span>
+            Made with <Heart size={12} aria-label="love" className="credit-heart" /> by{" "}
+            <a href="https://github.com/YarooqH" target="_blank" rel="noreferrer">qray</a>
+          </span>
+          <span aria-hidden="true">·</span>
+          <a href="https://github.com/YarooqH/token-larper" target="_blank" rel="noreferrer">Source on GitHub</a>
+        </footer>
 
         {showSettings && (
           <SettingsDialog
