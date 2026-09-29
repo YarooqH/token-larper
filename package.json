@@ -1,6 +1,6 @@
 {
   "name": "token-larper",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Token Larper — Multi-Harness AI Coding Usage & Cost Telemetry Dashboard powered by ccusage",
   "type": "module",
   "license": "MIT",
