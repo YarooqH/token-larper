@@ -58,7 +58,11 @@ export function startTrayThemeSync(): () => void {
   };
 
   const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette", "style", "class"] });
+  // data-palette is today's theme switch; data-style and data-accent come with style presets.
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme", "data-palette", "data-style", "data-accent", "style", "class"],
+  });
   schedule();
   return () => {
     observer.disconnect();
