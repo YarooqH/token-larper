@@ -1,10 +1,13 @@
+import { createColorReader } from "./lib/cssColor.ts";
+
 export type ThemeMode = "light" | "dark";
 
-// A theme is two independent choices. The style is the whole look and feel: fonts,
+// A theme is three independent choices. The style is the whole look and feel: fonts,
 // radius, spacing, borders, shadows, label casing, and its own light and dark colors
-// (all defined in styles.css under html[data-style]). The accent is either the style's
-// own, one of the preset colors below, or any color the user picks. An imported CSS
-// theme can replace the colors of whichever style is active.
+// (all defined in styles.css under html[data-style]). The base color tints the style's
+// backgrounds, borders and text, keeping their lightness. The accent colors highlights.
+// Base and accent are each the style's own, a preset below, or any color the user picks.
+// An imported CSS theme can replace the colors of whichever style is active.
 
 export type StyleId = "grove" | "terminal" | "paper" | "brutal" | "soft" | "mono";
 
@@ -39,14 +42,29 @@ export const ACCENT_PRESETS: { id: AccentId; name: string; light: string; dark: 
 
 export type AccentChoice = { kind: "style" } | { kind: "preset"; id: AccentId } | { kind: "custom"; color: string };
 
+export type BaseId = "neutral" | "slate" | "stone" | "sage" | "plum" | "sand";
+
+/** Only the hue and saturation of these are used; lightness comes from the style. */
+export const BASE_PRESETS: { id: BaseId; name: string; color: string }[] = [
+  { id: "neutral", name: "Neutral", color: "#808080" },
+  { id: "slate", name: "Slate", color: "#5f7390" },
+  { id: "stone", name: "Stone", color: "#8a7b6d" },
+  { id: "sage", name: "Sage", color: "#6d8a72" },
+  { id: "plum", name: "Plum", color: "#86688a" },
+  { id: "sand", name: "Sand", color: "#a08a5c" },
+];
+
+export type BaseChoice = { kind: "style" } | { kind: "preset"; id: BaseId } | { kind: "custom"; color: string };
+
 export interface Appearance {
   style: StyleId;
+  base: BaseChoice;
   accent: AccentChoice;
   /** Use the imported CSS theme's colors on top of the style. */
   imported: boolean;
 }
 
-export const DEFAULT_APPEARANCE: Appearance = { style: "grove", accent: { kind: "style" }, imported: false };
+export const DEFAULT_APPEARANCE: Appearance = { style: "grove", base: { kind: "style" }, accent: { kind: "style" }, imported: false };
 
 export const THEME_MODE_STORAGE_KEY = "token-larper-theme";
 export const APPEARANCE_STORAGE_KEY = "token-larper-appearance";
@@ -118,6 +136,7 @@ export function readImportedTheme(): ImportedTheme | null {
 
 const isStyle = (value: unknown): value is StyleId => STYLE_PRESETS.some((s) => s.id === value);
 const isAccentId = (value: unknown): value is AccentId => ACCENT_PRESETS.some((a) => a.id === value);
+const isBaseId = (value: unknown): value is BaseId => BASE_PRESETS.some((b) => b.id === value);
 const isHex = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
 
 function sanitizeAppearance(value: unknown): Appearance | null {
@@ -130,7 +149,14 @@ function sanitizeAppearance(value: unknown): Appearance | null {
       : a.kind === "custom" && isHex(a.color)
         ? { kind: "custom", color: a.color.toLowerCase() }
         : { kind: "style" };
-  return { style: isStyle(v.style) ? v.style : "grove", accent, imported: v.imported === true };
+  const b = (v.base ?? {}) as Record<string, unknown>;
+  const base: BaseChoice =
+    b.kind === "preset" && isBaseId(b.id)
+      ? { kind: "preset", id: b.id }
+      : b.kind === "custom" && isHex(b.color)
+        ? { kind: "custom", color: b.color.toLowerCase() }
+        : { kind: "style" };
+  return { style: isStyle(v.style) ? v.style : "grove", base, accent, imported: v.imported === true };
 }
 
 export function readAppearance(): Appearance {
@@ -199,17 +225,97 @@ function accentFor(choice: AccentChoice, mode: ThemeMode): string | null {
   return null;
 }
 
+function rgbToHsl(hex: string): [number, number, number] {
+  const [r, g, b] = hexToRgb(hex).map((v) => v / 255) as [number, number, number];
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return rgbToHex([f(0) * 255, f(8) * 255, f(4) * 255]);
+}
+
+/** The style colors a base color retints. */
+export const BASE_PROPERTIES = [
+  "--bg", "--surface", "--surface-2", "--surface-3", "--border", "--border-strong", "--text", "--text-2", "--text-3",
+] as const;
+type BaseProperty = (typeof BASE_PROPERTIES)[number];
+export type StyleNeutrals = Record<ThemeMode, Record<BaseProperty, string>>;
+
+// How much of the base color's saturation each role takes, and the most it may take.
+const TINT: Record<BaseProperty, [factor: number, cap: number]> = {
+  "--bg": [0.8, 0.6], "--surface": [0.8, 0.6], "--surface-2": [0.8, 0.6], "--surface-3": [0.8, 0.6],
+  "--border": [0.6, 0.45], "--border-strong": [0.6, 0.45],
+  "--text": [0.35, 0.3], "--text-2": [0.4, 0.35], "--text-3": [0.4, 0.35],
+};
+const TEXT_CONTRAST: Partial<Record<BaseProperty, number>> = { "--text": 7, "--text-2": 4.5, "--text-3": 4.5 };
+
+function baseColor(choice: BaseChoice): string | null {
+  if (choice.kind === "preset") return BASE_PRESETS.find((b) => b.id === choice.id)!.color;
+  return choice.kind === "custom" ? choice.color : null;
+}
+
+/**
+ * Give the style's neutrals the base color's hue and saturation while keeping each one's
+ * lightness, so the style's structure (pale paper, black brutal outlines) survives.
+ * Near-white surfaces come down slightly so the tint shows, and text is nudged until it
+ * reads at least as well as the contrast targets above.
+ */
+function tintNeutrals(neutrals: Record<BaseProperty, string>, base: string, mode: ThemeMode): Record<string, string> {
+  const [hue, saturation] = rgbToHsl(base);
+  const out = {} as Record<BaseProperty, string>;
+  for (const property of BASE_PROPERTIES) {
+    const [factor, cap] = TINT[property];
+    let l = rgbToHsl(neutrals[property])[2];
+    if (mode === "light" && !TEXT_CONTRAST[property] && l > 0.93) l = 0.93 + (l - 0.93) * 0.7;
+    if (mode === "dark" && !TEXT_CONTRAST[property]) l = Math.max(l, 0.07); // Pure black can't take a tint.
+    // Saturation barely shows on near-black, so dark backgrounds and borders take more.
+    const boost = mode === "dark" && !TEXT_CONTRAST[property] ? 2 : 1;
+    out[property] = hslToHex(hue, Math.min(saturation * factor * boost, cap), l);
+  }
+  for (const [property, target] of Object.entries(TEXT_CONTRAST) as [BaseProperty, number][]) {
+    const [h, s, start] = rgbToHsl(out[property]);
+    let l = start;
+    for (let step = 0; step < 25; step++) {
+      const color = hslToHex(h, s, l);
+      out[property] = color;
+      if (Math.min(contrast(color, out["--bg"]), contrast(color, out["--surface"])) >= target) break;
+      l = Math.max(0, Math.min(1, l + (mode === "light" ? -0.02 : 0.02)));
+    }
+  }
+  return out;
+}
+
 export type ThemeVars = Record<ThemeMode, Record<string, string>>;
 
-/** Inline variables for an accent override or an imported theme, for both modes. */
-export function resolveThemeVars(appearance: Appearance, importedTheme: ImportedTheme | null): ThemeVars {
+/**
+ * Inline variables for the base, accent, or imported colors, for both modes. A base
+ * color needs the style's own neutrals as hex (read from the page by applyTheme).
+ */
+export function resolveThemeVars(
+  appearance: Appearance,
+  importedTheme: ImportedTheme | null,
+  styleNeutrals: StyleNeutrals | null = null
+): ThemeVars {
   const vars: ThemeVars = { light: {}, dark: {} };
+  const base = baseColor(appearance.base);
   for (const mode of ["light", "dark"] as const) {
     const out = vars[mode];
     if (appearance.imported && importedTheme) {
       const tokens = importedTheme[mode];
       for (const property of APP_COLOR_PROPERTIES) if (validColor(tokens[property])) out[property] = tokens[property]!;
       for (const property of APP_RADIUS_PROPERTIES) if (validRadius(tokens[property])) out[property] = tokens[property]!;
+    } else if (base && styleNeutrals) {
+      Object.assign(out, tintNeutrals(styleNeutrals[mode], base, mode));
     }
     const accent = accentFor(appearance.accent, mode);
     if (accent) {
@@ -224,16 +330,34 @@ export function resolveThemeVars(appearance: Appearance, importedTheme: Imported
 
 let appliedProperties: string[] = [];
 
+/** The active style's neutrals in both modes, read from styles.css with no overrides applied. */
+function readStyleNeutrals(): StyleNeutrals | null {
+  const reader = createColorReader();
+  if (!reader) return null;
+  const root = document.documentElement;
+  const current = root.dataset.theme;
+  const out = { light: {}, dark: {} } as StyleNeutrals;
+  for (const mode of ["light", "dark"] as const) {
+    root.dataset.theme = mode;
+    for (const property of BASE_PROPERTIES) out[mode][property] = reader.read(`var(${property})`);
+  }
+  root.dataset.theme = current;
+  reader.dispose();
+  return out;
+}
+
 export function applyTheme(mode: ThemeMode, appearance: Appearance, importedTheme: ImportedTheme | null): void {
   const root = document.documentElement;
   root.dataset.theme = mode;
   root.dataset.style = appearance.style;
   root.dataset.accent = appearance.accent.kind === "style" && !appearance.imported ? "style" : "custom";
+  root.dataset.base = appearance.base.kind === "style" || appearance.imported ? "style" : "custom";
   // Clear what an earlier call (or index.html) set before applying the new values.
   for (const property of new Set([...appliedProperties, ...APP_COLOR_PROPERTIES, ...APP_RADIUS_PROPERTIES])) {
     root.style.removeProperty(property);
   }
-  const vars = resolveThemeVars(appearance, importedTheme);
+  const neutrals = root.dataset.base === "custom" ? readStyleNeutrals() : null;
+  const vars = resolveThemeVars(appearance, importedTheme, neutrals);
   for (const [property, value] of Object.entries(vars[mode])) root.style.setProperty(property, value);
   appliedProperties = Object.keys(vars[mode]);
   try {

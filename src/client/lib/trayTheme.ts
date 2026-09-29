@@ -1,6 +1,7 @@
-// Keeps the Windows tray popup in the same colors as the dashboard. Themes can use any CSS
-// color syntax (oklch, color-mix, …), which the tray can't parse, so each token is painted
-// onto a 1×1 canvas and read back as #rrggbb.
+// Keeps the Windows tray popup in the same colors as the dashboard. The tray only
+// understands #rrggbb, so each token is resolved to hex first.
+
+import { createColorReader } from "./cssColor.ts";
 
 const TOKENS = {
   surface: "--surface",
@@ -13,28 +14,12 @@ const TOKENS = {
   gold: "--gold",
 } as const;
 
-function toHex(color: string, ctx: CanvasRenderingContext2D): string {
-  ctx.clearRect(0, 0, 1, 1);
-  ctx.fillStyle = "#000";
-  ctx.fillStyle = color;
-  ctx.fillRect(0, 0, 1, 1);
-  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-  return `#${[r, g, b].map((v) => (v ?? 0).toString(16).padStart(2, "0")).join("")}`;
-}
-
 function readTheme(): Record<string, string> | null {
-  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
-  if (!ctx) return null;
-  // A probe element resolves var() chains and color-mix() to a computed color.
-  const probe = document.createElement("span");
-  probe.style.display = "none";
-  document.body.appendChild(probe);
+  const reader = createColorReader();
+  if (!reader) return null;
   const out: Record<string, string> = { mode: document.documentElement.dataset.theme === "light" ? "light" : "dark" };
-  for (const [key, token] of Object.entries(TOKENS)) {
-    probe.style.color = `var(${token})`;
-    out[key] = toHex(getComputedStyle(probe).color, ctx);
-  }
-  probe.remove();
+  for (const [key, token] of Object.entries(TOKENS)) out[key] = reader.read(`var(${token})`);
+  reader.dispose();
   return out;
 }
 
@@ -61,7 +46,7 @@ export function startTrayThemeSync(): () => void {
   // data-palette is today's theme switch; data-style and data-accent come with style presets.
   observer.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["data-theme", "data-palette", "data-style", "data-accent", "style", "class"],
+    attributeFilter: ["data-theme", "data-palette", "data-style", "data-accent", "data-base", "style", "class"],
   });
   schedule();
   return () => {
