@@ -5,9 +5,12 @@ import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./char
 import { DashboardProvider, type Dashboard } from "./context.tsx";
 import { DateRangePicker } from "./components/DateRangePicker.tsx";
 import { AppFooter } from "./components/AppFooter.tsx";
+import { Logo } from "./components/Logo.tsx";
 import { RankChip } from "./components/RankChip.tsx";
 import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
+import { UpdateBanner } from "./components/UpdateBanner.tsx";
+import { useUpdates } from "./lib/updates.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
 import { Models } from "./views/Models.tsx";
@@ -19,13 +22,13 @@ import { Tools } from "./views/Tools.tsx";
 import {
   applyTheme,
   IMPORTED_THEME_STORAGE_KEY,
+  readAppearance,
   readImportedTheme,
-  readThemePalette,
+  saveAppearance,
   THEME_MODE_STORAGE_KEY,
-  THEME_PALETTE_STORAGE_KEY,
+  type Appearance,
   type ImportedTheme,
   type ThemeMode,
-  type ThemePalette,
 } from "./themes.ts";
 import { localDateKey } from "./utils.ts";
 
@@ -51,10 +54,13 @@ interface Prefs {
   customEnd?: string;
   bucket: Bucket;
   estimated: boolean;
+  checkUpdates: boolean;
+  /** The version whose banner was closed; a later version shows it again. */
+  dismissedUpdate?: string;
 }
 
 function loadPrefs(): Prefs {
-  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false };
+  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false, checkUpdates: true };
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     const saved: Partial<Prefs> = raw && typeof raw === "object" ? raw : {};
@@ -74,6 +80,8 @@ function loadPrefs(): Prefs {
       bucket,
       preset: preset === "custom" && !customDatesValid ? defaults.preset : preset,
       estimated: saved.estimated === true,
+      checkUpdates: saved.checkUpdates !== false,
+      ...(typeof saved.dismissedUpdate === "string" ? { dismissedUpdate: saved.dismissedUpdate } : {}),
       ...(customDatesValid ? { customStart: saved.customStart, customEnd: saved.customEnd } : {}),
     };
   } catch {
@@ -122,10 +130,13 @@ export function App() {
       return true;
     }
   });
-  const [palette, setPalette] = useState<ThemePalette>(readThemePalette);
+  const [appearance, setAppearance] = useState<Appearance>(readAppearance);
   const [importedTheme, setImportedTheme] = useState<ImportedTheme | null>(readImportedTheme);
 
   const updatePrefs = (patch: Partial<Prefs>) => setPrefs((p) => ({ ...p, ...patch }));
+  const updates = useUpdates(prefs.checkUpdates);
+  const showUpdateBanner = updates.phase !== "idle" || (prefs.checkUpdates && !!updates.status?.updateAvailable
+    && updates.status.latest !== prefs.dismissedUpdate);
 
   function setShowRanks(showRanks: boolean) {
     setPrefs((p) => ({ ...p, showRanks, view: !showRanks && p.view === "rank" ? "overview" : p.view }));
@@ -152,8 +163,8 @@ export function App() {
   }, [prefs.showRanks]);
 
   useEffect(() => {
-    applyTheme(theme, palette, importedTheme);
-  }, [theme, palette, importedTheme]);
+    applyTheme(theme, appearance, importedTheme);
+  }, [theme, appearance, importedTheme]);
 
   useEffect(() => {
     if (!followsSystemTheme) return;
@@ -171,25 +182,28 @@ export function App() {
     try { localStorage.setItem(THEME_MODE_STORAGE_KEY, next); } catch { /* Storage may be disabled. */ }
   }
 
-  function changeThemeMode(mode: ThemeMode) {
+  function changeThemeMode(mode: ThemeMode | "system") {
+    if (mode === "system") {
+      setFollowsSystemTheme(true);
+      setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      try { localStorage.removeItem(THEME_MODE_STORAGE_KEY); } catch { /* Storage may be disabled. */ }
+      return;
+    }
     setFollowsSystemTheme(false);
     setTheme(mode);
     try { localStorage.setItem(THEME_MODE_STORAGE_KEY, mode); } catch { /* Storage may be disabled. */ }
   }
 
-  function changePalette(next: ThemePalette) {
-    if (next === "custom" && !importedTheme) return;
-    setPalette(next);
-    try { localStorage.setItem(THEME_PALETTE_STORAGE_KEY, next); } catch { /* Storage may be disabled. */ }
+  function changeAppearance(next: Appearance) {
+    const safe = next.imported && !importedTheme ? { ...next, imported: false } : next;
+    setAppearance(safe);
+    saveAppearance(safe);
   }
 
   function saveImportedTheme(next: ImportedTheme) {
     setImportedTheme(next);
-    setPalette("custom");
-    try {
-      localStorage.setItem(IMPORTED_THEME_STORAGE_KEY, JSON.stringify(next));
-      localStorage.setItem(THEME_PALETTE_STORAGE_KEY, "custom");
-    } catch { /* Storage may be disabled. */ }
+    changeAppearance({ ...appearance, imported: true });
+    try { localStorage.setItem(IMPORTED_THEME_STORAGE_KEY, JSON.stringify(next)); } catch { /* Storage may be disabled. */ }
   }
 
   async function fetchDashboard(opts?: { refresh?: boolean; forceDeepScan?: boolean }) {
@@ -370,7 +384,7 @@ export function App() {
     return (
       <div className="splash">
         <div className="splash-card">
-          <img className="splash-logo" src="/logo.svg" alt="" />
+          <Logo className="splash-logo" />
           <h2>Summoning Token Larper…</h2>
           <p>Reading local usage from your coding tools with ccusage.</p>
         </div>
@@ -428,7 +442,7 @@ export function App() {
       <div className="app">
         <header className="topbar">
           <div className="brand">
-            <img className="brand-logo" src="/logo.svg" alt="" />
+            <Logo className="brand-logo" />
             <h1>Token Larper</h1>
             {data.syncingHarnesses.length > 0 && (
               <span className="pill">
@@ -473,6 +487,10 @@ export function App() {
             </button>
           </div>
         </header>
+
+        {showUpdateBanner && (
+          <UpdateBanner updates={updates} onDismiss={() => updatePrefs({ dismissedUpdate: updates.status?.latest ?? undefined })} />
+        )}
 
         <nav className="tabs" aria-label="Dashboard views">
           {VIEWS.filter((v) => v.id !== "rank" || prefs.showRanks).map((v) => (
@@ -544,12 +562,16 @@ export function App() {
             startupError={startupError}
             saving={savingStartup}
             themeMode={theme}
-            palette={palette}
+            followsSystemTheme={followsSystemTheme}
+            appearance={appearance}
             importedTheme={importedTheme}
             showRanks={prefs.showRanks}
+            updates={updates}
+            checkUpdates={prefs.checkUpdates}
+            onCheckUpdatesChange={(checkUpdates) => updatePrefs({ checkUpdates })}
             onClose={closeSettings}
             onThemeModeChange={changeThemeMode}
-            onPaletteChange={changePalette}
+            onAppearanceChange={changeAppearance}
             onImportTheme={saveImportedTheme}
             onShowRanksChange={setShowRanks}
             onToggleStartup={(enabled, open) => void handleToggleStartup(enabled, open)}

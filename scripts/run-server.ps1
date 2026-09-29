@@ -1,6 +1,11 @@
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$cacheDir = Join-Path $projectRoot ".cache"
+# Settings live in the per-user data folder (src/paths.ts), shared by every installed version.
+$cacheDir = if ($env:TOKEN_LARPER_DATA_DIR) { $env:TOKEN_LARPER_DATA_DIR } else { Join-Path $env:LOCALAPPDATA "TokenLarper" }
+if (-not (Test-Path -LiteralPath (Join-Path $cacheDir "settings.json"))) {
+  $legacyDir = Join-Path $projectRoot ".cache"
+  if (Test-Path -LiteralPath (Join-Path $legacyDir "settings.json")) { $cacheDir = $legacyDir }
+}
 $settingsPath = Join-Path $cacheDir "settings.json"
 $port = 4269
 $openBrowser = $false

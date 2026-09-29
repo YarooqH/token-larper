@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type {
   DashboardPayload,
   HarnessId,
@@ -13,9 +13,10 @@ import type {
 } from "./types.ts";
 import { isoWeek, localDateKey } from "./client/utils.ts";
 import { opencodeSessionUpdated, resolveSessionProject, saveSessionProjects } from "./projects.ts";
+import { APP_ROOT, DATA_DIR } from "./paths.ts";
 
-const ROOT_DIR = resolve(import.meta.dir, "..");
-const CACHE_DIR = join(ROOT_DIR, ".cache");
+const ROOT_DIR = APP_ROOT;
+const CACHE_DIR = DATA_DIR;
 const DASHBOARD_CACHE_FILE = join(CACHE_DIR, "dashboard-cache.json");
 const ANTIGRAVITY_DAILY_CACHE = join(CACHE_DIR, "antigravity-daily.json");
 const ANTIGRAVITY_SESSION_CACHE = join(CACHE_DIR, "antigravity-session.json");
@@ -263,6 +264,37 @@ function resolveCcusageBinary(): { cmd: string[]; version: string } {
  * Estimates realistic frontier API cost in USD when ccusage reports missingPricing: true or 0 cost
  * (e.g. for bleeding-edge models like claude-opus-5-5, gpt-6-sol, minimax-m3-free, etc.).
  */
+type Rates = [input: number, output: number, cacheWrite: number, cacheRead: number];
+
+/**
+ * Anthropic list prices per 1M tokens, by family and version. Opus dropped from $15/$75
+ * at 4.5, so a single "opus" rate overstated newer models about threefold. Names come in
+ * both orders ("claude-opus-4-1-20250805", "claude-3-5-haiku"); an unversioned name
+ * gets the current price.
+ */
+export function claudeRates(model: string): Rates | null {
+  const family = model.match(/opus|sonnet|haiku/)?.[0];
+  if (!family) return null;
+  // Version parts are one or two digits; longer runs are date stamps ("opus-4-20250514").
+  const after = model.match(new RegExp(`${family}-(\\d{1,2})(?!\\d)(?:[-.](\\d{1,2})(?!\\d))?`));
+  const before = model.match(new RegExp(`(\\d+)[-.](\\d{1,2})-${family}`));
+  const parts = after ?? before;
+  const version = parts ? Number(parts[1]) + Number(parts[2] ?? 0) / 10 : Infinity;
+
+  if (family === "opus") {
+    if (version >= 5.5) return [4, 20, 5, 0.2];
+    if (version >= 4.5) return [5, 25, 6.25, 0.5];
+    return [15, 75, 18.75, 1.5];
+  }
+  if (family === "sonnet") {
+    if (version >= 5) return [2, 10, 2.5, 0.2];
+    return [3, 15, 3.75, 0.3];
+  }
+  if (version >= 4.5) return [1, 5, 1.25, 0.1];
+  if (version >= 3.5) return [0.8, 4, 1, 0.08];
+  return [0.25, 1.25, 0.3, 0.03];
+}
+
 export function estimateFrontierCost(params: {
   modelName: string;
   inputTokens: number;
@@ -275,14 +307,11 @@ export function estimateFrontierCost(params: {
   const M = 1_000_000;
 
   // Pricing in USD per 1M tokens: [input, output, cacheWrite, cacheRead]
-  let rates: [number, number, number, number] = [2.0, 8.0, 2.5, 0.2];
+  let rates: Rates = [2.0, 8.0, 2.5, 0.2];
 
-  if (m.includes("opus")) {
-    rates = [15.0, 75.0, 18.75, 1.5];
-  } else if (m.includes("sonnet")) {
-    rates = [3.0, 15.0, 3.75, 0.3];
-  } else if (m.includes("haiku")) {
-    rates = [0.8, 4.0, 1.0, 0.08];
+  const claude = claudeRates(m);
+  if (claude) {
+    rates = claude;
   } else if (m.includes("gpt-6") || m.includes("gpt-5") || m.includes("o3") || m.includes("o4")) {
     rates = [2.5, 10.0, 2.5, 0.25];
   } else if (m.includes("gemini") && m.includes("pro")) {

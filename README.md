@@ -21,9 +21,10 @@ Token Larper passively reads session files, SQLite databases, and telemetry logs
 It consolidates all sessions into a real-time, interactive local dashboard running on [`http://localhost:4269`](http://localhost:4269) on **Windows, macOS, and Linux**. On Windows, it also lives quietly in your notification area as a lightweight, DPI-aware system tray icon.
 
 * **Powered by `ccusage`**: Uses `ccusage` v20+ for cross-platform log parsing, token counting, and verified frontier model pricing.
-* **100% Private & Offline**: No API keys required, no external proxies to configure, and zero analytics or telemetry sent to the cloud.
+* **100% Private & Offline**: No API keys required, no external proxies to configure, and zero analytics or telemetry sent to the cloud. The one outbound request is an optional update check that asks npm for the latest version number; turn it off in **Settings → Updates**.
 * **Cross-Platform Core**: The telemetry engine, 18 harness scrapers, and React dashboard run identically across Windows, macOS (Apple Silicon & Intel), and Linux.
 * **Gamified Hall of Larp**: Track your lifetime token burn, unlock 14 achievements, climb an 11-tier ranking ladder past rival personas, and export a shareable 1200×630 flex badge.
+* **Six Styles, Any Accent**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corner radius, spacing, borders, and shadows, not just colors. Pair any of them with a preset or custom accent, or import a tweakcn/shadcn CSS theme on top.
 * **Subscription-Aware**: Distinguishes between strict verified API billing and estimated **"LARP Value"** (the theoretical API cost of tokens consumed through flat-rate subscriptions like Claude Pro/Max, Copilot, or Antigravity).
 
 ---
@@ -225,7 +226,19 @@ By default, Token Larper runs on port `4269`. You can specify a custom port:
   ```powershell
   $env:PORT = "5000"; bun start
   ```
-The port is also persisted in `.cache/settings.json`.
+The port is also persisted in `settings.json` in the data folder (see below).
+
+### Data Folder
+Caches and settings live outside the app folder, so updates keep them:
+
+* **Windows**: `%LOCALAPPDATA%\TokenLarper`
+* **macOS**: `~/Library/Application Support/TokenLarper`
+* **Linux**: `$XDG_DATA_HOME/token-larper` (default `~/.local/share/token-larper`)
+
+Set `TOKEN_LARPER_DATA_DIR` to use another folder. Versions before 1.5.0 kept this data in `.cache` inside the app; it is copied over on first run.
+
+### Updates
+When a new version is on npm, the dashboard shows a banner. **Update now** starts `bunx token-larper@latest` in the background; the new version replaces the running one on the same port and the dashboard reloads. You can also check from **Settings → Updates**, or turn automatic checks off there. A copy cloned from git updates with `git pull`.
 
 ### Headless Server Mode
 If running on a remote headless server or Docker container, you can explicitly disable the tray icon (automatically disabled on macOS/Linux):

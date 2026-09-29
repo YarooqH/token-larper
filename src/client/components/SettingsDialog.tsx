@@ -2,19 +2,25 @@ import React, { useEffect, useRef } from "react";
 import { ChevronDown, Power, X } from "lucide-react";
 import type { StartupConfig } from "../../types.ts";
 import { ThemeSettings } from "./ThemeSettings.tsx";
-import type { ImportedTheme, ThemeMode, ThemePalette } from "../themes.ts";
+import { UpdateSettings } from "./UpdateSettings.tsx";
+import type { Updates } from "../lib/updates.ts";
+import type { Appearance, ImportedTheme, ThemeMode } from "../themes.ts";
 
 interface Props {
   startup: StartupConfig | null;
   startupError: string | null;
   saving: boolean;
   themeMode: ThemeMode;
-  palette: ThemePalette;
+  followsSystemTheme: boolean;
+  appearance: Appearance;
   importedTheme: ImportedTheme | null;
   showRanks: boolean;
+  updates: Updates;
+  checkUpdates: boolean;
+  onCheckUpdatesChange: (checkUpdates: boolean) => void;
   onClose: () => void;
-  onThemeModeChange: (mode: ThemeMode) => void;
-  onPaletteChange: (palette: ThemePalette) => void;
+  onThemeModeChange: (mode: ThemeMode | "system") => void;
+  onAppearanceChange: (appearance: Appearance) => void;
   onImportTheme: (theme: ImportedTheme) => void;
   onShowRanksChange: (showRanks: boolean) => void;
   onToggleStartup: (enabled: boolean, openBrowserOnBoot?: boolean) => void;
@@ -27,12 +33,16 @@ export function SettingsDialog({
   startupError,
   saving,
   themeMode,
-  palette,
+  followsSystemTheme,
+  appearance,
   importedTheme,
   showRanks,
+  updates,
+  checkUpdates,
+  onCheckUpdatesChange,
   onClose,
   onThemeModeChange,
-  onPaletteChange,
+  onAppearanceChange,
   onImportTheme,
   onShowRanksChange,
   onToggleStartup,
@@ -84,7 +94,7 @@ export function SettingsDialog({
         <header className="modal-header">
           <div>
             <h3 id="settings-title">Settings</h3>
-            <p>Appearance, dashboard, and startup</p>
+            <p>Appearance, dashboard, updates, and startup</p>
           </div>
           <button ref={closeRef} className="icon-btn" aria-label="Close settings" onClick={onClose}>
             <X size={17} />
@@ -95,10 +105,11 @@ export function SettingsDialog({
           {startupError && <div className="inline-error" role="alert">{startupError}</div>}
           <ThemeSettings
             mode={themeMode}
-            palette={palette}
+            followsSystem={followsSystemTheme}
+            appearance={appearance}
             importedTheme={importedTheme}
             onModeChange={onThemeModeChange}
-            onPaletteChange={onPaletteChange}
+            onAppearanceChange={onAppearanceChange}
             onImportTheme={onImportTheme}
           />
           <section className="settings-section" aria-labelledby="settings-dashboard-heading">
@@ -122,6 +133,7 @@ export function SettingsDialog({
               </button>
             </div>
           </section>
+          <UpdateSettings updates={updates} autoCheck={checkUpdates} onAutoCheckChange={onCheckUpdatesChange} />
           {startup ? (
             <>
               <section className="settings-section" aria-labelledby="settings-startup-heading">

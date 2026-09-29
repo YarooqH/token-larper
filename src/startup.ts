@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type { StartupConfig } from "./types.ts";
+import { APP_ROOT, APP_VERSION, DATA_DIR, dataPath } from "./paths.ts";
+import { compareVersions } from "./semver.ts";
 
 const REG_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const REG_VALUE_NAME = "TokenLarper";
-const ROOT_DIR = resolve(import.meta.dir, "..");
-const SETTINGS_FILE = join(ROOT_DIR, ".cache", "settings.json");
+const ROOT_DIR = APP_ROOT;
+const SETTINGS_FILE = dataPath("settings.json");
 const VBS_LAUNCHER = join(ROOT_DIR, "scripts", "launch-silent.vbs");
 const PS1_RUNNER = join(ROOT_DIR, "scripts", "run-server.ps1");
 
@@ -35,7 +37,7 @@ function loadSavedSettings(defaultPort = 4269): SavedSettings {
 }
 
 function saveSettings(settings: SavedSettings): void {
-  mkdirSync(join(ROOT_DIR, ".cache"), { recursive: true });
+  mkdirSync(DATA_DIR, { recursive: true });
   writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), "utf8");
 }
 
@@ -107,4 +109,34 @@ export async function setStartupStatus(options: {
 
   saveSettings(next);
   return getStartupStatus(next.port);
+}
+
+function versionAt(launcher: string): string | null {
+  try {
+    const pkg = join(launcher, "..", "..", "package.json");
+    return String(JSON.parse(readFileSync(pkg, "utf8")).version || "0.0.0");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * npx and bunx put every version in its own folder, so a startup entry made by an
+ * older version keeps launching that version. When startup is on and the entry points
+ * at an older or deleted copy, point it at this one.
+ */
+export async function repointStartupIfStale(): Promise<void> {
+  if (process.platform !== "win32") return;
+  try {
+    const value = await readRegistryValue();
+    const target = value?.match(/"([^"]*launch-silent\.vbs)"/i)?.[1];
+    if (!target || target.toLowerCase() === VBS_LAUNCHER.toLowerCase()) return;
+    const theirs = versionAt(target);
+    if (theirs !== null && existsSync(target) && compareVersions(theirs, APP_VERSION) >= 0) return;
+    if (!existsSync(VBS_LAUNCHER) || !existsSync(PS1_RUNNER)) return;
+    const command = `wscript.exe //B //Nologo "${VBS_LAUNCHER}"`;
+    await runReg(["add", REG_KEY, "/v", REG_VALUE_NAME, "/t", "REG_SZ", "/d", command, "/f"]);
+  } catch {
+    // The old entry keeps working; Settings can turn startup off and on again.
+  }
 }

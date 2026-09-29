@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { flattenPath, LOGO_PATHS } from "./client/logoMark.ts";
 
 const ROOT_DIR = resolve(import.meta.dir, "..");
 const SCRIPTS_DIR = join(ROOT_DIR, "scripts");
@@ -10,6 +11,10 @@ let trayPid: number | null = null;
 
 export function generateTrayScript(port: number, serverPid: number): string {
   mkdirSync(SCRIPTS_DIR, { recursive: true });
+  const logoPolygons = [LOGO_PATHS.t, LOGO_PATHS.flame]
+    .flatMap((d) => flattenPath(d))
+    .map((poly) => `  @(${poly.flat().map((n) => n.toFixed(2)).join(", ")})`)
+    .join(",\n");
 
   const psScript = `
 Add-Type -AssemblyName System.Windows.Forms
@@ -24,53 +29,77 @@ $BaseUrl = "http://127.0.0.1:$ServerPort"
 Add-Type -Namespace TokenLarper -Name Dpi -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();'
 [TokenLarper.Dpi]::SetProcessDPIAware() | Out-Null
 
-# The t. monogram from src/client/logo.svg, drawn in its 64-unit coordinates.
-$iconSize = [Math]::Max(16, [System.Windows.Forms.SystemInformation]::SmallIconSize.Width)
-$bmp = New-Object System.Drawing.Bitmap($iconSize, $iconSize)
-$g = [System.Drawing.Graphics]::FromImage($bmp)
-$g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-$g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-$g.Clear([System.Drawing.Color]::Transparent)
-$g.ScaleTransform($iconSize / 64, $iconSize / 64)
+# The Burning t. logo from src/client/logoMark.ts, flattened to polygons in 64-unit
+# coordinates. It has no background, so it is black on a light taskbar and white on a
+# dark one, and redrawn if that Windows setting changes.
+Add-Type -Namespace TokenLarper -Name IconNative -MemberDefinition '[DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr handle);'
+$LogoPolygons = @(
+${logoPolygons}
+)
 
-$green = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 47, 90, 67))
-$cream = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 243, 227, 191))
-$gold = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 225, 183, 92))
+function Test-LightTaskbar {
+  try {
+    $value = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name SystemUsesLightTheme -ErrorAction Stop
+    return ($value -eq 1)
+  } catch {
+    return $false
+  }
+}
 
-# Rounded square: x 3, y 3, size 58, corner radius 14.
-$tile = New-Object System.Drawing.Drawing2D.GraphicsPath
-$tile.AddArc(3, 3, 28, 28, 180, 90)
-$tile.AddArc(33, 3, 28, 28, 270, 90)
-$tile.AddArc(33, 33, 28, 28, 0, 90)
-$tile.AddArc(3, 33, 28, 28, 90, 90)
-$tile.CloseFigure()
-$g.FillPath($green, $tile)
+function New-LogoIcon([bool]$light) {
+  $size = [Math]::Max(16, [System.Windows.Forms.SystemInformation]::SmallIconSize.Width)
+  $bmp = New-Object System.Drawing.Bitmap($size, $size)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $g.Clear([System.Drawing.Color]::Transparent)
+  $g.ScaleTransform($size / 64, $size / 64)
+  $color = if ($light) { [System.Drawing.Color]::FromArgb(255, 20, 20, 20) } else { [System.Drawing.Color]::FromArgb(255, 245, 245, 245) }
+  $brush = New-Object System.Drawing.SolidBrush($color)
+  # Alternate (even-odd) filling cuts the flame's core out of the flame.
+  $path = New-Object System.Drawing.Drawing2D.GraphicsPath([System.Drawing.Drawing2D.FillMode]::Alternate)
+  foreach ($poly in $LogoPolygons) {
+    $count = [int]($poly.Length / 2)
+    $points = New-Object 'System.Drawing.PointF[]' $count
+    for ($i = 0; $i -lt $count; $i++) {
+      $points[$i] = New-Object System.Drawing.PointF([single]$poly[2 * $i], [single]$poly[2 * $i + 1])
+    }
+    $path.AddPolygon($points)
+  }
+  $g.FillPath($brush, $path)
+  $path.Dispose()
+  $brush.Dispose()
+  $g.Dispose()
+  $icon = [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
+  $bmp.Dispose()
+  return $icon
+}
 
-# Letter t: a stem with a curved foot, plus the crossbar.
-$stem = New-Object System.Drawing.Drawing2D.GraphicsPath
-$stem.AddLine(20, 12, 28, 12)
-$stem.AddLine(28, 12, 28, 43.5)
-$stem.AddBezier(28, 43.5, 28, 45.2, 28.8, 46, 30.5, 46)
-$stem.AddLine(30.5, 46, 35, 46)
-$stem.AddLine(35, 46, 35, 53)
-$stem.AddLine(35, 53, 28.5, 53)
-$stem.AddBezier(28.5, 53, 22.8, 53, 20, 50.2, 20, 44.5)
-$stem.CloseFigure()
-$g.FillPath($cream, $stem)
-$g.FillRectangle($cream, 13, 21, 22, 7)
-
-# The dot.
-$g.FillEllipse($gold, 39.5, 42, 11, 11)
-
-$hIcon = $bmp.GetHicon()
-$icon = [System.Drawing.Icon]::FromHandle($hIcon)
+$script:lightTaskbar = Test-LightTaskbar
+$icon = New-LogoIcon $script:lightTaskbar
 
 $notifyIcon = New-Object System.Windows.Forms.NotifyIcon
 $notifyIcon.Icon = $icon
 $notifyIcon.Text = "Token Larper - AI Coding Telemetry (Port $ServerPort)"
 $notifyIcon.Visible = $true
 
-# Compact left-click popup. Its values come from the same local status endpoint as the menu.
+# Compact left-click popup. Every string comes from /api/tray-status, and its colors come
+# from the dashboard's current theme (sent to the server whenever the theme changes).
+Add-Type -Namespace TokenLarper -Name Dwm -MemberDefinition '[DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);'
+
+function New-PopupLabel([string]$text, [int]$x, [int]$y, [int]$w, [int]$h, [float]$size, [bool]$bold, [string]$align) {
+  $label = New-Object System.Windows.Forms.Label
+  $label.Text = $text
+  $label.Location = New-Object System.Drawing.Point($x, $y)
+  $label.Size = New-Object System.Drawing.Size($w, $h)
+  $style = if ($bold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+  $label.Font = New-Object System.Drawing.Font("Segoe UI", $size, $style)
+  $label.TextAlign = [System.Drawing.ContentAlignment]::$align
+  $label.AutoEllipsis = $true
+  $popup.Controls.Add($label)
+  return $label
+}
+
 $popup = New-Object System.Windows.Forms.Form
 $popup.Text = "Token Larper"
 $popup.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
@@ -78,86 +107,67 @@ $popup.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
 $popup.ShowInTaskbar = $false
 $popup.TopMost = $true
 $popup.KeyPreview = $true
-$popup.ClientSize = New-Object System.Drawing.Size(300, 226)
-$popup.BackColor = [System.Drawing.Color]::FromArgb(23, 35, 29)
+$popup.ClientSize = New-Object System.Drawing.Size(300, 222)
 
-$popupText = [System.Drawing.Color]::FromArgb(244, 242, 233)
-$popupMuted = [System.Drawing.Color]::FromArgb(177, 192, 181)
-$popupAccent = [System.Drawing.Color]::FromArgb(169, 219, 182)
-
-$popupTitle = New-Object System.Windows.Forms.Label
-$popupTitle.Text = "Token Larper"
-$popupTitle.Location = New-Object System.Drawing.Point(18, 15)
-$popupTitle.Size = New-Object System.Drawing.Size(264, 22)
-$popupTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-$popupTitle.ForeColor = $popupText
-$popup.Controls.Add($popupTitle)
-
-$popupCaption = New-Object System.Windows.Forms.Label
-$popupCaption.Text = "Total tokens"
-$popupCaption.Location = New-Object System.Drawing.Point(18, 52)
-$popupCaption.Size = New-Object System.Drawing.Size(264, 19)
-$popupCaption.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$popupCaption.ForeColor = $popupMuted
-$popup.Controls.Add($popupCaption)
-
-$popupTokens = New-Object System.Windows.Forms.Label
-$popupTokens.Text = "Loading..."
-$popupTokens.Location = New-Object System.Drawing.Point(16, 71)
-$popupTokens.Size = New-Object System.Drawing.Size(266, 43)
-$popupTokens.Font = New-Object System.Drawing.Font("Segoe UI", 23, [System.Drawing.FontStyle]::Bold)
-$popupTokens.ForeColor = $popupText
-$popup.Controls.Add($popupTokens)
-
+$popupTitle = New-PopupLabel "Token Larper" 20 16 170 22 10 $true "MiddleLeft"
+$popupLevel = New-PopupLabel "" 190 16 90 22 9 $true "MiddleRight"
+$popupTodayCaption = New-PopupLabel "Today" 20 50 260 18 9 $false "MiddleLeft"
+$popupTodayTokens = New-PopupLabel "Loading..." 17 68 160 40 21 $true "MiddleLeft"
+$popupTodayCost = New-PopupLabel "" 160 76 120 28 12 $true "MiddleRight"
 $popupRule = New-Object System.Windows.Forms.Panel
-$popupRule.Location = New-Object System.Drawing.Point(18, 123)
-$popupRule.Size = New-Object System.Drawing.Size(264, 1)
-$popupRule.BackColor = [System.Drawing.Color]::FromArgb(57, 72, 62)
+$popupRule.Location = New-Object System.Drawing.Point(20, 118)
+$popupRule.Size = New-Object System.Drawing.Size(260, 1)
 $popup.Controls.Add($popupRule)
+$popupWeekCaption = New-PopupLabel "Last 7 days" 20 128 110 22 9 $false "MiddleLeft"
+$popupWeek = New-PopupLabel "" 120 128 160 22 9 $true "MiddleRight"
+$popupAllCaption = New-PopupLabel "All time" 20 152 110 22 9 $false "MiddleLeft"
+$popupAll = New-PopupLabel "" 120 152 160 22 9 $true "MiddleRight"
+$popupUpdated = New-PopupLabel "" 150 186 130 22 8 $false "MiddleRight"
 
-$verifiedCaption = New-Object System.Windows.Forms.Label
-$verifiedCaption.Text = "Verified cost"
-$verifiedCaption.Location = New-Object System.Drawing.Point(18, 136)
-$verifiedCaption.Size = New-Object System.Drawing.Size(126, 18)
-$verifiedCaption.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-$verifiedCaption.ForeColor = $popupMuted
-$popup.Controls.Add($verifiedCaption)
-
-$popupVerified = New-Object System.Windows.Forms.Label
-$popupVerified.Text = "--"
-$popupVerified.Location = New-Object System.Drawing.Point(18, 153)
-$popupVerified.Size = New-Object System.Drawing.Size(126, 25)
-$popupVerified.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
-$popupVerified.ForeColor = $popupText
-$popup.Controls.Add($popupVerified)
-
-$estimatedCaption = New-Object System.Windows.Forms.Label
-$estimatedCaption.Text = "LARP value"
-$estimatedCaption.Location = New-Object System.Drawing.Point(154, 136)
-$estimatedCaption.Size = New-Object System.Drawing.Size(128, 18)
-$estimatedCaption.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-$estimatedCaption.ForeColor = $popupMuted
-$popup.Controls.Add($estimatedCaption)
-
-$popupEstimated = New-Object System.Windows.Forms.Label
-$popupEstimated.Text = "--"
-$popupEstimated.Location = New-Object System.Drawing.Point(154, 153)
-$popupEstimated.Size = New-Object System.Drawing.Size(128, 25)
-$popupEstimated.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
-$popupEstimated.ForeColor = $popupText
-$popup.Controls.Add($popupEstimated)
-
-$popupOpen = New-Object System.Windows.Forms.Button
+# A text link instead of a filled button bar; it takes focus so Enter opens the dashboard.
+$popupOpen = New-Object System.Windows.Forms.LinkLabel
 $popupOpen.Text = "Open dashboard"
-$popupOpen.Location = New-Object System.Drawing.Point(18, 187)
-$popupOpen.Size = New-Object System.Drawing.Size(264, 30)
-$popupOpen.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$popupOpen.FlatAppearance.BorderSize = 0
-$popupOpen.BackColor = [System.Drawing.Color]::FromArgb(47, 90, 67)
-$popupOpen.ForeColor = $popupText
+$popupOpen.Location = New-Object System.Drawing.Point(20, 186)
+$popupOpen.Size = New-Object System.Drawing.Size(130, 22)
 $popupOpen.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$popupOpen.Cursor = [System.Windows.Forms.Cursors]::Hand
+$popupOpen.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+$popupOpen.LinkBehavior = [System.Windows.Forms.LinkBehavior]::HoverUnderline
+$popupOpen.TabStop = $true
 $popup.Controls.Add($popupOpen)
+
+$script:popupThemeKey = ""
+function Set-PopupTheme($theme) {
+  # Defaults match the Pine dark theme until the dashboard reports its colors.
+  $t = @{ surface = "#1b221e"; text = "#e8eee7"; text2 = "#b5c1b7"; text3 = "#98a59b"; border = "#2e3932"; accent = "#9fcaa8"; gold = "#e1b75c" }
+  if ($null -ne $theme) { foreach ($key in @($t.Keys)) { if ($theme.$key) { $t[$key] = [string]$theme.$key } } }
+  $key = ($t.GetEnumerator() | Sort-Object Name | ForEach-Object { $_.Value }) -join ","
+  if ($key -eq $script:popupThemeKey) { return }
+  $script:popupThemeKey = $key
+
+  $c = @{}
+  foreach ($name in $t.Keys) { $c[$name] = [System.Drawing.ColorTranslator]::FromHtml($t[$name]) }
+  $popup.BackColor = $c.surface
+  foreach ($label in @($popupTitle, $popupTodayTokens, $popupTodayCost, $popupWeek, $popupAll)) { $label.ForeColor = $c.text }
+  foreach ($label in @($popupTodayCaption, $popupWeekCaption, $popupAllCaption, $popupUpdated)) { $label.ForeColor = $c.text3 }
+  $popupLevel.ForeColor = $c.gold
+  $popupRule.BackColor = $c.border
+  $popupOpen.LinkColor = $c.accent
+  $popupOpen.ActiveLinkColor = $c.text
+  $popupOpen.VisitedLinkColor = $c.accent
+  Set-PopupChrome $c.border
+}
+
+# Windows 11 draws rounded corners and a hairline border in the theme color; older
+# versions ignore both attributes and keep a square window.
+function Set-PopupChrome([System.Drawing.Color]$border) {
+  try {
+    $round = 2
+    [TokenLarper.Dwm]::DwmSetWindowAttribute($popup.Handle, 33, [ref]$round, 4) | Out-Null
+    $colorRef = [int]$border.R -bor ([int]$border.G -shl 8) -bor ([int]$border.B -shl 16)
+    [TokenLarper.Dwm]::DwmSetWindowAttribute($popup.Handle, 34, [ref]$colorRef, 4) | Out-Null
+  } catch {}
+}
+Set-PopupTheme $null
 
 function Open-Dashboard {
   $popup.Hide()
@@ -168,11 +178,14 @@ function Open-Dashboard {
   }
 }
 
-$popupOpen.Add_Click({ Open-Dashboard })
+$popupOpen.Add_LinkClicked({ Open-Dashboard })
 $popup.Add_KeyDown({
   param($sender, $eventArgs)
   if ($eventArgs.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
     $popup.Hide()
+    $eventArgs.Handled = $true
+  } elseif ($eventArgs.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
+    Open-Dashboard
     $eventArgs.Handled = $true
   }
 })
@@ -185,6 +198,8 @@ $popup.Add_Deactivate({
 })
 
 function Show-StatusPopup {
+  # Refresh first so the numbers and colors are current when it appears.
+  Update-TrayStatus
   $cursor = [System.Windows.Forms.Cursor]::Position
   $area = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
   $x = [Math]::Max($area.Left + 8, [Math]::Min($cursor.X - $popup.Width + 24, $area.Right - $popup.Width - 8))
@@ -304,16 +319,23 @@ function Update-TrayStatus {
         $tooltip = $tooltip.Substring(0, 63)
       }
       $notifyIcon.Text = $tooltip
-      $popupTokens.Text = $st.totalTokensText
-      $popupVerified.Text = $st.verifiedCostText
-      $popupEstimated.Text = $st.estimatedCostText
+      $popupLevel.Text = $st.levelText
+      $popupTodayCaption.Text = $st.todayCaptionText
+      $popupTodayTokens.Text = $st.todayTokensText
+      $popupTodayCost.Text = $st.todayCostText
+      $popupWeek.Text = $st.weekText
+      $popupAll.Text = $st.allTimeText
+      $popupUpdated.Text = $st.updatedText
+      Set-PopupTheme $st.theme
       $itemBoot.Checked = [bool]$st.bootEnabled
       $itemOpenOnBoot.Checked = [bool]$st.openBrowserOnBoot
     }
   } catch {
-    $popupTokens.Text = "Unavailable"
-    $popupVerified.Text = "--"
-    $popupEstimated.Text = "--"
+    $popupTodayTokens.Text = "Unavailable"
+    $popupTodayCost.Text = ""
+    $popupWeek.Text = "--"
+    $popupAll.Text = "--"
+    $popupUpdated.Text = ""
   }
 }
 
@@ -332,6 +354,13 @@ $timer.Add_Tick({
     return
   }
   $script:tickCount++
+  $nowLight = Test-LightTaskbar
+  if ($nowLight -ne $script:lightTaskbar) {
+    $script:lightTaskbar = $nowLight
+    $oldIcon = $notifyIcon.Icon
+    $notifyIcon.Icon = New-LogoIcon $nowLight
+    [TokenLarper.IconNative]::DestroyIcon($oldIcon.Handle) | Out-Null
+  }
   if ($script:tickCount -eq 1 -or ($script:tickCount % 3 -eq 0)) {
     Update-TrayStatus
   }
