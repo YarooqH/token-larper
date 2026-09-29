@@ -4,6 +4,7 @@ import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./sta
 import { startSystemTray, stopSystemTray } from "./tray.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
 import { logoSvgFile } from "./client/logoMark.ts";
+import { appleTouchIconPng, faviconIco } from "./icons.ts";
 import { APP_VERSION, RUNNING_FROM_SOURCE } from "./paths.ts";
 import { checkForUpdates, compareVersions, localStatus, startUpdate } from "./updates.ts";
 
@@ -142,6 +143,18 @@ function startServer(preferredPort: number) {
     if (url.pathname === "/logo.svg") {
       return new Response(logoSvgFile(), {
         headers: { "Content-Type": "image/svg+xml; charset=utf-8" },
+      });
+    }
+
+    if (url.pathname === "/favicon.ico") {
+      return new Response(faviconIco(), {
+        headers: { "Content-Type": "image/x-icon", "Cache-Control": "public, max-age=86400" },
+      });
+    }
+
+    if (url.pathname === "/apple-touch-icon.png" || url.pathname === "/apple-touch-icon-precomposed.png") {
+      return new Response(appleTouchIconPng(), {
+        headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" },
       });
     }
 
