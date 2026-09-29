@@ -94,7 +94,7 @@ export function SettingsDialog({
         <header className="modal-header">
           <div>
             <h3 id="settings-title">Settings</h3>
-            <p>Appearance, dashboard, updates, and startup</p>
+            <p>Appearance, dashboard, startup, and updates</p>
           </div>
           <button ref={closeRef} className="icon-btn" aria-label="Close settings" onClick={onClose}>
             <X size={17} />
@@ -133,77 +133,76 @@ export function SettingsDialog({
               </button>
             </div>
           </section>
-          <UpdateSettings updates={updates} autoCheck={checkUpdates} onAutoCheckChange={onCheckUpdatesChange} />
           {startup ? (
-            <>
-              <section className="settings-section" aria-labelledby="settings-startup-heading">
-                <div className="settings-section-heading">
-                  <h4 id="settings-startup-heading">Startup</h4>
-                  <span>{startup.enabled ? "Starts with Windows" : "Manual launch"}</span>
+            <section className="settings-section" aria-labelledby="settings-startup-heading">
+              <div className="settings-section-heading">
+                <h4 id="settings-startup-heading">Startup</h4>
+                <span>{startup.enabled ? "Starts with Windows" : "Manual launch"}</span>
+              </div>
+              <div className="setting-row">
+                <div className="setting-copy">
+                  <strong id="setting-autostart-label">Start with Windows</strong>
+                  <p>Launch Token Larper when you sign in.</p>
                 </div>
-                <div className="setting-row">
-                  <div className="setting-copy">
-                    <strong id="setting-autostart-label">Start with Windows</strong>
-                    <p>Launch Token Larper when you sign in.</p>
-                  </div>
-                  <button
-                    disabled={saving}
-                    className={`toggle ${startup.enabled ? "on" : ""}`}
-                    role="switch"
-                    aria-labelledby="setting-autostart-label"
-                    aria-checked={startup.enabled}
-                    onClick={() => onToggleStartup(!startup.enabled)}
-                  >
-                    <span className="toggle-knob" />
-                  </button>
+                <button
+                  disabled={saving}
+                  className={`toggle ${startup.enabled ? "on" : ""}`}
+                  role="switch"
+                  aria-labelledby="setting-autostart-label"
+                  aria-checked={startup.enabled}
+                  onClick={() => onToggleStartup(!startup.enabled)}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+              <div className="setting-row">
+                <div className="setting-copy">
+                  <strong id="setting-browser-label">Open dashboard at sign-in</strong>
+                  <p>
+                    {startup.enabled
+                      ? "Open the dashboard in your browser after launch."
+                      : "Takes effect when Start with Windows is on."}
+                  </p>
                 </div>
-                <div className="setting-row">
-                  <div className="setting-copy">
-                    <strong id="setting-browser-label">Open dashboard at sign-in</strong>
-                    <p>
-                      {startup.enabled
-                        ? "Open the dashboard in your browser after launch."
-                        : "Takes effect when Start with Windows is on."}
-                    </p>
-                  </div>
-                  <button
-                    disabled={saving}
-                    className={`toggle ${startup.openBrowserOnBoot ? "on" : ""}`}
-                    role="switch"
-                    aria-labelledby="setting-browser-label"
-                    aria-checked={startup.openBrowserOnBoot}
-                    onClick={() => onToggleStartup(startup.enabled, !startup.openBrowserOnBoot)}
-                  >
-                    <span className="toggle-knob" />
-                  </button>
-                </div>
-              </section>
-
-              <details className="settings-details">
-                <summary>
-                  Technical details <ChevronDown size={14} aria-hidden="true" />
-                </summary>
-                <dl>
-                  <div>
-                    <dt>Dashboard</dt>
-                    <dd><code>http://127.0.0.1:{startup.port}</code></dd>
-                  </div>
-                  <div>
-                    <dt>Windows startup</dt>
-                    <dd><code>{startup.registryValue || "Not registered"}</code></dd>
-                  </div>
-                  <div>
-                    <dt>Launcher</dt>
-                    <dd><code>{startup.launcherPath}</code></dd>
-                  </div>
-                </dl>
-              </details>
-            </>
+                <button
+                  disabled={saving}
+                  className={`toggle ${startup.openBrowserOnBoot ? "on" : ""}`}
+                  role="switch"
+                  aria-labelledby="setting-browser-label"
+                  aria-checked={startup.openBrowserOnBoot}
+                  onClick={() => onToggleStartup(startup.enabled, !startup.openBrowserOnBoot)}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+            </section>
           ) : (
             <div className="settings-empty">
               <p>Startup settings are unavailable.</p>
               <button className="btn" onClick={onRetry}>Try again</button>
             </div>
+          )}
+          <UpdateSettings updates={updates} autoCheck={checkUpdates} onAutoCheckChange={onCheckUpdatesChange} />
+          {startup && (
+            <details className="settings-details">
+              <summary>
+                Technical details <ChevronDown size={14} aria-hidden="true" />
+              </summary>
+              <dl>
+                <div>
+                  <dt>Dashboard</dt>
+                  <dd><code>http://127.0.0.1:{startup.port}</code></dd>
+                </div>
+                <div>
+                  <dt>Windows startup</dt>
+                  <dd><code>{startup.registryValue || "Not registered"}</code></dd>
+                </div>
+                <div>
+                  <dt>Launcher</dt>
+                  <dd><code>{startup.launcherPath}</code></dd>
+                </div>
+              </dl>
+            </details>
           )}
         </div>
 

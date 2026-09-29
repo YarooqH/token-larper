@@ -4,6 +4,7 @@ import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./sta
 import { startSystemTray, stopSystemTray } from "./tray.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
 import { logoSvgFile } from "./client/logoMark.ts";
+import { appleTouchIconPng, faviconIco } from "./icons.ts";
 import { APP_VERSION, RUNNING_FROM_SOURCE } from "./paths.ts";
 import { checkForUpdates, compareVersions, localStatus, startUpdate } from "./updates.ts";
 
@@ -64,18 +65,20 @@ function openDashboard(port: number) {
 
 /** The version of a Token Larper already on the port, "0.0.0" for one too old to say, or null if none. */
 async function runningVersion(port: number): Promise<string | null> {
+  // /api/version answers instantly; versions before 1.5.0 don't have it, so fall back to
+  // /api/tray-status, which can take a few seconds while usage data loads.
   try {
-    const status = await fetch(`http://127.0.0.1:${port}/api/tray-status`, { signal: AbortSignal.timeout(600) });
-    if (!status.ok) return null;
+    const res = await fetch(`http://127.0.0.1:${port}/api/version`, { signal: AbortSignal.timeout(1500) });
+    const body = (await res.json().catch(() => null)) as { current?: unknown } | null;
+    if (res.ok && typeof body?.current === "string") return body.current;
   } catch {
-    return null;
+    // Nothing on the port, or it is busy; the next check decides.
   }
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/version`, { signal: AbortSignal.timeout(600) });
-    const body = (await res.json()) as { current?: unknown };
-    return typeof body.current === "string" ? body.current : "0.0.0";
+    const status = await fetch(`http://127.0.0.1:${port}/api/tray-status`, { signal: AbortSignal.timeout(5000) });
+    return status.ok ? "0.0.0" : null;
   } catch {
-    return "0.0.0";
+    return null;
   }
 }
 
@@ -140,6 +143,18 @@ function startServer(preferredPort: number) {
     if (url.pathname === "/logo.svg") {
       return new Response(logoSvgFile(), {
         headers: { "Content-Type": "image/svg+xml; charset=utf-8" },
+      });
+    }
+
+    if (url.pathname === "/favicon.ico") {
+      return new Response(faviconIco(), {
+        headers: { "Content-Type": "image/x-icon", "Cache-Control": "public, max-age=86400" },
+      });
+    }
+
+    if (url.pathname === "/apple-touch-icon.png" || url.pathname === "/apple-touch-icon-precomposed.png") {
+      return new Response(appleTouchIconPng(), {
+        headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=86400" },
       });
     }
 

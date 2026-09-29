@@ -24,7 +24,7 @@ It consolidates all sessions into a real-time, interactive local dashboard runni
 * **100% Private & Offline**: No API keys required, no external proxies to configure, and zero analytics or telemetry sent to the cloud. The one outbound request is an optional update check that asks npm for the latest version number; turn it off in **Settings → Updates**.
 * **Cross-Platform Core**: The telemetry engine, 18 harness scrapers, and React dashboard run identically across Windows, macOS (Apple Silicon & Intel), and Linux.
 * **Gamified Hall of Larp**: Track your lifetime token burn, unlock 14 achievements, climb an 11-tier ranking ladder past rival personas, and export a shareable 1200×630 flex badge.
-* **Six Styles, Any Accent**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corner radius, spacing, borders, and shadows, not just colors. Pair any of them with a preset or custom accent, or import a tweakcn/shadcn CSS theme on top.
+* **Six Styles, Your Colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corner radius, spacing, borders, and shadows, not just colors. Pick a base color that tints backgrounds, borders, and text, and an accent for highlights, from presets or any custom color. Or import a tweakcn/shadcn CSS theme on top.
 * **Subscription-Aware**: Distinguishes between strict verified API billing and estimated **"LARP Value"** (the theoretical API cost of tokens consumed through flat-rate subscriptions like Claude Pro/Max, Copilot, or Antigravity).
 
 ---
@@ -99,8 +99,15 @@ You can run Token Larper instantly without cloning:
 ```bash
 npx token-larper
 # or
-bunx tokenlarper
+bunx token-larper
 ```
+It starts in the background, opens the dashboard, and keeps running after you close the terminal. On Windows, quit it from the tray icon. On any platform:
+```bash
+bunx token-larper stop          # stop it
+bunx token-larper --foreground  # run in the terminal with logs instead
+bunx token-larper --help        # all options
+```
+The background server writes its output to `server.log` in the data folder.
 
 ---
 
@@ -132,7 +139,7 @@ bun run tray
 ```
 > **Shortcut**: You can also simply **double-click** `Start-TokenLarper.vbs` in File Explorer!
 
-* A green **`t.`** monogram icon will appear in your notification tray.
+* The **Burning t.** icon will appear in your notification tray.
 * Hover over the icon to see your real-time token count and cost estimate.
 * Left-click the icon for a compact usage popup with an **Open dashboard** button. Right-click it to sync or configure boot auto-start.
 
