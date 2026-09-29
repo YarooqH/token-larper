@@ -99,8 +99,15 @@ You can run Token Larper instantly without cloning:
 ```bash
 npx token-larper
 # or
-bunx tokenlarper
+bunx token-larper
 ```
+It starts in the background, opens the dashboard, and keeps running after you close the terminal. On Windows, quit it from the tray icon. On any platform:
+```bash
+bunx token-larper stop          # stop it
+bunx token-larper --foreground  # run in the terminal with logs instead
+bunx token-larper --help        # all options
+```
+The background server writes its output to `server.log` in the data folder.
 
 ---
 
@@ -132,7 +139,7 @@ bun run tray
 ```
 > **Shortcut**: You can also simply **double-click** `Start-TokenLarper.vbs` in File Explorer!
 
-* A green **`t.`** monogram icon will appear in your notification tray.
+* The **Burning t.** icon will appear in your notification tray.
 * Hover over the icon to see your real-time token count and cost estimate.
 * Left-click the icon for a compact usage popup with an **Open dashboard** button. Right-click it to sync or configure boot auto-start.
 
