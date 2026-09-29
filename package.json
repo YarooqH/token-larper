@@ -1,6 +1,6 @@
 {
   "name": "token-larper",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Token Larper — Multi-Harness AI Coding Usage & Cost Telemetry Dashboard powered by ccusage",
   "type": "module",
   "license": "MIT",
@@ -42,6 +42,7 @@
   ],
   "scripts": {
     "dev": "bun --watch src/server.ts",
+    "test": "bun test",
     "start": "bun src/server.ts",
     "tray": "wscript.exe //B //Nologo Start-TokenLarper.vbs",
     "stop": "bun -e \"fetch('http://127.0.0.1:4269/api/shutdown',{method:'POST',headers:{'Content-Type':'application/json'}}).then(()=>console.log('Stopped Token Larper')).catch(()=>console.log('Not running'))\""
