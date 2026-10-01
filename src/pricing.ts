@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { dataPath } from "./paths.ts";
+import type { PricingStatus } from "./types.ts";
 
 // Model prices for the estimated cost. OpenRouter publishes a public price list that
 // tracks new models faster than a table kept in this repo. The one request goes to its
@@ -99,18 +100,25 @@ export function buildPriceTable(models: readonly OpenRouterModel[]): PriceTable 
  * a dash so "claude-opus-4.9" never borrows the price of "claude-opus-4".
  */
 export function lookupRates(modelName: string, table: PriceTable): Rates | null {
+  return lookupMatch(modelName, table)?.rates ?? null;
+}
+
+/** Like lookupRates, plus the listed name that matched. */
+export function lookupMatch(modelName: string, table: PriceTable): { key: string; rates: Rates } | null {
   const key = normalizeModelName(modelName);
   if (!key) return null;
 
   const exact = table.get(key);
-  if (exact) return exact;
+  if (exact) return { key, rates: exact };
 
   let best: string | undefined;
   for (const listed of table.keys()) {
     if (key.startsWith(`${listed}-`) && (!best || listed.length > best.length)) best = listed;
   }
-  return best ? table.get(best)! : null;
+  return best ? { key: best, rates: table.get(best)! } : null;
 }
+
+
 
 const isRates = (value: unknown): value is Rates =>
   Array.isArray(value) && value.length === 4 && value.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0);
@@ -129,9 +137,10 @@ export function createPricing(options: PricingOptions = {}) {
   let table: PriceTable = new Map();
   // The same few model names repeat across every daily row, and an unlisted name scans
   // the whole table, so answers are remembered until the table changes.
-  let answers = new Map<string, Rates | null>();
+  let answers = new Map<string, { key: string; rates: Rates } | null>();
   let fetchedAt = 0;
   let nextAttempt = 0;
+  let lastDownloadFailed = false;
   let cacheRead = false;
   let inFlight: Promise<void> | null = null;
 
@@ -167,6 +176,7 @@ export function createPricing(options: PricingOptions = {}) {
 
       setTable(fresh);
       fetchedAt = now();
+      lastDownloadFailed = false;
       try {
         mkdirSync(dirname(cacheFile), { recursive: true });
         writeFileSync(cacheFile, JSON.stringify({ fetchedAt, rates: Object.fromEntries(fresh) }), "utf8");
@@ -175,6 +185,7 @@ export function createPricing(options: PricingOptions = {}) {
       }
     } catch {
       // Offline or the endpoint changed: keep what we have and try again later.
+      lastDownloadFailed = true;
       nextAttempt = now() + RETRY_MS;
     }
   }
@@ -182,12 +193,26 @@ export function createPricing(options: PricingOptions = {}) {
   return {
     /** Rates from the OpenRouter table, or null when it has no price for this model. */
     lookup(modelName: string): Rates | null {
-      let rates = answers.get(modelName);
-      if (rates === undefined) {
-        rates = lookupRates(modelName, table);
-        answers.set(modelName, rates);
+      return this.match(modelName)?.rates ?? null;
+    },
+
+    /** The OpenRouter entry for this model and its rates, or null when it is not listed. */
+    match(modelName: string): { key: string; rates: Rates } | null {
+      let found = answers.get(modelName);
+      if (found === undefined) {
+        found = lookupMatch(modelName, table);
+        answers.set(modelName, found);
       }
-      return rates;
+      return found;
+    },
+
+    status(): PricingStatus {
+      return {
+        fetchedAt: fetchedAt > 0 ? new Date(fetchedAt).toISOString() : null,
+        models: table.size,
+        lastDownloadFailed,
+        offline: process.env.TOKEN_LARPER_OFFLINE === "1",
+      };
     },
 
     /** Replaces the in-memory table. */

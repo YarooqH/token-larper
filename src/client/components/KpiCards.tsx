@@ -49,7 +49,7 @@ function Delta({ current, previous, unit, days }: { current: number; previous: n
 }
 
 export function KpiCards() {
-  const { data, days, range, harness, costOf, estimated } = useDashboard();
+  const { data, days, range, harness, costOf, estimated, openModelPrices } = useDashboard();
   const prev = previousRange(range);
   const current = useMemo(() => summarize(days), [days]);
   const previous: RangeTotals | null = useMemo(
@@ -82,6 +82,7 @@ export function KpiCards() {
             : `${formatCurrency(current.estimatedCost)} estimated API value`}
         </p>
         <Delta current={cost} previous={previous ? costOf(previous) : null} unit="percent" days={prevDays} />
+        <button type="button" className="kpi-link" onClick={openModelPrices}>See model prices</button>
         <Sparkline values={spark((d) => costOf(d))} />
       </article>
 

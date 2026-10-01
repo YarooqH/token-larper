@@ -19,6 +19,8 @@ export interface Dashboard {
   seriesOf: (id: HarnessId) => SeriesInfo;
   nameOf: (id: HarnessId) => string;
   search: string;
+  /** Switch to the Models view and scroll to its list prices. */
+  openModelPrices: () => void;
 }
 
 const DashboardContext = createContext<Dashboard | null>(null);

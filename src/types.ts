@@ -117,6 +117,25 @@ export interface HarnessSummary {
   unpricedModels: string[];
 }
 
+/** A list price in USD per 1M tokens: input, output, cache write, cache read. */
+export interface ModelPrice {
+  rates: [input: number, output: number, cacheWrite: number, cacheRead: number];
+  /** "openrouter": OpenRouter's public price list. "built-in": Anthropic's rates kept in the app. */
+  source: "openrouter" | "built-in";
+  /** The listed name that matched, e.g. "gpt-5.5" for "gpt-5.5-codex". */
+  match: string;
+}
+
+export interface PricingStatus {
+  /** When the price list in use was downloaded (ISO), or null if none has loaded. */
+  fetchedAt: string | null;
+  /** How many models the list prices. */
+  models: number;
+  /** The last download failed, so an older list (or none) is in use. */
+  lastDownloadFailed: boolean;
+  offline: boolean;
+}
+
 export interface DashboardPayload {
   generatedAt: string;
   ccusageVersion: string;
@@ -143,6 +162,8 @@ export interface DashboardPayload {
   monthly: TimePeriodRow[];
   yearly: TimePeriodRow[];
   models: ModelMetric[];
+  /** List prices for every model in the data (null when none is known), added per request. */
+  pricing?: { status: PricingStatus; models: Record<string, ModelPrice | null> };
   sessions: SessionEntry[];
 }
 

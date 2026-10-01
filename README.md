@@ -248,9 +248,11 @@ Set `TOKEN_LARPER_DATA_DIR` to use another folder. Versions before 1.5.0 kept th
 When a new version is on npm, the dashboard shows a banner. **Update now** starts `bunx token-larper@latest` in the background; the new version replaces the running one on the same port and the dashboard reloads. You can also check from **Settings → Updates**, or turn automatic checks off there. A copy cloned from git updates with `git pull`.
 
 ### Estimated Prices
-When ccusage has no price for a model (a brand-new one, or usage through a flat-rate subscription), Token Larper estimates the cost from list prices. It downloads OpenRouter's public model price list once a day, keeps it in the data folder as `openrouter-pricing.json`, and prices any model on that list from it. Other models use rates built into the app. Only the price list is downloaded; nothing about your usage is sent, and if the download fails the last saved list is used.
+When ccusage has no price for a model (a brand-new one, or usage through a flat-rate subscription), Token Larper estimates the cost from list prices. It downloads OpenRouter's public model price list once a day, keeps it in the data folder as `openrouter-pricing.json`, and prices any model on that list from it. Claude models it doesn't list use Anthropic's rates, built into the app. A model with neither has no price and is left out of estimates; nothing is guessed from its name. Only the price list is downloaded; nothing about your usage is sent, and if the download fails the last saved list is used.
 
-Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may fall back to the built-in rates. Verified costs from ccusage are never changed. Set `TOKEN_LARPER_OFFLINE=1` to skip the download and use only the saved list (if any) and the built-in rates.
+The **Models** tab lists the price per 1M tokens (input, output, cache write, cache read) of every model you've used, where each price came from, and when the list was last downloaded. The **Model prices** link next to the Cost toggle, and on the cost card, jumps there.
+
+Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may go unpriced. Verified costs from ccusage are never changed. Set `TOKEN_LARPER_OFFLINE=1` to skip the download and use only the saved list (if any) and the built-in rates.
 
 ### Headless Server Mode
 If running on a remote headless server or Docker container, you can explicitly disable the tray icon (automatically disabled on macOS/Linux):
