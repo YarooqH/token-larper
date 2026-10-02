@@ -21,6 +21,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx tsc --noEmit -p .
       - run: bun test
+      - run: bun run build
 
       - name: Version is bumped
         env:
