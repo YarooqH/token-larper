@@ -891,7 +891,7 @@ img { display: block; }
 /* ---------- Tables ---------- */
 
 /* position: relative keeps absolutely positioned children (e.g. .sr-only) inside the scroller. */
-.table-scroll { position: relative; overflow-x: auto; margin: 0 -22px; padding: 0 22px; }
+.table-scroll { position: relative; overflow-x: auto; margin: 0 -22px; padding: 0 12px; }
 .table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .table th {
   padding: 8px 10px;
@@ -904,8 +904,6 @@ img { display: block; }
 }
 .table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .table tbody tr:last-child td { border-bottom: 0; }
-.table th:first-child, .table td:first-child { padding-left: 0; }
-.table th:last-child, .table td:last-child { padding-right: 0; }
 .table .num { text-align: right; white-space: nowrap; }
 .table-compact td { padding-top: 8px; padding-bottom: 8px; }
 .bar-col { width: 22%; min-width: 80px; }
@@ -918,7 +916,7 @@ img { display: block; }
 .table-more { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; font-size: 12.5px; }
 
 .detail-row > td { padding: 14px 0 18px; background: var(--surface-2); }
-.detail-row .table-scroll { margin: 0; padding: 0 14px; }
+.detail-row .table-scroll { margin: 0; padding: 0 4px; }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; padding: 0 14px; }
 .detail-card { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
 .detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12.5px; }
@@ -1383,7 +1381,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
   .search { min-width: 0; }
   .intro { padding: 22px 0 16px; }
   .panel { padding: 16px; }
-  .table-scroll { margin: 0 -16px; padding: 0 16px; }
+  .table-scroll { margin: 0 -16px; padding: 0 6px; }
   .kpi { padding: 14px 14px 12px; }
   .kpi-value { font-size: 23px; }
   .uchart { --axis-w: 38px; }
