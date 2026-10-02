@@ -35,9 +35,11 @@ You need [Bun](https://bun.sh) 1.1 or later ([install steps](#2-bun-runtime-v11)
 
 ```bash
 npx token-larper
+# or
+bunx token-larper
 ```
 
-It starts in the background and opens the dashboard. Stop it with `npx token-larper stop`.
+It starts in the background and opens the dashboard. Stop it with `npx token-larper stop` (or `bunx token-larper stop`).
 
 ---
 
