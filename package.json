@@ -1,6 +1,6 @@
 {
   "name": "token-larper",
-  "version": "1.10.2",
+  "version": "1.10.4",
   "description": "Token Larper — Multi-Harness AI Coding Usage & Cost Telemetry Dashboard powered by ccusage",
   "type": "module",
   "license": "MIT",
@@ -20,7 +20,8 @@
     "!src/**/*.test.ts",
     "Start-TokenLarper.vbs",
     "README.md",
-    "llms.txt"
+    "llms.txt",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "bin": {
     "token-larper": "bin/cli.js",
@@ -50,7 +51,6 @@
   },
   "dependencies": {
     "ccusage": "20.0.24",
-    "lucide-react": "^1.48.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

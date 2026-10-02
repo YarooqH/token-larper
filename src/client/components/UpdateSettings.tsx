@@ -1,5 +1,5 @@
 import React from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "./Icons.tsx";
 import { RELEASES_URL, UPDATE_COMMAND, type Updates } from "../lib/updates.ts";
 
 interface Props {

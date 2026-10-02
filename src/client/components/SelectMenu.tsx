@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "./Icons.tsx";
 
 export interface SelectMenuOption<T extends string> {
   value: T;
