@@ -82,7 +82,9 @@ export function KpiCards() {
             : `${formatCurrency(current.estimatedCost)} estimated API value`}
         </p>
         <Delta current={cost} previous={previous ? costOf(previous) : null} unit="percent" days={prevDays} />
-        <button type="button" className="kpi-link" onClick={openModelPrices}>See model prices</button>
+        {estimated && (
+          <button type="button" className="kpi-link" onClick={openModelPrices}>How this is estimated</button>
+        )}
         <Sparkline values={spark((d) => costOf(d))} />
       </article>
 

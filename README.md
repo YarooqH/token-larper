@@ -250,7 +250,7 @@ When a new version is on npm, the dashboard shows a banner. **Update now** start
 ### Estimated Prices
 When ccusage has no price for a model (a brand-new one, or usage through a flat-rate subscription), Token Larper estimates the cost from list prices. It downloads OpenRouter's public model price list once a day, keeps it in the data folder as `openrouter-pricing.json`, and prices any model on that list from it. Claude models it doesn't list use Anthropic's rates, built into the app. A model with neither has no price and is left out of estimates; nothing is guessed from its name. Only the price list is downloaded; nothing about your usage is sent, and if the download fails the last saved list is used.
 
-The **Models** tab lists the price per 1M tokens (input, output, cache write, cache read) of every model you've used, where each price came from, and when the list was last downloaded. The **Model prices** link next to the Cost toggle, and on the cost card, jumps there.
+Switch **Cost** to **Estimate** to see the prices. The **Models** tab then adds a **Model prices** section with the price per 1M tokens (input, output, cache write, cache read) of every model you've used, which OpenRouter listing each one matched, where the prices come from, and when the list was last downloaded. The cost card on the Overview links to it with **How this is estimated**. In **Verified** mode there are no prices to show, because verified costs never use them.
 
 Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may go unpriced. Verified costs from ccusage are never changed. Set `TOKEN_LARPER_OFFLINE=1` to skip the download and use only the saved list (if any) and the built-in rates.
 

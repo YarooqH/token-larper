@@ -13,7 +13,8 @@ import { UpdateBanner } from "./components/UpdateBanner.tsx";
 import { useUpdates } from "./lib/updates.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
-import { MODEL_PRICES_ID, Models } from "./views/Models.tsx";
+import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
+import { Models } from "./views/Models.tsx";
 import { Overview } from "./views/Overview.tsx";
 import { Projects } from "./views/Projects.tsx";
 import { Rank } from "./views/Rank.tsx";
@@ -545,10 +546,7 @@ export function App() {
           />
           <SelectMenu label="Tool" value={harness} options={toolOptions} onChange={setHarness} className="tool-picker" />
           <div className="field cost-field">
-            <span className="field-label field-label-row">
-              Cost
-              <button type="button" className="field-link" onClick={openModelPrices}>Model prices</button>
-            </span>
+            <span className="field-label">Cost</span>
             <div className="cost-segmented" role="group" aria-label="Cost basis">
               <button type="button" aria-pressed={!estimated} onClick={() => updatePrefs({ estimated: false })}>Verified</button>
               <button type="button" aria-pressed={estimated} onClick={() => updatePrefs({ estimated: true })} title="Estimated API value">Estimate</button>
