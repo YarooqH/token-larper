@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "../components/Icons.tsx";
 import type { TimePeriodRow } from "../../types.ts";
 import { ActivityCalendar, TOKEN_TYPE_SERIES, UsageBarChart, formatPeriodLabel, type ChartMode } from "../charts.tsx";
 import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Check, ChevronDown, Pipette } from "lucide-react";
+import { Check, ChevronDown, Pipette } from "./Icons.tsx";
 import {
   ACCENT_PRESETS,
   BASE_PRESETS,

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Calendar as CalendarIcon, Check, ChevronDown } from "lucide-react";
+import { Calendar as CalendarIcon, Check, ChevronDown } from "./Icons.tsx";
 import {
   RANGE_PRESETS,
   formatSpan,

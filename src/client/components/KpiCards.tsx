@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Minus } from "./Icons.tsx";
 import { useDashboard } from "../context.tsx";
 import { daysInRange, sparkline, summarize, type RangeTotals } from "../lib/aggregate.ts";
 import { daysInRange as spanDays, formatDay, previousRange } from "../lib/range.ts";
