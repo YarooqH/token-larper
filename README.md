@@ -19,7 +19,7 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
-  <a href="#screenshots">Screenshots</a> ·
+  <a href="#see-it-in-action">See it in action</a> ·
   <a href="#supported-harnesses-18-agents">Supported agents</a> ·
   <a href="#uninstalling">Uninstall</a> ·
   <a href="#troubleshooting--faq">FAQ</a>
@@ -43,7 +43,7 @@ It starts in the background and opens the dashboard. Stop it with `npx token-lar
 
 ---
 
-## Screenshots
+## See it in action
 
 The screens below use sample data. No local sessions or project names are included.
 
