@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUpCircle, RefreshCw, X } from "lucide-react";
+import { ArrowUpCircle, RefreshCw, X } from "./Icons.tsx";
 import { RELEASES_URL, type Updates } from "../lib/updates.ts";
 
 export function UpdateBanner({ updates, onDismiss }: { updates: Updates; onDismiss: () => void }) {

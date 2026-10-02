@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "../components/Icons.tsx";
 import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";
 import { groupProjects } from "../lib/aggregate.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { ChevronDown, Power, X } from "lucide-react";
+import { ChevronDown, Power, X } from "./Icons.tsx";
 import type { StartupConfig } from "../../types.ts";
 import { ThemeSettings } from "./ThemeSettings.tsx";
 import { UpdateSettings } from "./UpdateSettings.tsx";

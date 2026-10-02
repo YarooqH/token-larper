@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Moon, Power, RefreshCw, Search, Settings, Sun } from "lucide-react";
+import { AlertTriangle, Moon, Power, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
 import type { DashboardPayload, HarnessId, StartupConfig } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";

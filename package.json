@@ -16,13 +16,16 @@
   "files": [
     "bin",
     "scripts",
+    "!scripts/build-client.ts",
+    "dist",
     "src",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
     "!src/client/testing",
     "Start-TokenLarper.vbs",
     "README.md",
-    "llms.txt"
+    "llms.txt",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "bin": {
     "token-larper": "bin/cli.js",
@@ -48,18 +51,19 @@
     "test": "bun test",
     "start": "bun src/server.ts",
     "tray": "wscript.exe //B //Nologo Start-TokenLarper.vbs",
-    "stop": "bun -e \"fetch('http://127.0.0.1:4269/api/shutdown',{method:'POST',headers:{'Content-Type':'application/json'}}).then(()=>console.log('Stopped Token Larper')).catch(()=>console.log('Not running'))\""
+    "stop": "bun -e \"fetch('http://127.0.0.1:4269/api/shutdown',{method:'POST',headers:{'Content-Type':'application/json'}}).then(()=>console.log('Stopped Token Larper')).catch(()=>console.log('Not running'))\"",
+    "build": "bun scripts/build-client.ts",
+    "prepack": "bun run build"
   },
   "dependencies": {
-    "ccusage": "20.0.24",
-    "lucide-react": "^1.48.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "ccusage": "20.0.24"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "^7.0.2"
   }
 }

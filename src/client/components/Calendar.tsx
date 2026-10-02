@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "./Icons.tsx";
 import { localDateKey } from "../utils.ts";
 import { parseDay, todayKey } from "../lib/range.ts";
 
