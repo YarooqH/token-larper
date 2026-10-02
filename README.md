@@ -69,6 +69,7 @@ The screens below use sample data. No local sessions or project names are includ
 * **Hall of Larp**: Lifetime token burn, 14 achievements, an 11-tier rank ladder with rivals, and a 1200×630 share card.
 * **Six styles, your colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corners, spacing, borders, and shadows. Pick a base color and an accent from presets or any custom color, or import a tweakcn/shadcn CSS theme.
 * **Cross-platform**: The engine, scrapers, and dashboard behave the same on Windows, macOS (Apple Silicon and Intel), and Linux. The tray icon is Windows-only.
+* **Lightweight install**: About 5 MB with its dependencies, on top of Bun. No Electron, no database, and the dashboard ships prebuilt.
 
 ---
 ## Prerequisites
