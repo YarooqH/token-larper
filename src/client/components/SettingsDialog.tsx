@@ -145,13 +145,14 @@ export function SettingsDialog({
                 <div className="setting-row">
                   <div className="setting-copy">
                     <strong id="setting-autostart-label">{copy.toggleLabel}</strong>
-                    <p>{copy.toggleHint}</p>
+                    <p id="setting-autostart-hint">{copy.toggleHint}</p>
                   </div>
                   <button
                     disabled={saving || copy.toggleDisabled}
                     className={`toggle ${startup.enabled ? "on" : ""}`}
                     role="switch"
                     aria-labelledby="setting-autostart-label"
+                    aria-describedby="setting-autostart-hint"
                     aria-checked={startup.enabled}
                     onClick={() => onToggleStartup(!startup.enabled)}
                   >
@@ -161,15 +162,17 @@ export function SettingsDialog({
                 <div className="setting-row">
                   <div className="setting-copy">
                     <strong id="setting-browser-label">Open dashboard at sign-in</strong>
-                    <p>{copy.browserHint}</p>
+                    <p id="setting-browser-hint">{copy.browserHint}</p>
                   </div>
                   <button
                     disabled={saving}
                     className={`toggle ${startup.openBrowserOnBoot ? "on" : ""}`}
                     role="switch"
                     aria-labelledby="setting-browser-label"
+                    aria-describedby="setting-browser-hint"
                     aria-checked={startup.openBrowserOnBoot}
-                    onClick={() => onToggleStartup(startup.enabled, !startup.openBrowserOnBoot)}
+                    // An entry the OS turned off still exists; passing false here would delete it.
+                    onClick={() => onToggleStartup(startup.enabled || startup.disabledBySystem, !startup.openBrowserOnBoot)}
                   >
                     <span className="toggle-knob" />
                   </button>
