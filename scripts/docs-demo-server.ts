@@ -133,7 +133,7 @@ Bun.serve({
     if (path === "/logo.svg") return new Response(Bun.file(join(clientDir, "logo.svg")), { headers: { "Content-Type": "image/svg+xml" } });
     if (path === "/app.js") return new Response(await bundle, { headers: { "Content-Type": "application/javascript" } });
     if (path === "/api/usage") return Response.json(sample);
-    if (path === "/api/startup" && request.method === "GET") return Response.json({ enabled: false, openBrowserOnBoot: false, port, registryValue: null, launcherPath: "Sample dashboard" });
+    if (path === "/api/startup" && request.method === "GET") return Response.json({ enabled: false, openBrowserOnBoot: false, port, platform: "windows", entry: null, entryPath: "Sample dashboard", disabledBySystem: false, launcherPath: "Sample dashboard" });
     return new Response("Not found", { status: 404 });
   },
 });

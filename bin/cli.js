@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
-import { closeSync, mkdirSync, openSync, readFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,7 @@ Usage:
   token-larper                Start in the background and open the dashboard
   token-larper --foreground   Run in this terminal and show logs (Ctrl+C stops it)
   token-larper --no-open      Start without opening the browser
+  token-larper --boot         What the login entry runs: start with the saved port and browser setting
   token-larper stop           Stop the running copy
 
 Environment: PORT (default 4269), TOKEN_LARPER_DATA_DIR, NO_TRAY=1`;
@@ -61,6 +62,31 @@ function openBrowser(url) {
     : process.platform === "darwin" ? ["open", [url]]
     : ["xdg-open", [url]];
   spawn(cmd, cmdArgs, { stdio: "ignore", detached: true, windowsHide: true }).unref();
+}
+
+// The settings the dashboard saves (src/startup.ts); read at login so the entry never changes.
+function savedSettings() {
+  try {
+    const raw = JSON.parse(readFileSync(join(dataDir(), "settings.json"), "utf8"));
+    const saved = Number(raw.port);
+    return {
+      port: Number.isInteger(saved) && saved > 0 && saved <= 65535 ? saved : 4269,
+      openOnBoot: raw.openBrowserOnBoot === true,
+    };
+  } catch {
+    return { port: 4269, openOnBoot: false };
+  }
+}
+
+/** The login entry on macOS and Linux runs this; scripts/run-server.ps1 does the same on Windows. */
+async function boot() {
+  const { port: bootPort, openOnBoot } = savedSettings();
+  if (await isRunning(bootPort)) {
+    if (openOnBoot) openBrowser(`http://localhost:${bootPort}`);
+    process.exit(0);
+  }
+  process.env.PORT = String(bootPort);
+  await background(openOnBoot, { boot: true });
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -114,11 +140,12 @@ function startServerProcess(bun, env) {
   return true;
 }
 
-async function background(open) {
+async function background(open, { boot = false } = {}) {
   const bun = bunPath();
   const dir = dataDir();
   mkdirSync(dir, { recursive: true });
   const logFile = join(dir, "server.log");
+  const errorLog = join(dir, "startup-error.log");
   closeSync(openSync(logFile, "w"));
 
   // The server moves to the next free port if another program has this one, and takes
@@ -154,11 +181,12 @@ async function background(open) {
   }
 
   if (waitingForPort) {
-    console.log(`🔥 Token Larper is replacing an older copy. It will be at http://localhost:${port} in a minute.`);
+    console.log(`🔥 Token Larper is replacing an older copy. It will be at http://localhost:${process.env.PORT || port} in a minute.`);
     process.exit(0);
   }
 
   if (!url) {
+    if (boot) writeFileSync(errorLog, `Token Larper didn't start at login. See ${logFile}\n`, "utf8");
     console.error("🔥 Token Larper didn't start.");
     const tail = readLog().trim().split(/\r?\n/).slice(-15).join("\n");
     if (tail) console.error(`\n${tail}\n`);
@@ -166,6 +194,8 @@ async function background(open) {
     console.error("Run with --foreground to see the server output live.");
     process.exit(1);
   }
+
+  if (boot) rmSync(errorLog, { force: true });
 
   console.log(`🔥 Token Larper is running at ${url}`);
   console.log("   It keeps running after you close this window.");
@@ -182,6 +212,8 @@ if (args.includes("--help") || args.includes("-h")) {
   console.log(HELP);
 } else if (args[0] === "stop") {
   await stop();
+} else if (args.includes("--boot")) {
+  await boot();
 } else if (args.includes("--foreground") || args.includes("-f")) {
   bunPath();
   await foreground();

@@ -221,7 +221,7 @@ To cleanly stop the server:
 
 ## Uninstalling
 
-Token Larper only reads your agents' logs, so removing it leaves your session history untouched. Do the steps in this order: the Windows startup entry points at the app folder, so turn it off before you delete anything.
+Token Larper only reads your agents' logs, so removing it leaves your session history untouched. Do the steps in this order: the startup entry points at the app folder, so turn it off before you delete anything.
 
 ### 1. Turn off startup and stop it
 
@@ -237,7 +237,16 @@ If you already deleted the app and it still launches at login, remove the startu
 reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v TokenLarper /f
 ```
 
-On macOS and Linux, stopping it is enough. If you set up your own LaunchAgent or `systemd --user` unit for it, remove that too.
+On macOS and Linux, turn off **Start at login** in **Settings** the same way, then stop it. If you already deleted the app, remove the entry by hand:
+
+```bash
+# macOS
+rm ~/Library/LaunchAgents/com.tokenlarper.agent.plist
+# Linux
+rm "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/token-larper.desktop"
+```
+
+If you set up your own `systemd --user` unit for it, remove that too.
 
 ### 2. Delete the data folder
 
@@ -290,13 +299,17 @@ Token Larper utilizes `ccusage` v20+ paired with native deep scanners to automat
 
 ## Configuration & Features
 
-### Auto-Start on Windows Boot
-You can have Token Larper launch silently into the system tray every time you turn on your computer:
-1. Right-click the **`t.`** system tray icon.
-2. Click **Start on Windows Boot** to enable it.
-3. *(Optional)* Click **Auto-Open Browser on Boot** if you want your default browser to launch directly to the dashboard upon login.
+### Start at Login
 
-*(This registers a clean user entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TokenLarper` running the windowless launcher).*
+Token Larper can start in the background when you sign in. It's off until you turn it on.
+
+* **Windows**: Right-click the **`t.`** tray icon and click **Start on Windows Boot**, or turn on **Start with Windows** in **Settings**. *(This adds a user entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TokenLarper` that runs the windowless launcher.)*
+* **macOS**: Turn on **Start at login** in **Settings**. This adds `~/Library/LaunchAgents/com.tokenlarper.agent.plist`. macOS then shows a "Background Items Added" notice and lists it (possibly as "bun") under **System Settings → General → Login Items**, where you can also turn it off.
+* **Linux**: Turn on **Start at login** in **Settings**. This adds `~/.config/autostart/token-larper.desktop` (or under `$XDG_CONFIG_HOME`), which GNOME, KDE and other desktops run when you log in.
+
+Start at login needs a permanent install on macOS and Linux: run "bun add -g token-larper", then start it with "token-larper". A copy started with bunx runs from a temporary folder your system clears, so Settings asks you to install it first.
+
+Turn on **Open dashboard at sign-in** as well if you want your browser to open to the dashboard after login. Settings → Technical details shows the exact entry.
 
 ### Custom Port
 By default, Token Larper runs on port `4269`. You can specify a custom port:
@@ -330,9 +343,28 @@ Switch **Cost** to **Estimate** to see the prices. The **Models** tab then adds 
 Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may go unpriced. Verified costs from ccusage are never changed. Set `TOKEN_LARPER_OFFLINE=1` to skip the download and use only the saved list (if any) and the built-in rates.
 
 ### Headless Server Mode
-If running on a remote headless server or Docker container, you can explicitly disable the tray icon (automatically disabled on macOS/Linux):
+On a remote server or in a container, turn the tray off explicitly (it's only drawn on Windows today):
 ```bash
 NO_TRAY=1 bun start
+```
+
+**Start at login** needs a desktop session. On a Linux machine without one, use a `systemd --user` service instead (adjust the paths to your Bun and Token Larper):
+```ini
+# ~/.config/systemd/user/token-larper.service
+[Unit]
+Description=Token Larper
+
+[Service]
+Environment=NO_TRAY=1
+ExecStart=%h/.bun/bin/bun %h/token-larper/src/server.ts
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+```bash
+systemctl --user enable --now token-larper
+loginctl enable-linger "$USER"   # keep it running when you're logged out
 ```
 
 ---
@@ -424,7 +456,8 @@ tokenlarper/
 │   ├── server.ts             # Bun HTTP & WebSocket server + client bundler
 │   ├── ccusage.ts            # 18-harness telemetry reader & cost calculation engine
 │   ├── tray.ts               # System tray lifecycle management & IPC
-│   ├── startup.ts            # Windows registry boot integration
+│   ├── startup.ts            # Start-at-login settings; delegates to startup/
+│   ├── startup/              # Login entries: Windows registry, macOS LaunchAgent, Linux autostart
 │   ├── projects.ts           # Workspace & Git repository deduplication
 │   ├── types.ts              # TypeScript interfaces & data contracts
 │   └── client/               # React 19 Frontend Dashboard

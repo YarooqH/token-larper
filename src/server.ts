@@ -213,13 +213,16 @@ function startServer(preferredPort: number) {
         return Response.json({ error: "Startup settings must be an object" }, { status: 400 });
       }
       const input = body as { enabled?: unknown; openBrowserOnBoot?: unknown };
-      if (typeof input.enabled !== "boolean" ||
+      if ((input.enabled !== undefined && typeof input.enabled !== "boolean") ||
           (input.openBrowserOnBoot !== undefined && typeof input.openBrowserOnBoot !== "boolean")) {
         return Response.json({ error: "Startup settings must use boolean values" }, { status: 400 });
       }
+      if (input.enabled === undefined && input.openBrowserOnBoot === undefined) {
+        return Response.json({ error: "Startup settings must include enabled or openBrowserOnBoot" }, { status: 400 });
+      }
       try {
         const status = await setStartupStatus({
-          enabled: input.enabled,
+          enabled: input.enabled as boolean | undefined,
           openBrowserOnBoot: input.openBrowserOnBoot as boolean | undefined,
           port: PORT,
         });
