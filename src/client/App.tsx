@@ -13,6 +13,7 @@ import { UpdateBanner } from "./components/UpdateBanner.tsx";
 import { useUpdates } from "./lib/updates.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
+import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
 import { Models } from "./views/Models.tsx";
 import { Overview } from "./views/Overview.tsx";
 import { Projects } from "./views/Projects.tsx";
@@ -422,6 +423,23 @@ export function App() {
     })),
   ];
 
+  function openModelPrices() {
+    updatePrefs({ view: "models" });
+    // The Models view renders on the next frame; scroll once its price table exists.
+    let tries = 0;
+    const scroll = () => {
+      const target = document.getElementById(MODEL_PRICES_ID);
+      if (!target) {
+        if (tries++ < 20) requestAnimationFrame(scroll);
+        return;
+      }
+      // Land just below the sticky filter bar so the heading stays visible.
+      const filters = document.querySelector<HTMLElement>(".filters")?.offsetHeight ?? 0;
+      window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - filters - 12, behavior: "smooth" });
+    };
+    requestAnimationFrame(scroll);
+  }
+
   const ctx: Dashboard = {
     data,
     range,
@@ -435,6 +453,7 @@ export function App() {
     seriesOf,
     nameOf,
     search: searchable ? search : "",
+    openModelPrices,
   };
 
   return (

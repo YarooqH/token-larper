@@ -1334,6 +1334,29 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .accent-row[aria-disabled="true"] { opacity: 0.45; }
 .accent-row[aria-disabled="true"] .accent-custom { cursor: not-allowed; }
 
+/* ---------- Model prices ---------- */
+.tag-warning { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning-text); }
+.price-table td { white-space: nowrap; }
+.price-table .tag { margin-left: 0; }
+.price-info { max-width: 80ch; }
+.panel-head + .price-info { margin-bottom: 16px; }
+.table-scroll + .price-info { margin-top: 16px; }
+.price-info h3 { font-size: 12.5px; font-weight: 700; }
+.price-info p, .price-info li { margin-top: 4px; color: var(--text-2); font-size: 12.5px; line-height: 1.5; }
+.price-info ul { padding-left: 18px; }
+.price-info code { color: var(--text); }
+.price-info a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.kpi-link {
+  align-self: flex-start;
+  color: var(--text-2);
+  font-size: 12px;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+.kpi-link:hover { color: var(--text); text-decoration-color: currentColor; }
+.kpi-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1020px) {

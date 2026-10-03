@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { claudeRates, estimateFrontierCost } from "./ccusage.ts";
+import { claudeRates, estimateFrontierCost, priceFor } from "./ccusage.ts";
 import { buildPriceTable, pricing } from "./pricing.ts";
 
 test("prices Claude models by version", () => {
@@ -28,13 +28,35 @@ describe("estimateFrontierCost", () => {
     expect(estimateFrontierCost({ modelName: "minimax-m3", ...oneMillion })).toBeCloseTo(1.86, 6);
   });
 
-  test("uses the built-in rates for a model OpenRouter does not list", () => {
+  test("uses the built-in Claude rates for a Claude model OpenRouter does not list", () => {
     pricing.use(buildPriceTable([{ id: "openai/gpt-5.5", pricing: { prompt: "0.000005", completion: "0.00003" } }]));
-    expect(estimateFrontierCost({ modelName: "gpt-6-sol", ...oneMillion })).toBeCloseTo(2.5 + 10 + 2.5 + 0.25, 6);
     expect(estimateFrontierCost({ modelName: "claude-opus-4-1-20250805", ...oneMillion })).toBeCloseTo(15 + 75 + 18.75 + 1.5, 6);
   });
 
-  test("uses the built-in rates when no OpenRouter table has loaded", () => {
-    expect(estimateFrontierCost({ modelName: "minimax-m3", ...oneMillion })).toBeCloseTo(0.5 + 2 + 0.5 + 0.1, 6);
+  test("does not guess: a model with no known price adds nothing", () => {
+    pricing.use(buildPriceTable([{ id: "openai/gpt-5.5", pricing: { prompt: "0.000005", completion: "0.00003" } }]));
+    expect(estimateFrontierCost({ modelName: "gpt-6-sol", ...oneMillion })).toBe(0);
+    expect(estimateFrontierCost({ modelName: "some-unknown-model", ...oneMillion })).toBe(0);
+  });
+
+  test("does not guess when no OpenRouter table has loaded", () => {
+    expect(estimateFrontierCost({ modelName: "minimax-m3", ...oneMillion })).toBe(0);
+  });
+});
+
+describe("priceFor", () => {
+  afterEach(() => pricing.use(new Map()));
+
+  test("reports an OpenRouter price with the entry it matched", () => {
+    pricing.use(buildPriceTable([{ id: "openai/gpt-5.5", pricing: { prompt: "0.000005", completion: "0.00003" } }]));
+    expect(priceFor("gpt-5.5-codex")).toEqual({ rates: [5, 30, 5, 5], source: "openrouter", match: "gpt-5.5" });
+  });
+
+  test("reports the built-in Claude rates", () => {
+    expect(priceFor("claude-sonnet-4-6")).toEqual({ rates: [3, 15, 3.75, 0.3], source: "built-in", match: "claude-sonnet" });
+  });
+
+  test("returns null when neither has a price", () => {
+    expect(priceFor("gpt-6-sol")).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import "./logFile.ts";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildClientBundle, PREBUILT_CLIENT } from "./clientBuild.ts";
-import { getDashboardData, stopCcusageRuns } from "./ccusage.ts";
+import { getDashboardData, stopCcusageRuns, withPricing } from "./ccusage.ts";
 import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./startup.ts";
 import { startSystemTray, stopSystemTray } from "./tray.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
@@ -178,7 +178,7 @@ function startServer(preferredPort: number) {
       const refresh = url.searchParams.get("refresh") === "1";
       const forceDeepScan = url.searchParams.get("deep") === "1";
       const data = await getDashboardData({ refresh, forceDeepScan });
-      return Response.json(data);
+      return Response.json(withPricing(data));
     }
 
     if (url.pathname === "/api/tray-status" && req.method === "GET") {

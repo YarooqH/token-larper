@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
+  ModelPrice,
   DashboardPayload,
   HarnessId,
   HarnessMetadata,
@@ -291,9 +292,21 @@ export function claudeRates(model: string): Rates | null {
 }
 
 /**
- * Estimates realistic frontier API cost in USD when ccusage reports missingPricing: true or 0 cost
- * (e.g. for bleeding-edge models like claude-opus-5-5, gpt-6-sol, minimax-m3-free, etc.).
- * Rates come from OpenRouter's price list when it lists the model, otherwise the built-in ones below.
+ * A model's list price: from OpenRouter's price list when it lists the model, otherwise
+ * the built-in Claude rates, otherwise null. There is no guessing from the model name.
+ */
+export function priceFor(modelName: string): ModelPrice | null {
+  const m = modelName.toLowerCase();
+  const listed = pricing.match(m);
+  if (listed) return { rates: listed.rates, source: "openrouter", match: listed.key };
+  const builtIn = claudeRates(m);
+  if (builtIn) return { rates: builtIn, source: "built-in", match: `claude-${m.match(/opus|sonnet|haiku/)![0]}` };
+  return null;
+}
+
+/**
+ * Estimated API cost in USD when ccusage has no price (missingPricing, or a cost of 0),
+ * as with brand-new models. A model with no known list price adds nothing.
  */
 export function estimateFrontierCost(params: {
   modelName: string;
@@ -303,32 +316,10 @@ export function estimateFrontierCost(params: {
   cacheReadTokens: number;
   reasoningOutputTokens?: number;
 }): number {
-  const m = params.modelName.toLowerCase();
+  const price = priceFor(params.modelName);
+  if (!price) return 0;
   const M = 1_000_000;
-
-  // Pricing in USD per 1M tokens: [input, output, cacheWrite, cacheRead]
-  let rates: Rates = [2.0, 8.0, 2.5, 0.2];
-
-  const known = pricing.lookup(m) ?? claudeRates(m);
-  if (known) {
-    rates = known;
-  } else if (m.includes("gpt-6") || m.includes("gpt-5") || m.includes("o3") || m.includes("o4")) {
-    rates = [2.5, 10.0, 2.5, 0.25];
-  } else if (m.includes("gemini") && m.includes("pro")) {
-    rates = [1.25, 10.0, 1.25, 0.31];
-  } else if (m.includes("flash")) {
-    rates = [0.15, 0.6, 0.15, 0.0375];
-  } else if (
-    m.includes("minimax") ||
-    m.includes("glm") ||
-    m.includes("kimi") ||
-    m.includes("mimo") ||
-    m.includes("qwen")
-  ) {
-    rates = [0.5, 2.0, 0.5, 0.1];
-  }
-
-  const [inRate, outRate, cwRate, crRate] = rates;
+  const [inRate, outRate, cwRate, crRate] = price.rates;
   return (
     (params.inputTokens / M) * inRate +
     (params.outputTokens / M) * outRate +
@@ -668,6 +659,18 @@ export function refreshAllHarnesses(options?: { forceDeepScan?: boolean }): Prom
     () => { if (refreshInFlight === run) refreshInFlight = null; },
   );
   return run;
+}
+
+/** The payload with the list price of every model in it, from the current price list. */
+export function withPricing(payload: DashboardPayload): DashboardPayload {
+  const models: Record<string, ModelPrice | null> = {};
+  const add = (name: string) => {
+    if (!(name in models)) models[name] = priceFor(name);
+  };
+  for (const m of payload.models) add(m.modelName);
+  // The Models view lists what appears in the daily rows, so cover those names too.
+  for (const row of payload.daily) for (const hb of Object.values(row.byHarness)) for (const m of hb.models) add(m.modelName);
+  return { ...payload, pricing: { status: pricing.status(), models } };
 }
 
 export async function getDashboardData(options?: {
