@@ -1,5 +1,7 @@
 import "./logFile.ts";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { buildClientBundle, PREBUILT_CLIENT } from "./clientBuild.ts";
 import { getDashboardData, stopCcusageRuns } from "./ccusage.ts";
 import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./startup.ts";
 import { startSystemTray, stopSystemTray } from "./tray.ts";
@@ -13,26 +15,11 @@ const ROOT_DIR = resolve(import.meta.dir, "..");
 const CLIENT_DIR = join(ROOT_DIR, "src", "client");
 const PORT = Number(process.env.PORT || 4269);
 
-async function buildClientBundle(): Promise<string> {
-  const result = await Bun.build({
-    entrypoints: [join(CLIENT_DIR, "main.tsx")],
-    target: "browser",
-    format: "esm",
-    minify: true,
-    define: {
-      "process.env.NODE_ENV": JSON.stringify("production"),
-    },
-  });
-
-  if (!result.success || result.outputs.length === 0) {
-    const logs = result.logs.map((l) => l.message).join("\n");
-    throw new Error(`Client bundle build failed:\n${logs}`);
-  }
-
-  return await result.outputs[0]!.text();
-}
-
-const clientBundle = buildClientBundle();
+// The published package ships the dashboard prebuilt, so it needs neither React nor a
+// build at startup. A git checkout ignores any dist/ left behind and builds src/client
+// itself, so edits show up on reload.
+const prebuiltClient = !RUNNING_FROM_SOURCE && existsSync(PREBUILT_CLIENT) ? Bun.file(PREBUILT_CLIENT) : null;
+const clientBundle = prebuiltClient ? null : buildClientBundle();
 
 // Only this machine's own dashboard may talk to the server. Checking Host blocks
 // DNS-rebinding reads; checking Origin + Content-Type blocks cross-site POSTs.
@@ -180,7 +167,8 @@ function startServer(preferredPort: number) {
     }
 
     if (url.pathname === "/app.js") {
-      const code = process.env.NODE_ENV === "production" ? await clientBundle : await buildClientBundle();
+      const code = prebuiltClient
+        ?? (process.env.NODE_ENV === "production" ? await clientBundle! : await buildClientBundle());
       return new Response(code, {
         headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-cache" },
       });

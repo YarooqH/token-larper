@@ -1,5 +1,5 @@
 import React from "react";
-import { Crown } from "lucide-react";
+import { Crown } from "./Icons.tsx";
 import { rankFor } from "../lib/rank.ts";
 import { formatCompactNumber } from "../utils.ts";
 

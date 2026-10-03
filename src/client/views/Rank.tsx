@@ -19,14 +19,14 @@ import {
   Trophy,
   Waves,
   X,
-  type LucideIcon,
-} from "lucide-react";
+  type Icon,
+} from "../components/Icons.tsx";
 import { useDashboard } from "../context.tsx";
 import { achievements, lastDefeated, lifetimeStats, nextRival, rankFor, TIERS } from "../lib/rank.ts";
 import { cardPng, shareCardSvg, svgDataUrl, themeCardColors } from "../lib/shareCard.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 
-const TROPHY_ICONS: Record<string, LucideIcon> = {
+const TROPHY_ICONS: Record<string, Icon> = {
   billion: Trophy,
   "ten-billion": Sparkles,
   "streak-7": Flame,
