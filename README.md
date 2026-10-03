@@ -1,35 +1,49 @@
-# 🔥 Token Larper
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/logo-dark.svg">
+    <img src="docs/media/logo-light.svg" alt="Token Larper logo" width="96" height="96">
+  </picture>
+</p>
 
-> **Multi-Harness AI Coding Usage & Cost Telemetry Dashboard**  
-> Built on top of [`ccusage`](https://github.com/ccusage/ccusage) to aggregate, visualize, and gamify local token burn across 18+ AI coding agents with a native Windows System Tray widget and zero cloud dependencies.
+<h1 align="center">Token Larper</h1>
 
-[![Bun](https://img.shields.io/badge/Bun-v1.1+-f472b6?logo=bun&logoColor=white)](https://bun.sh)
-[![ccusage](https://img.shields.io/badge/Powered%20by-ccusage-blue?logo=npm)](https://github.com/ccusage/ccusage)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4?logo=linux&logoColor=white)](https://github.com)
-[![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local%20%26%20Offline-success)](https://github.com)
-[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+<p align="center">
+  See what your AI coding agents cost you, in one local dashboard.
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/token-larper"><img src="https://img.shields.io/npm/v/token-larper?color=2f5a43" alt="npm version"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078d4" alt="Windows, macOS, Linux">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#a-quick-tour">A quick tour</a> ·
+  <a href="#supported-harnesses-18-agents">Supported agents</a> ·
+  <a href="#uninstalling">Uninstall</a> ·
+  <a href="#troubleshooting--faq">FAQ</a>
+</p>
+
+Token Larper reads the session logs that Claude Code, Codex, Antigravity, GitHub Copilot CLI, OpenCode, and 13 other coding agents already write to your disk, and turns them into a dashboard at `localhost:4269`. Nothing about your usage leaves your machine. It runs on Windows, macOS, and Linux, and on Windows it also sits in the system tray.
+
+It's built on top of [`ccusage`](https://github.com/ccusage/ccusage), which does the log parsing, token counting, and pricing. Token Larper adds the dashboard, the tray icon, project grouping, and the Hall of Larp.
+
+## Quick start
+
+You need [Bun](https://bun.sh) 1.1 or later ([install steps](#2-bun-runtime-v11)). Then:
+
+```bash
+npx token-larper
+# or
+bunx token-larper
+```
+
+It starts in the background and opens the dashboard. Stop it with `npx token-larper stop` (or `bunx token-larper stop`).
 
 ---
 
-## 📖 Overview
-
-> [!NOTE]
-> **Built on top of [`ccusage`](https://github.com/ccusage/ccusage)**: Token Larper is built directly on top of the open-source `ccusage` engine by [@ccusage](https://github.com/ccusage). While `ccusage` provides the foundational CLI scraping and cost calculation for local agent logs, Token Larper wraps it into a rich desktop experience—adding an interactive web dashboard, shadcn-style date range calendar, multi-agent project indexing, native Windows System Tray monitoring, and the gamified Hall of Larp.
-
-Token Larper passively reads session files, SQLite databases, and telemetry logs created on your local disk by CLI and IDE coding agents (**Claude Code**, **Codex**, **Antigravity**, **GitHub Copilot CLI**, **OpenCode**, and 13 others). 
-
-It consolidates all sessions into a real-time, interactive local dashboard running on [`http://localhost:4269`](http://localhost:4269) on **Windows, macOS, and Linux**. On Windows, it also lives quietly in your notification area as a lightweight, DPI-aware system tray icon.
-
-* **Powered by `ccusage`**: Uses `ccusage` v20+ for cross-platform log parsing, token counting, and verified frontier model pricing.
-* **100% Private & Offline**: No API keys required, no external proxies to configure, and zero analytics or telemetry sent to the cloud. The only outbound requests are two optional ones that send nothing about your usage: an update check that asks npm for the latest version number (turn it off in **Settings → Updates**), and a once-a-day download of OpenRouter's public model price list for cost estimates (set `TOKEN_LARPER_OFFLINE=1` to skip it).
-* **Cross-Platform Core**: The telemetry engine, 18 harness scrapers, and React dashboard run identically across Windows, macOS (Apple Silicon & Intel), and Linux.
-* **Gamified Hall of Larp**: Track your lifetime token burn, unlock 14 achievements, climb an 11-tier ranking ladder past rival personas, and export a shareable 1200×630 flex badge.
-* **Six Styles, Your Colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corner radius, spacing, borders, and shadows, not just colors. Pick a base color that tints backgrounds, borders, and text, and an accent for highlights, from presets or any custom color. Or import a tweakcn/shadcn CSS theme on top.
-* **Subscription-Aware**: Distinguishes between strict verified API billing and estimated **"LARP Value"** (the theoretical API cost of tokens consumed through flat-rate subscriptions like Claude Pro/Max, Copilot, or Antigravity). Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
-
----
-
-## Screenshots and walkthrough
+## A quick tour
 
 The screens below use sample data. No local sessions or project names are included.
 
@@ -47,7 +61,18 @@ The screens below use sample data. No local sessions or project names are includ
 
 ---
 
-## 📋 Prerequisites
+## Features
+
+* **Private and offline**: No API keys and no proxy to set up. Two optional requests leave your machine, and neither sends anything about your usage: an update check that asks npm for the latest version number (turn it off in **Settings → Updates**), and a once-a-day download of OpenRouter's public model price list (set `TOKEN_LARPER_OFFLINE=1` to skip it).
+* **18 agents, one total**: Every supported harness is detected automatically and counted together, with filters per tool, model, session, and project.
+* **Subscription-aware**: Verified API costs are kept apart from the estimated **"LARP Value"**, the API price of tokens you used through a flat-rate plan like Claude Pro/Max, Copilot, or Antigravity. Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
+* **Hall of Larp**: Lifetime token burn, 14 achievements, an 11-tier rank ladder with rivals, and a 1200×630 share card.
+* **Six styles, your colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corners, spacing, borders, and shadows. Pick a base color and an accent from presets or any custom color, or import a tweakcn/shadcn CSS theme.
+* **Cross-platform**: The engine, scrapers, and dashboard behave the same on Windows, macOS (Apple Silicon and Intel), and Linux. The tray icon is Windows-only.
+* **Lightweight install**: About 5 MB with its dependencies, on top of Bun. No Electron, no database, and the dashboard ships prebuilt.
+
+---
+## Prerequisites
 
 Before setting up Token Larper, ensure your machine meets the following requirements:
 
@@ -92,7 +117,7 @@ You should have at least one AI coding harness installed and used on your machin
 
 ---
 
-## 🚀 Quick Setup & Installation
+## Quick Setup & Installation
 
 ### Option 1: Instant 1-Line Run (Recommended)
 You can run Token Larper instantly without cloning:
@@ -113,7 +138,7 @@ The background server writes its output to `server.log` in the data folder.
 
 ### Option 2: Clone from Source
 
-#### Step 1: Get the Code
+### Step 1: Get the Code
 Clone the repository (or click **Code → Download ZIP** on GitHub and extract it):
 ```bash
 git clone https://github.com/YarooqH/token-larper.git
@@ -128,7 +153,7 @@ bun install
 
 ---
 
-## 🏃 Running Token Larper
+## Running Token Larper
 
 ### On Windows
 
@@ -179,14 +204,56 @@ Open your browser and navigate to:
 To cleanly stop the server:
 * **From the CLI (All Platforms)**:
   ```bash
-  bun run stop
+  npx token-larper stop   # or, from a clone: bun run stop
   ```
-  *(Sends a graceful shutdown request to the local API on port 4269).*
+  *(Sends a graceful shutdown request to the local API on port 4269. If you changed the port, set `PORT` the same way first.)*
 * **From the Windows Tray**: Right-click the **`t.`** icon → Select **Quit Token Larper**.
 
 ---
 
-## 🛠️ Supported Harnesses (18 Agents)
+## Uninstalling
+
+Token Larper only reads your agents' logs, so removing it leaves your session history untouched. Do the steps in this order: the Windows startup entry points at the app folder, so turn it off before you delete anything.
+
+### 1. Turn off startup and stop it
+
+On Windows, if you turned on **Start with Windows**, turn it off in the dashboard under **Settings**, or right-click the tray icon and uncheck **Start on Windows Boot**. Then quit from the tray, or run:
+
+```bash
+npx token-larper stop
+```
+
+If you already deleted the app and it still launches at login, remove the startup entry by hand:
+
+```powershell
+reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v TokenLarper /f
+```
+
+On macOS and Linux, stopping it is enough. If you set up your own LaunchAgent or `systemd --user` unit for it, remove that too.
+
+### 2. Delete the data folder
+
+This holds settings, caches, the downloaded price list, and `server.log`:
+
+| OS | Folder | Remove it with |
+| :--- | :--- | :--- |
+| Windows | `%LOCALAPPDATA%\TokenLarper` | `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\TokenLarper"` |
+| macOS | `~/Library/Application Support/TokenLarper` | `rm -rf ~/Library/Application\ Support/TokenLarper` |
+| Linux | `~/.local/share/token-larper` | `rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/token-larper"` |
+
+If you set `TOKEN_LARPER_DATA_DIR`, delete that folder instead.
+
+### 3. Remove the app
+
+* **Ran it with `npx` or `bunx`**: Nothing was installed globally. The package sits in the npx or Bun cache, and it's fine to leave it there. To get the space back, delete npx's cache folder (`~/.npm/_npx`, or `%LOCALAPPDATA%\npm-cache\_npx` on Windows) or run `bun pm cache rm`. Both clear every cached package, not only this one; the others download again the next time you use them.
+* **Installed it globally**: `npm uninstall -g token-larper` or `bun remove -g token-larper`.
+* **Cloned from git**: Delete the folder. Versions before 1.5.0 kept their data in `.cache` inside it, so that goes too.
+
+Bun stays installed. If you only installed it for Token Larper, see [Bun's uninstall steps](https://bun.sh/docs/installation#uninstall).
+
+---
+
+## Supported Harnesses (18 Agents)
 
 Token Larper utilizes `ccusage` v20+ paired with native deep scanners to automatically detect and index session history across 18 coding environments:
 
@@ -213,7 +280,7 @@ Token Larper utilizes `ccusage` v20+ paired with native deep scanners to automat
 
 ---
 
-## ⚙️ Configuration & Features
+## Configuration & Features
 
 ### Auto-Start on Windows Boot
 You can have Token Larper launch silently into the system tray every time you turn on your computer:
@@ -262,7 +329,7 @@ NO_TRAY=1 bun start
 
 ---
 
-## ⚖️ Comparison with Alternatives
+## Comparison with Alternatives
 
 | Dimension / Feature | Token Larper | LiteLLM / Portkey | Langfuse / Arize | `ccusage` CLI |
 | :--- | :---: | :---: | :---: | :---: |
@@ -276,7 +343,7 @@ NO_TRAY=1 bun start
 
 ---
 
-## 🏆 Hall of Larp (Rank & Gamification)
+## Hall of Larp (Rank & Gamification)
 
 Token Larper includes a dedicated **Rank** view designed to celebrate your token burn:
 * **11 Lifetime Tiers**: Progress from *Script Larper* (0 tokens) to *Deity of the Infinite Context Window* (1B+ tokens).
@@ -286,7 +353,7 @@ Token Larper includes a dedicated **Rank** view designed to celebrate your token
 
 ---
 
-## ❓ Troubleshooting & FAQ
+## Troubleshooting & FAQ
 
 ### 1. How do I monitor Claude Code token usage and spend locally?
 Token Larper automatically scans `~/.claude/` for Claude Code session files and SQLite databases. It displays daily, weekly, and monthly token burns (input, output, cache creation, cache read) alongside verified costs without requiring Anthropic API keys.
@@ -313,7 +380,7 @@ Many modern coding agents (Claude Code, GitHub Copilot CLI, Antigravity) use OAu
 
 ### 6. The system tray icon is not visible
 * **Cause**: Windows may have placed the icon inside the "hidden notification icons" overflow menu (the `^` arrow on the taskbar).
-* **Fix**: Click the `^` arrow next to your Windows clock, find the green **`t.`** icon, and drag it onto your main taskbar to keep it permanently visible.
+* **Fix**: Click the `^` arrow next to your Windows clock, find the **Burning t.** icon, and drag it onto your main taskbar to keep it permanently visible.
 
 ### 7. No tokens or sessions are showing up in the dashboard
 * **Cause**: Either no coding agents have been executed yet, or their logs are located in non-standard directories.
@@ -334,7 +401,7 @@ Many modern coding agents (Claude Code, GitHub Copilot CLI, Antigravity) use OAu
 
 ---
 
-## 📂 Project Architecture
+## Project Architecture
 
 ```
 tokenlarper/
@@ -361,7 +428,7 @@ tokenlarper/
 
 ---
 
-## 🙏 Acknowledgments & Credits
+## Acknowledgments & Credits
 
 Token Larper is built directly on top of the work of the open-source community:
 * **[`ccusage`](https://github.com/ccusage/ccusage)** — The core telemetry engine powering local session scraping, token counting, and cost calculations across AI coding harnesses.
@@ -370,6 +437,6 @@ Token Larper is built directly on top of the work of the open-source community:
 
 ---
 
-## 📄 License
+## License
 
 MIT © Token Larper Contributors
