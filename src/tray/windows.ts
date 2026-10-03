@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { flattenPath, LOGO_PATHS } from "./client/logoMark.ts";
+import { flattenPath, LOGO_PATHS } from "../client/logoMark.ts";
 
-const ROOT_DIR = resolve(import.meta.dir, "..");
+const ROOT_DIR = resolve(import.meta.dir, "..", "..");
 const SCRIPTS_DIR = join(ROOT_DIR, "scripts");
 const TRAY_PS1_PATH = join(SCRIPTS_DIR, "tray-host.ps1");
 const TRAY_LAUNCHER_PS1 = join(SCRIPTS_DIR, "launch-on-default-desktop.ps1");
@@ -426,9 +426,6 @@ Write-Output $launchedPid
 }
 
 export async function startSystemTray(port: number): Promise<void> {
-  if (process.platform !== "win32") return;
-  if (process.env.NO_TRAY === "1") return;
-
   try {
     const launcherPath = generateTrayScript(port, process.pid);
     const proc = Bun.spawn(

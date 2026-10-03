@@ -423,7 +423,7 @@ tokenlarper/
 ├── src/
 │   ├── server.ts             # Bun HTTP & WebSocket server + client bundler
 │   ├── ccusage.ts            # 18-harness telemetry reader & cost calculation engine
-│   ├── tray.ts               # System tray lifecycle management & IPC
+│   ├── tray/                 # System tray lifecycle management & IPC (windows.ts)
 │   ├── startup.ts            # Windows registry boot integration
 │   ├── projects.ts           # Workspace & Git repository deduplication
 │   ├── types.ts              # TypeScript interfaces & data contracts
