@@ -3,6 +3,7 @@ import { ChevronDown, Power, X } from "./Icons.tsx";
 import type { StartupConfig } from "../../types.ts";
 import { ThemeSettings } from "./ThemeSettings.tsx";
 import { UpdateSettings } from "./UpdateSettings.tsx";
+import { startupCopy } from "../lib/startupCopy.ts";
 import type { Updates } from "../lib/updates.ts";
 import type { Appearance, ImportedTheme, ThemeMode } from "../themes.ts";
 
@@ -133,50 +134,49 @@ export function SettingsDialog({
               </button>
             </div>
           </section>
-          {startup ? (
-            <section className="settings-section" aria-labelledby="settings-startup-heading">
-              <div className="settings-section-heading">
-                <h4 id="settings-startup-heading">Startup</h4>
-                <span>{startup.enabled ? "Starts with Windows" : "Manual launch"}</span>
-              </div>
-              <div className="setting-row">
-                <div className="setting-copy">
-                  <strong id="setting-autostart-label">Start with Windows</strong>
-                  <p>Launch Token Larper when you sign in.</p>
+          {startup ? (() => {
+            const copy = startupCopy(startup);
+            return (
+              <section className="settings-section" aria-labelledby="settings-startup-heading">
+                <div className="settings-section-heading">
+                  <h4 id="settings-startup-heading">Startup</h4>
+                  <span>{copy.status}</span>
                 </div>
-                <button
-                  disabled={saving}
-                  className={`toggle ${startup.enabled ? "on" : ""}`}
-                  role="switch"
-                  aria-labelledby="setting-autostart-label"
-                  aria-checked={startup.enabled}
-                  onClick={() => onToggleStartup(!startup.enabled)}
-                >
-                  <span className="toggle-knob" />
-                </button>
-              </div>
-              <div className="setting-row">
-                <div className="setting-copy">
-                  <strong id="setting-browser-label">Open dashboard at sign-in</strong>
-                  <p>
-                    {startup.enabled
-                      ? "Open the dashboard in your browser after launch."
-                      : "Takes effect when Start with Windows is on."}
-                  </p>
+                <div className="setting-row">
+                  <div className="setting-copy">
+                    <strong id="setting-autostart-label">{copy.toggleLabel}</strong>
+                    <p>{copy.toggleHint}</p>
+                  </div>
+                  <button
+                    disabled={saving || copy.toggleDisabled}
+                    className={`toggle ${startup.enabled ? "on" : ""}`}
+                    role="switch"
+                    aria-labelledby="setting-autostart-label"
+                    aria-checked={startup.enabled}
+                    onClick={() => onToggleStartup(!startup.enabled)}
+                  >
+                    <span className="toggle-knob" />
+                  </button>
                 </div>
-                <button
-                  disabled={saving}
-                  className={`toggle ${startup.openBrowserOnBoot ? "on" : ""}`}
-                  role="switch"
-                  aria-labelledby="setting-browser-label"
-                  aria-checked={startup.openBrowserOnBoot}
-                  onClick={() => onToggleStartup(startup.enabled, !startup.openBrowserOnBoot)}
-                >
-                  <span className="toggle-knob" />
-                </button>
-              </div>
-            </section>
-          ) : (
+                <div className="setting-row">
+                  <div className="setting-copy">
+                    <strong id="setting-browser-label">Open dashboard at sign-in</strong>
+                    <p>{copy.browserHint}</p>
+                  </div>
+                  <button
+                    disabled={saving}
+                    className={`toggle ${startup.openBrowserOnBoot ? "on" : ""}`}
+                    role="switch"
+                    aria-labelledby="setting-browser-label"
+                    aria-checked={startup.openBrowserOnBoot}
+                    onClick={() => onToggleStartup(startup.enabled, !startup.openBrowserOnBoot)}
+                  >
+                    <span className="toggle-knob" />
+                  </button>
+                </div>
+              </section>
+            );
+          })() : (
             <div className="settings-empty">
               <p>Startup settings are unavailable.</p>
               <button className="btn" onClick={onRetry}>Try again</button>
@@ -194,9 +194,15 @@ export function SettingsDialog({
                   <dd><code>http://127.0.0.1:{startup.port}</code></dd>
                 </div>
                 <div>
-                  <dt>Windows startup</dt>
+                  <dt>{startupCopy(startup).entryLabel}</dt>
                   <dd><code>{startup.entry || "Not registered"}</code></dd>
                 </div>
+                {startup.platform !== "windows" && (
+                  <div>
+                    <dt>Entry file</dt>
+                    <dd><code>{startup.entryPath}</code></dd>
+                  </div>
+                )}
                 <div>
                   <dt>Launcher</dt>
                   <dd><code>{startup.launcherPath}</code></dd>
