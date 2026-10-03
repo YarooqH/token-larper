@@ -33,14 +33,16 @@ function dataDir() {
 function bunPath() {
   if (typeof Bun !== "undefined") return process.execPath;
   if (spawnSync("bun", ["--version"], { stdio: "ignore", windowsHide: true }).status === 0) return "bun";
-  console.error("🔥 Token Larper requires Bun (v1.1+) to run.");
-  console.error("\nInstall Bun with one command:");
+  console.error("🔥 Token Larper runs on Bun (v1.1+), and Bun isn't installed.");
+  console.error("\n1. Install Bun:");
   if (process.platform === "win32") {
-    console.error('  powershell -c "irm bun.sh/install.ps1 | iex"');
+    console.error('     powershell -c "irm bun.sh/install.ps1 | iex"');
   } else {
-    console.error("  curl -fsSL https://bun.sh/install | bash");
+    console.error("     curl -fsSL https://bun.sh/install | bash");
   }
-  console.error("\nMore info: https://github.com/YarooqH/token-larper\n");
+  console.error("\n2. Restart your terminal, then run:");
+  console.error("     bunx token-larper");
+  console.error("\nMore info: https://github.com/YarooqH/token-larper#quick-start\n");
   process.exit(1);
 }
 

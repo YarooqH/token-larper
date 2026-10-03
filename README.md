@@ -31,15 +31,25 @@ It's built on top of [`ccusage`](https://github.com/ccusage/ccusage), which does
 
 ## Quick start
 
-You need [Bun](https://bun.sh) 1.1 or later ([install steps](#2-bun-runtime-v11)). Then:
+Token Larper runs on [Bun](https://bun.sh) 1.1 or later. Install it once:
 
 ```bash
-npx token-larper
-# or
+# macOS & Linux
+curl -fsSL https://bun.sh/install | bash
+```
+
+```powershell
+# Windows
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+Restart your terminal, then run:
+
+```bash
 bunx token-larper
 ```
 
-It starts in the background and opens the dashboard. Stop it with `npx token-larper stop` (or `bunx token-larper stop`).
+It starts in the background and opens the dashboard. Stop it with `bunx token-larper stop`.
 
 ---
 
@@ -120,10 +130,8 @@ You should have at least one AI coding harness installed and used on your machin
 ## Quick Setup & Installation
 
 ### Option 1: Instant 1-Line Run (Recommended)
-You can run Token Larper instantly without cloning:
+With [Bun installed](#2-bun-runtime-v11), run Token Larper without cloning:
 ```bash
-npx token-larper
-# or
 bunx token-larper
 ```
 It starts in the background, opens the dashboard, and keeps running after you close the terminal. On Windows, quit it from the tray icon. On any platform:
@@ -204,7 +212,7 @@ Open your browser and navigate to:
 To cleanly stop the server:
 * **From the CLI (All Platforms)**:
   ```bash
-  npx token-larper stop   # or, from a clone: bun run stop
+  bunx token-larper stop   # or, from a clone: bun run stop
   ```
   *(Sends a graceful shutdown request to the local API on port 4269. If you changed the port, set `PORT` the same way first.)*
 * **From the Windows Tray**: Right-click the **`t.`** icon → Select **Quit Token Larper**.
@@ -220,7 +228,7 @@ Token Larper only reads your agents' logs, so removing it leaves your session hi
 On Windows, if you turned on **Start with Windows**, turn it off in the dashboard under **Settings**, or right-click the tray icon and uncheck **Start on Windows Boot**. Then quit from the tray, or run:
 
 ```bash
-npx token-larper stop
+bunx token-larper stop
 ```
 
 If you already deleted the app and it still launches at login, remove the startup entry by hand:
@@ -332,7 +340,7 @@ NO_TRAY=1 bun start
 | Dimension / Feature | Token Larper | LiteLLM / Portkey | Langfuse / Arize | `ccusage` CLI |
 | :--- | :---: | :---: | :---: | :---: |
 | **Telemetry Ingestion** | Passive local disk log scraping | HTTP Reverse Proxy | SDK / OTel Collector | Passive local disk log scraping |
-| **Setup Complexity** | Zero-config (`npx token-larper`) | High (custom proxy URLs) | High (SDK instrumenting) | Low (`npm i -g ccusage`) |
+| **Setup Complexity** | One command with Bun (`bunx token-larper`) | High (custom proxy URLs) | High (SDK instrumenting) | Low (`npm i -g ccusage`) |
 | **Supports Flat Subscriptions (Pro/Max)** | ✅ Yes (Estimates LARP value) | ❌ No | ❌ No | ✅ Yes |
 | **User Interface** | Interactive Web + Native Tray | Cloud / Docker Web UI | Cloud / Self-hosted UI | Terminal tables only |
 | **Agent Auto-Detection** | ✅ 18+ coding harnesses | ❌ Manual per-tool proxy setup | ❌ Manual code changes | ✅ 18+ coding harnesses |
