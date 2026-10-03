@@ -195,7 +195,7 @@ export function SettingsDialog({
                 </div>
                 <div>
                   <dt>Windows startup</dt>
-                  <dd><code>{startup.registryValue || "Not registered"}</code></dd>
+                  <dd><code>{startup.entry || "Not registered"}</code></dd>
                 </div>
                 <div>
                   <dt>Launcher</dt>

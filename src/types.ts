@@ -171,7 +171,13 @@ export interface StartupConfig {
   enabled: boolean;
   openBrowserOnBoot: boolean;
   port: number;
-  registryValue: string | null;
+  platform: "windows" | "macos" | "linux";
+  /** The command the login entry runs, or null when there is none. */
+  entry: string | null;
+  /** Registry value, LaunchAgent plist or autostart .desktop file. */
+  entryPath: string;
+  /** This copy has an entry, but the user turned it off in the OS's own settings. */
+  disabledBySystem: boolean;
   launcherPath: string;
 }
 

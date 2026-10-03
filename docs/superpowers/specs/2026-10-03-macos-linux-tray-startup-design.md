@@ -55,7 +55,7 @@ The setting is read at login, so the startup entry never needs rewriting when it
 - File: `~/Library/LaunchAgents/com.tokenlarper.agent.plist`.
 - Keys: `Label` = `com.tokenlarper.agent`; `ProgramArguments` = `[<bun>, <cli.js>, "--boot"]`; `RunAtLoad` = true; `AbandonProcessGroup` = true, so launchd doesn't kill the server when the launcher exits; `LimitLoadToSessionType` = `Aqua`, so it runs in the GUI session where the menu bar exists; `StandardOutPath` and `StandardErrorPath` both set to `login-agent.log` in the data folder.
 - Enable: write the plist. It takes effect at the next login; nothing is loaded immediately.
-- Disable: `launchctl bootout gui/<uid>/com.tokenlarper.agent` (ignore "not loaded"), then delete the plist.
+- Disable: delete the plist. A `RunAtLoad` agent only runs when it is loaded at login, so there is nothing to unload, and `launchctl bootout` could signal the server that is running now.
 - Status: enabled when the plist exists, its `ProgramArguments` point at this copy's `cli.js`, **and** the label isn't in `launchctl print-disabled gui/<uid>`. If the plist exists but the label is disabled, Settings shows "Turned off in System Settings → General → Login Items", and the toggle reads off.
 - macOS 13+ shows a "Background Items Added" notice the first time and lists the item under Login Items. That's expected and documented in the README.
 
