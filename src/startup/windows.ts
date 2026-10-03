@@ -29,7 +29,7 @@ export const windowsBackend: StartupBackend = {
   async read(): Promise<EntryState> {
     const value = await readRegistryValue();
     if (!value) return NO_ENTRY;
-    return { entry: value, target: value.match(/"([^"]*launch-silent\.vbs)"/i)?.[1] ?? null, disabledBySystem: false };
+    return { entry: value, runner: null, target: value.match(/"([^"]*launch-silent\.vbs)"/i)?.[1] ?? null, disabledBySystem: false };
   },
   async write() {
     const result = await run(["reg.exe", "add", REG_KEY, "/v", REG_VALUE_NAME, "/t", "REG_SZ", "/d", COMMAND, "/f"]);

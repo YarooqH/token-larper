@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { homedir } from "node:os";
 import { join, posix } from "node:path";
 import { APP_ROOT } from "../paths.ts";
-import { bootTarget, displayCommand, NO_ENTRY, type EntryState, type StartupBackend } from "./backend.ts";
+import { assertPermanentInstall, bootTarget, displayCommand, NO_ENTRY, type EntryState, type StartupBackend } from "./backend.ts";
 import { autostartDir, buildDesktopEntry, DESKTOP_FILE_NAME, parseDesktopEntry } from "./desktopEntry.ts";
 
 const DESKTOP_PATH = posix.join(autostartDir({ XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME }, homedir()), DESKTOP_FILE_NAME);
@@ -14,12 +14,14 @@ export const linuxBackend: StartupBackend = {
   launcherPath: CLI_JS,
   assertCanEnable() {
     if (!existsSync(CLI_JS)) throw new Error(`Token Larper's launcher is missing (${CLI_JS})`);
+    assertPermanentInstall(APP_ROOT);
   },
   async read(): Promise<EntryState> {
     if (!existsSync(DESKTOP_PATH)) return NO_ENTRY;
     const parsed = parseDesktopEntry(readFileSync(DESKTOP_PATH, "utf8"));
     return {
       entry: parsed.args ? displayCommand(parsed.args) : "Unreadable autostart file",
+      runner: parsed.args?.[0] ?? null,
       target: bootTarget(parsed.args),
       disabledBySystem: parsed.disabled,
     };

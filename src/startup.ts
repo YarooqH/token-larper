@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { StartupConfig } from "./types.ts";
-import { APP_VERSION, DATA_DIR, dataPath } from "./paths.ts";
+import { APP_VERSION, DATA_DIR, dataPath, RUNNING_FROM_SOURCE } from "./paths.ts";
 import { NO_ENTRY, samePath, type EntryState, type StartupBackend } from "./startup/backend.ts";
 import { linuxBackend } from "./startup/linux.ts";
 import { macosBackend } from "./startup/macos.ts";
@@ -107,6 +107,9 @@ function versionAt(launcher: string): string | null {
 
 /** When startup is on and the entry starts an older or deleted copy, point it at this one. */
 export async function repointStartupIfStale(): Promise<void> {
+  // A test or dev copy (throwaway data folder, git checkout) must not take over the login entry;
+  // turning startup on from Settings still works there.
+  if (process.env.TOKEN_LARPER_DATA_DIR || RUNNING_FROM_SOURCE) return;
   try {
     const b = backend();
     const state = await b.read();
@@ -116,6 +119,7 @@ export async function repointStartupIfStale(): Promise<void> {
       state,
       isThisCopy: samePath(target, b.launcherPath, b.platform),
       targetExists: existsSync(target),
+      runnerExists: state.runner === null || existsSync(state.runner),
       targetVersion: versionAt(target),
       appVersion: APP_VERSION,
     });

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { APP_ROOT, dataPath } from "../paths.ts";
-import { bootTarget, displayCommand, NO_ENTRY, type EntryState, type StartupBackend } from "./backend.ts";
+import { assertPermanentInstall, bootTarget, displayCommand, NO_ENTRY, type EntryState, type StartupBackend } from "./backend.ts";
 import { buildPlist, isLabelDisabled, LAUNCH_AGENT_LABEL, parsePlistArgs } from "./launchAgent.ts";
 import { run } from "./run.ts";
 
@@ -27,12 +27,14 @@ export const macosBackend: StartupBackend = {
   launcherPath: CLI_JS,
   assertCanEnable() {
     if (!existsSync(CLI_JS)) throw new Error(`Token Larper's launcher is missing (${CLI_JS})`);
+    assertPermanentInstall(APP_ROOT);
   },
   async read(): Promise<EntryState> {
     if (!existsSync(PLIST_PATH)) return NO_ENTRY;
     const args = parsePlistArgs(readFileSync(PLIST_PATH, "utf8"));
     return {
       entry: args ? displayCommand(args) : "Unreadable LaunchAgent file",
+      runner: args?.[0] ?? null,
       target: bootTarget(args),
       disabledBySystem: await turnedOffInSystemSettings(),
     };
