@@ -48,6 +48,8 @@ Out of scope:
 3. Otherwise start the server in the background, as `background()` does today, wait until it is ready, and open the browser only when `openBrowserOnBoot` is on.
 4. On failure, write the reason to `startup-error.log` in the data folder and exit 1. A successful start deletes that file.
 
+- macOS and Linux refuse to turn it on from a temporary bunx copy (the app folder is inside the OS temp folder, or a path segment starts with "bunx-"), because the OS clears that folder; the error tells the user to install with "bun add -g token-larper". Windows is unchanged.
+
 The setting is read at login, so the startup entry never needs rewriting when it changes. The entry stores absolute paths to Bun (`process.execPath` when the server runs under Bun) and to `cli.js`, because the macOS login environment doesn't have `~/.bun/bin` on its PATH.
 
 ### macOS: LaunchAgent
@@ -62,7 +64,7 @@ The setting is read at login, so the startup entry never needs rewriting when it
 ### Linux: XDG autostart
 
 - File: `$XDG_CONFIG_HOME/autostart/token-larper.desktop`, defaulting to `~/.config/autostart/`.
-- Contents: `[Desktop Entry]`, `Type=Application`, `Name=Token Larper`, `Exec=<bun> <cli.js> --boot` with each argument quoted and escaped according to the Desktop Entry spec, `X-GNOME-Autostart-enabled=true`, `NoDisplay=true`, `Terminal=false`.
+- Contents: `[Desktop Entry]`, `Type=Application`, `Name=Token Larper`, `Exec=<bun> <cli.js> --boot` with each argument quoted and escaped according to the Desktop Entry spec, `X-GNOME-Autostart-enabled=true`, `Terminal=false`.
 - Enable: write the file. Disable: delete it.
 - Status: enabled when the file exists, its `Exec` points at this copy's `cli.js`, and it isn't marked `Hidden=true` or `X-GNOME-Autostart-enabled=false`. Desktop session settings tools set those when a user turns the entry off; treat it like the macOS disabled case.
 
@@ -73,6 +75,7 @@ The setting is read at login, so the startup entry never needs rewriting when it
   - `src/startup/macos.ts` and `src/startup/linux.ts`.
 - Each module exports `readEntry()`, `writeEntry(command)` and `removeEntry()`, plus pure functions that build and parse the entry text (`buildPlist`/`parsePlistTarget`, `buildDesktopEntry`/`parseDesktopTarget`), so tests don't touch the file system.
 - `repointStartupIfStale` runs on all three platforms. If the entry points at an older or deleted copy (a `bunx` update installs each version in its own cache folder), rewrite it to point at this copy. Same rule as Windows today.
+- Repointing is skipped when TOKEN_LARPER_DATA_DIR is set or the app runs from a git checkout, and it also repairs an entry for this copy whose Bun binary no longer exists.
 
 ### API and Settings
 

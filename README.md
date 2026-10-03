@@ -304,8 +304,10 @@ Token Larper utilizes `ccusage` v20+ paired with native deep scanners to automat
 Token Larper can start in the background when you sign in. It's off until you turn it on.
 
 * **Windows**: Right-click the **`t.`** tray icon and click **Start on Windows Boot**, or turn on **Start with Windows** in **Settings**. *(This adds a user entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TokenLarper` that runs the windowless launcher.)*
-* **macOS**: Turn on **Start at login** in **Settings**. This adds `~/Library/LaunchAgents/com.tokenlarper.agent.plist`. macOS then shows a "Background Items Added" notice and lists Token Larper under **System Settings → General → Login Items**, where you can also turn it off.
+* **macOS**: Turn on **Start at login** in **Settings**. This adds `~/Library/LaunchAgents/com.tokenlarper.agent.plist`. macOS then shows a "Background Items Added" notice and lists it (possibly as "bun") under **System Settings → General → Login Items**, where you can also turn it off.
 * **Linux**: Turn on **Start at login** in **Settings**. This adds `~/.config/autostart/token-larper.desktop` (or under `$XDG_CONFIG_HOME`), which GNOME, KDE and other desktops run when you log in.
+
+Start at login needs a permanent install on macOS and Linux: run "bun add -g token-larper", then start it with "token-larper". A copy started with bunx runs from a temporary folder your system clears, so Settings asks you to install it first.
 
 Turn on **Open dashboard at sign-in** as well if you want your browser to open to the dashboard after login. Settings → Technical details shows the exact entry.
 
@@ -341,7 +343,7 @@ Switch **Cost** to **Estimate** to see the prices. The **Models** tab then adds 
 Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may go unpriced. Verified costs from ccusage are never changed. Set `TOKEN_LARPER_OFFLINE=1` to skip the download and use only the saved list (if any) and the built-in rates.
 
 ### Headless Server Mode
-On a remote server or in a container, turn the tray off explicitly:
+On a remote server or in a container, turn the tray off explicitly (it's only drawn on Windows today):
 ```bash
 NO_TRAY=1 bun start
 ```
@@ -454,7 +456,8 @@ tokenlarper/
 │   ├── server.ts             # Bun HTTP & WebSocket server + client bundler
 │   ├── ccusage.ts            # 18-harness telemetry reader & cost calculation engine
 │   ├── tray.ts               # System tray lifecycle management & IPC
-│   ├── startup.ts            # Windows registry boot integration
+│   ├── startup.ts            # Start-at-login settings; delegates to startup/
+│   ├── startup/              # Login entries: Windows registry, macOS LaunchAgent, Linux autostart
 │   ├── projects.ts           # Workspace & Git repository deduplication
 │   ├── types.ts              # TypeScript interfaces & data contracts
 │   └── client/               # React 19 Frontend Dashboard

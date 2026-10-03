@@ -16,7 +16,7 @@
 - Never bypass or hide an OS mechanism: no admin rights, sudo or root; never call `launchctl enable` to override a user's choice in System Settings; never suppress the macOS "Background Items Added" notice.
 - No change to Windows behavior: the registry key `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value name `TokenLarper`, command `wscript.exe //B //Nologo "<app>\scripts\launch-silent.vbs"`, and the Windows Settings wording stay exactly as they are.
 - macOS LaunchAgent: `~/Library/LaunchAgents/com.tokenlarper.agent.plist`, label `com.tokenlarper.agent`, `RunAtLoad` true, `AbandonProcessGroup` true, `LimitLoadToSessionType` `Aqua`, stdout and stderr to `login-agent.log` in the data folder.
-- Linux autostart: `$XDG_CONFIG_HOME/autostart/token-larper.desktop`, default `~/.config/autostart/`; `X-GNOME-Autostart-enabled=true`, `NoDisplay=true`, `Terminal=false`.
+- Linux autostart: `$XDG_CONFIG_HOME/autostart/token-larper.desktop`, default `~/.config/autostart/`; `X-GNOME-Autostart-enabled=true`, `Terminal=false`.
 - The login command stores absolute paths: `process.execPath` (Bun) and `<APP_ROOT>/bin/cli.js`, then `--boot`.
 - Fail soft: if reading an entry fails, status still loads (as "not registered"); if writing fails, `/api/startup` returns 500 with the reason, which Settings already shows.
 - Repo conventions: one branch per PR, bump `package.json` (minor for this PR), commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, PR body ends with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`, PRs created with `C:/Program Files/GitHub CLI/gh.exe` using `--body-file`.
