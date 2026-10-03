@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { StartupConfig } from "./types.ts";
 import { APP_VERSION, DATA_DIR, dataPath, RUNNING_FROM_SOURCE } from "./paths.ts";
-import { NO_ENTRY, samePath, type EntryState, type StartupBackend } from "./startup/backend.ts";
+import { entryChange, NO_ENTRY, samePath, type EntryState, type StartupBackend } from "./startup/backend.ts";
 import { linuxBackend } from "./startup/linux.ts";
 import { macosBackend } from "./startup/macos.ts";
 import { shouldRepoint } from "./startup/repoint.ts";
@@ -73,7 +73,7 @@ export async function getStartupStatus(defaultPort = 4269): Promise<StartupConfi
 }
 
 export async function setStartupStatus(options: {
-  enabled: boolean;
+  enabled?: boolean;
   openBrowserOnBoot?: boolean;
   port?: number;
 }): Promise<StartupConfig> {
@@ -84,10 +84,12 @@ export async function setStartupStatus(options: {
   };
 
   const b = backend();
-  if (options.enabled) {
+  const hasEntry = options.enabled === false && (await readState(b)).entry !== null;
+  const change = entryChange(options.enabled, hasEntry);
+  if (change === "write") {
     b.assertCanEnable();
     await b.write();
-  } else if ((await readState(b)).entry !== null) {
+  } else if (change === "remove") {
     await b.remove();
   }
 

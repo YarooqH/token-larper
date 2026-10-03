@@ -1,5 +1,14 @@
 import { expect, test } from "bun:test";
-import { assertPermanentInstall, bootTarget, displayCommand, isTemporaryInstall, samePath } from "./backend.ts";
+import { assertPermanentInstall, bootTarget, displayCommand, entryChange, isTemporaryInstall, samePath } from "./backend.ts";
+
+test("entryChange writes only on enabled:true, removes only an existing entry on enabled:false, else leaves it", () => {
+  expect(entryChange(true, false)).toBe("write");
+  expect(entryChange(true, true)).toBe("write");
+  expect(entryChange(false, true)).toBe("remove");
+  expect(entryChange(false, false)).toBe("none");
+  expect(entryChange(undefined, true)).toBe("none");
+  expect(entryChange(undefined, false)).toBe("none");
+});
 
 test("bootTarget returns cli.js only for '<bun> <cli.js> --boot'", () => {
   expect(bootTarget(["/u/bun", "/app/bin/cli.js", "--boot"])).toBe("/app/bin/cli.js");

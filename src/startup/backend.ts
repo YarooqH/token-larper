@@ -33,6 +33,17 @@ export interface StartupBackend {
 
 export const NO_ENTRY: Readonly<EntryState> = Object.freeze({ entry: null, runner: null, target: null, disabledBySystem: false });
 
+/**
+ * What a Settings change does to the login entry. Leaving `enabled` out (the
+ * "Open dashboard at sign-in" switch) changes only the saved settings, so a choice the
+ * user made in the OS's own startup settings stays as it is.
+ */
+export function entryChange(enabled: boolean | undefined, hasEntry: boolean): "write" | "remove" | "none" {
+  if (enabled === true) return "write";
+  if (enabled === false && hasEntry) return "remove";
+  return "none";
+}
+
 export function samePath(a: string, b: string, platform: StartupPlatform): boolean {
   return platform === "windows" ? a.toLowerCase() === b.toLowerCase() : a === b;
 }

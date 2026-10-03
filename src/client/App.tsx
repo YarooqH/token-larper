@@ -280,7 +280,7 @@ export function App() {
     return () => clearInterval(id);
   }, [data?.generatedAt, data?.syncingHarnesses.length]);
 
-  async function handleToggleStartup(nextEnabled: boolean, nextOpenBrowser?: boolean) {
+  async function handleToggleStartup(nextEnabled: boolean | undefined, nextOpenBrowser?: boolean) {
     if (!startup || startupMutationInFlight.current) return;
     startupMutationInFlight.current = true;
     const requestId = ++startupRequestId.current;

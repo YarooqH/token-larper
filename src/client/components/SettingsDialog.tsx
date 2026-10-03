@@ -24,7 +24,7 @@ interface Props {
   onAppearanceChange: (appearance: Appearance) => void;
   onImportTheme: (theme: ImportedTheme) => void;
   onShowRanksChange: (showRanks: boolean) => void;
-  onToggleStartup: (enabled: boolean, openBrowserOnBoot?: boolean) => void;
+  onToggleStartup: (enabled: boolean | undefined, openBrowserOnBoot?: boolean) => void;
   onRetry: () => void;
   onQuit: () => void;
 }
@@ -171,8 +171,8 @@ export function SettingsDialog({
                     aria-labelledby="setting-browser-label"
                     aria-describedby="setting-browser-hint"
                     aria-checked={startup.openBrowserOnBoot}
-                    // An entry the OS turned off still exists; passing false here would delete it.
-                    onClick={() => onToggleStartup(startup.enabled || startup.disabledBySystem, !startup.openBrowserOnBoot)}
+                    // No `enabled`: this switch saves only the setting and leaves the login entry alone.
+                    onClick={() => onToggleStartup(undefined, !startup.openBrowserOnBoot)}
                   >
                     <span className="toggle-knob" />
                   </button>
