@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { APP_ROOT, dataPath } from "../paths.ts";
@@ -42,7 +42,10 @@ export const macosBackend: StartupBackend = {
   // macOS shows "Background Items Added" for a new agent; that notice is the user's to see.
   async write() {
     mkdirSync(dirname(PLIST_PATH), { recursive: true });
-    writeFileSync(PLIST_PATH, buildPlist({ bun: process.execPath, cliJs: CLI_JS, logFile: dataPath("login-agent.log") }), "utf8");
+    const plist = buildPlist({ bun: process.execPath, cliJs: CLI_JS, logFile: dataPath("login-agent.log") });
+    // launchd refuses a plist that is group- or world-writable, and an existing file keeps its old mode on overwrite.
+    writeFileSync(PLIST_PATH, plist, { encoding: "utf8", mode: 0o644 });
+    chmodSync(PLIST_PATH, 0o644);
   },
   // Removing the file is enough: a RunAtLoad agent only runs when loaded at login, and
   // unloading it (launchctl bootout) could signal the server that is running now.

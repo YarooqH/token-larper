@@ -28,7 +28,6 @@ export function buildDesktopEntry(o: { bun: string; cliJs: string }): string {
     "Comment=Start the Token Larper dashboard at login",
     `Exec=${value}`,
     "Terminal=false",
-    "NoDisplay=true",
     "X-GNOME-Autostart-enabled=true",
     "",
   ].join("\n");

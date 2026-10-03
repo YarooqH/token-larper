@@ -12,10 +12,18 @@ test("autostartDir honors an absolute XDG_CONFIG_HOME", () => {
 test("the desktop entry has the keys the spec requires", () => {
   const text = buildDesktopEntry(paths);
   expect(text.startsWith("[Desktop Entry]\n")).toBe(true);
-  for (const line of ["Type=Application", "Name=Token Larper", "Terminal=false", "NoDisplay=true", "X-GNOME-Autostart-enabled=true"]) {
+  for (const line of ["Type=Application", "Name=Token Larper", "Terminal=false", "X-GNOME-Autostart-enabled=true"]) {
     expect(text).toContain(`\n${line}\n`);
   }
   expect(text).toContain(`Exec="${paths.bun}" "${paths.cliJs}" --boot\n`);
+  expect(text).not.toContain("NoDisplay");
+});
+
+test("a backslash and a percent sign are escaped on disk as four backslashes and %%", () => {
+  const cliJs = "/home/sam/back\\slash/100%/cli.js";
+  const text = buildDesktopEntry({ ...paths, cliJs });
+  expect(text).toContain('Exec="/home/sam/.bun/bin/bun" "/home/sam/back\\\\\\\\slash/100%%/cli.js" --boot\n');
+  expect(parseDesktopEntry(text).args).toEqual([paths.bun, cliJs, "--boot"]);
 });
 
 test("Exec arguments survive quoting and escaping", () => {
