@@ -2,10 +2,11 @@ import React, { useMemo } from "react";
 import { ModelPrices } from "../components/ModelPrices.tsx";
 import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";
 import { modelTotals } from "../lib/aggregate.ts";
+import { formatRate, modelKey, speedTitle } from "../lib/throughput.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 
 export function Models() {
-  const { data, days, costOf, estimated, search, seriesOf } = useDashboard();
+  const { data, days, costOf, estimated, search, seriesOf, throughput } = useDashboard();
   const all = useMemo(() => modelTotals(days), [days]);
   const total = all.reduce((acc, m) => acc + m.totalTokens, 0);
   const q = search.trim().toLowerCase();
@@ -49,6 +50,7 @@ export function Models() {
                 <th className="bar-col"><span className="sr-only">Share</span></th>
                 <th className="num">Input</th>
                 <th className="num">Output</th>
+                <th className="num">Speed</th>
                 <th className="num">Cache read</th>
                 <th className="num">Cache write</th>
                 <th className="num">Total</th>
@@ -59,6 +61,7 @@ export function Models() {
             <tbody>
               {models.map((m) => {
                 const price = priceOf(m.modelName);
+                const speed = throughput?.byModel.get(modelKey(m.harness, m.modelName));
                 return (
                   <tr key={`${m.harness}-${m.modelName}`}>
                     <td>
@@ -83,6 +86,9 @@ export function Models() {
                     <td className="bar-col"><ShareBar value={m.totalTokens} max={max} color={seriesOf(m.harness).color} /></td>
                     <td className="num">{formatCompactNumber(m.inputTokens)}</td>
                     <td className="num">{formatCompactNumber(m.outputTokens)}</td>
+                    <td className={speed ? "num" : "num muted"} title={speed ? speedTitle(speed, throughput!.exact.has(m.harness)) : undefined}>
+                      {speed ? `${formatRate(speed.tokensPerSecond)} tok/s` : "—"}
+                    </td>
                     <td className="num">{formatCompactNumber(m.cacheReadTokens)}</td>
                     <td className="num">{formatCompactNumber(m.cacheCreationTokens)}</td>
                     <td className="num strong">{formatCompactNumber(m.totalTokens)}</td>

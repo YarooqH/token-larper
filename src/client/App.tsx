@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Moon, Power, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
-import type { DashboardPayload, HarnessId, StartupConfig } from "../types.ts";
+import type { DashboardPayload, HarnessId, StartupConfig, ThroughputPayload } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";
 import { DateRangePicker } from "./components/DateRangePicker.tsx";
@@ -14,6 +14,7 @@ import { useUpdates } from "./lib/updates.ts";
 import { dayStreak } from "./lib/rank.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
+import { throughputInRange } from "./lib/throughput.ts";
 import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
 import { Models } from "./views/Models.tsx";
 import { Overview } from "./views/Overview.tsx";
@@ -105,6 +106,7 @@ function viewFromHash(): View | null {
 
 export function App() {
   const [data, setData] = useState<DashboardPayload | null>(null);
+  const [throughputData, setThroughputData] = useState<ThroughputPayload | null>(null);
   const [startup, setStartup] = useState<StartupConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -281,6 +283,31 @@ export function App() {
     return () => clearInterval(id);
   }, [data?.generatedAt, data?.syncingHarnesses.length]);
 
+  // Speeds come from a separate scan of the session files; re-read them whenever usage
+  // changes, and keep asking while the first scan is still running.
+  useEffect(() => {
+    if (!data) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const load = async (tries: number) => {
+      try {
+        const res = await fetch("/api/throughput?wait=1");
+        if (!res.ok) return;
+        const next = (await res.json()) as ThroughputPayload;
+        if (cancelled) return;
+        setThroughputData(next);
+        if (next.status === "scanning" && tries < 20) timer = setTimeout(() => void load(tries + 1), 4000);
+      } catch {
+        // Speeds are extra; the rest of the dashboard works without them.
+      }
+    };
+    void load(0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [data?.generatedAt]);
+
   async function handleToggleStartup(nextEnabled: boolean, nextOpenBrowser?: boolean) {
     if (!startup || startupMutationInFlight.current) return;
     startupMutationInFlight.current = true;
@@ -366,6 +393,10 @@ export function App() {
     () => (data ? sessionsInRange(data.sessions, harness, range.start, range.end) : []),
     [data, harness, range.start, range.end]
   );
+  const throughput = useMemo(
+    () => throughputInRange(throughputData, harness, range.start, range.end),
+    [throughputData, harness, range.start, range.end]
+  );
 
   if (stopped) {
     return (
@@ -450,6 +481,7 @@ export function App() {
     costOf,
     days,
     sessions,
+    throughput,
     series,
     seriesOf,
     nameOf,

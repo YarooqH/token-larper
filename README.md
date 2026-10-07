@@ -76,6 +76,7 @@ The screens below use sample data. No local sessions or project names are includ
 * **Private and offline**: No API keys and no proxy to set up. Two optional requests leave your machine, and neither sends anything about your usage: an update check that asks npm for the latest version number (turn it off in **Settings → Updates**), and a once-a-day download of OpenRouter's public model price list (set `TOKEN_LARPER_OFFLINE=1` to skip it).
 * **18 agents, one total**: Every supported harness is detected automatically and counted together, with filters per tool, model, session, and project.
 * **Subscription-aware**: Verified API costs are kept apart from the estimated **"LARP Value"**, the API price of tokens you used through a flat-rate plan like Claude Pro/Max, Copilot, or Antigravity. Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
+* **Model speed**: Output tokens per second for each tool and model, and tokens per minute while a tool is working, read from the session files of Claude Code, Codex, OpenCode, Pi, Antigravity, Gemini CLI, and Copilot CLI. See [Speed and Tokens per Minute](#speed-and-tokens-per-minute).
 * **Hall of Larp**: Lifetime token burn, 14 achievements, an 11-tier rank ladder with rivals, a day streak in the header, and a 1200×630 share card.
 * **Six styles, your colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corners, spacing, borders, and shadows. Pick a base color and an accent from presets or any custom color, or import a tweakcn/shadcn CSS theme.
 * **Cross-platform**: The engine, scrapers, and dashboard behave the same on Windows, macOS (Apple Silicon and Intel), and Linux. The tray icon is Windows-only.
@@ -329,6 +330,19 @@ Switch **Cost** to **Estimate** to see the prices. The **Models** tab then adds 
 
 Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may go unpriced. Verified costs from ccusage are never changed. Set `TOKEN_LARPER_OFFLINE=1` to skip the download and use only the saved list (if any) and the built-in rates.
 
+### Speed and Tokens per Minute
+The **Tools** and **Models** tabs show a **Speed** column: output tokens per second while a model generates. ccusage only reports totals, so Token Larper reads the timing from each tool's own session files. Hover a value for the median, p90, and number of responses behind it.
+
+| Tool | How a response is timed |
+| --- | --- |
+| OpenCode, Pi, Antigravity | The tool records when each request started and finished. |
+| Claude Code, Codex, Gemini CLI | From the log line before the response (the prompt or a tool result) to its last token, so time to first token is included and speeds read lower than a provider's published figures. |
+| Copilot CLI | Per request only with OpenTelemetry file export on (`COPILOT_OTEL_ENABLED=true`, `COPILOT_OTEL_EXPORTER_TYPE=file`). Without it, Copilot gets Tokens/min but no Speed. |
+
+Responses under 20 output tokens are left out of Speed, since they are mostly waiting for the first token. **Tokens/min** on the Tools tab divides all of a tool's tokens, cache reads included, by the time it was working; gaps of more than 2 minutes between responses don't count. Other tools show a dash.
+
+The first read of the session files runs in the background and can take a few seconds per gigabyte. Results are saved per file in `throughput-cache.json` in the data folder, so later reads only open files that changed.
+
 ### Headless Server Mode
 If running on a remote headless server or Docker container, you can explicitly disable the tray icon (automatically disabled on macOS/Linux):
 ```bash
@@ -423,7 +437,7 @@ tokenlarper/
 ├── src/
 │   ├── server.ts             # Bun HTTP & WebSocket server + client bundler
 │   ├── ccusage.ts            # 18-harness telemetry reader & cost calculation engine
-│   ├── tray.ts               # System tray lifecycle management & IPC
+│   ├── tray/                 # System tray lifecycle management & IPC (windows.ts)
 │   ├── startup.ts            # Windows registry boot integration
 │   ├── projects.ts           # Workspace & Git repository deduplication
 │   ├── types.ts              # TypeScript interfaces & data contracts

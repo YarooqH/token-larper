@@ -56,6 +56,7 @@ Dashboard URL: http://localhost:4269
 
 ## Local API Endpoints
 - `GET /api/usage`: Full dashboard telemetry payload (totals, daily breakdown, models, sessions, projects).
+- `GET /api/throughput`: Output speed per day, tool, and model (with a tok/s histogram) and working time per day, read from session files. `?wait=1` waits up to 15 s for a rescan in progress.
 - `GET /api/tray-status`: Summary text, tooltip, and boot configuration for system tray hosts.
 - `GET /api/startup`: Windows registry auto-boot status.
 - `POST /api/startup`: Toggle auto-start on boot (`{ "enabled": boolean, "openBrowserOnBoot": boolean }`).
