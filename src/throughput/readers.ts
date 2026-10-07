@@ -49,7 +49,7 @@ export function readClaude(text: string): FileResult {
         const start = seen.get(e.parentUuid);
         const model = String(msg.model ?? "");
         if (start !== undefined && model && model !== "<synthetic>") {
-          messages.set(msg.id, { model, start, end: t, outputTokens: out });
+          messages.set(msg.id, { model, start, end: t, outputTokens: out, session: e.sessionId || undefined });
         }
       }
     }
@@ -166,10 +166,15 @@ export function readPi(text: string): FileResult {
  */
 export function readGemini(text: string): FileResult {
   let messages: any[];
+  let session: string | undefined;
   try {
-    messages = JSON.parse(text).messages ?? [];
+    const doc = JSON.parse(text);
+    messages = doc.messages ?? [];
+    session = doc.sessionId;
   } catch {
-    messages = jsonLines(text).filter((e) => e && typeof e.type === "string");
+    const all = jsonLines(text);
+    session = all.find((e) => typeof e?.sessionId === "string")?.sessionId;
+    messages = all.filter((e) => e && typeof e.type === "string");
   }
   const samples: Sample[] = [];
   let prev: number | null = null;
@@ -178,7 +183,7 @@ export function readGemini(text: string): FileResult {
     if (!Number.isFinite(t)) continue;
     if (m.type === "gemini" && m.tokens && m.model && prev !== null) {
       const out = Number(m.tokens.output ?? 0) + Number(m.tokens.thoughts ?? 0);
-      samples.push({ model: String(m.model), start: prev, end: t, outputTokens: out });
+      samples.push({ model: String(m.model), start: prev, end: t, outputTokens: out, session });
     }
     let last = t;
     for (const call of Array.isArray(m.toolCalls) ? m.toolCalls : []) {
@@ -218,7 +223,14 @@ export function readCopilotOtel(text: string): FileResult {
     const end = hrTime(r.endTime);
     const model = String(a["gen_ai.response.model"] ?? a["gen_ai.request.model"] ?? "");
     if (!Number.isFinite(start) || !Number.isFinite(end) || !model) continue;
-    samples.push({ model: copilotModel(model), start, end, outputTokens: Number(a["gen_ai.usage.output_tokens"] ?? 0) });
+    const session = a["gen_ai.conversation.id"] ?? a["copilot_chat.session_id"] ?? a["session.id"];
+    samples.push({
+      model: copilotModel(model),
+      start,
+      end,
+      outputTokens: Number(a["gen_ai.usage.output_tokens"] ?? 0),
+      session: typeof session === "string" ? session : undefined,
+    });
   }
   return { samples };
 }
@@ -233,13 +245,53 @@ export function readCopilotEvents(text: string): FileResult {
   return { samples: [], activity };
 }
 
-/** OpenCode records when each assistant message was created and completed. */
+interface OpencodePart {
+  message_id: string;
+  type: string | null;
+  start: number | null;
+  end: number | null;
+  tool_start: number | null;
+  tool_end: number | null;
+  output: number | null;
+  reasoning: number | null;
+}
+
+/**
+ * OpenCode splits an assistant message into steps, one per model call, and stamps each text
+ * and reasoning part with when it started and finished streaming and each tool call with when
+ * its arguments were complete. A step's request goes out when the message is created, or when
+ * the previous step's tools finish; it ends at its last token or tool argument; its first
+ * output is the earliest text or reasoning. Only the times inside the records are used: rows
+ * migrated from OpenCode's older JSON storage all share the migration time in their row
+ * columns. A message without parts falls back to its own created and completed times.
+ */
 export function readOpencode(dbPath: string): FileResult {
   const samples: Sample[] = [];
   const db = new Database(dbPath, { readonly: true });
   try {
-    const rows = db.query("select data from message").all() as { data: string }[];
-    for (const r of rows) {
+    const messages = db.query("select id, session_id, data from message").all() as { id: string; session_id: string; data: string }[];
+    // Pull only the fields needed, so tool output and file contents stay in SQLite.
+    const parts = db
+      .query(
+        `select message_id,
+          json_extract(data, '$.type') as type,
+          json_extract(data, '$.time.start') as start,
+          json_extract(data, '$.time.end') as end,
+          json_extract(data, '$.state.time.start') as tool_start,
+          json_extract(data, '$.state.time.end') as tool_end,
+          json_extract(data, '$.tokens.output') as output,
+          json_extract(data, '$.tokens.reasoning') as reasoning
+        from part order by message_id, id`,
+      )
+      .all() as OpencodePart[];
+    const byMessage = new Map<string, OpencodePart[]>();
+    for (const p of parts) {
+      const list = byMessage.get(p.message_id);
+      if (list) list.push(p);
+      else byMessage.set(p.message_id, [p]);
+    }
+
+    for (const r of messages) {
       let m: any;
       try {
         m = JSON.parse(r.data);
@@ -247,16 +299,57 @@ export function readOpencode(dbPath: string): FileResult {
         continue;
       }
       if (m.role !== "assistant" || !m.modelID) continue;
-      const start = Number(m.time?.created);
-      const end = Number(m.time?.completed);
-      if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+      const created = Number(m.time?.created);
+      if (!Number.isFinite(created)) continue;
+      const model = String(m.modelID);
+      const session = r.session_id || undefined;
+
+      const steps = opencodeSteps(byMessage.get(r.id) ?? [], created);
+      if (steps.length) {
+        for (const step of steps) samples.push({ model, session, ...step });
+        continue;
+      }
+      const completed = Number(m.time?.completed);
+      if (!Number.isFinite(completed)) continue;
       const out = Number(m.tokens?.output ?? 0) + Number(m.tokens?.reasoning ?? 0);
-      samples.push({ model: String(m.modelID), start, end, outputTokens: out });
+      samples.push({ model, session, start: created, end: completed, outputTokens: out });
     }
   } finally {
     db.close();
   }
   return { samples };
+}
+
+function opencodeSteps(parts: OpencodePart[], created: number): Omit<Sample, "model" | "session">[] {
+  const steps: Omit<Sample, "model" | "session">[] = [];
+  let ready = created;
+  let step: { first: number; last: number; toolsDone: number } | null = null;
+  for (const p of parts) {
+    if (p.type === "step-start") {
+      step = { first: Infinity, last: -Infinity, toolsDone: -Infinity };
+      continue;
+    }
+    if (!step) continue;
+    if ((p.type === "text" || p.type === "reasoning") && p.start) {
+      step.first = Math.min(step.first, p.start);
+      step.last = Math.max(step.last, p.end ?? p.start);
+    } else if (p.type === "tool" && p.tool_start) {
+      step.last = Math.max(step.last, p.tool_start);
+      step.toolsDone = Math.max(step.toolsDone, p.tool_end ?? p.tool_start);
+    } else if (p.type === "step-finish") {
+      if (step.last > ready) {
+        steps.push({
+          start: ready,
+          end: step.last,
+          outputTokens: Number(p.output ?? 0) + Number(p.reasoning ?? 0),
+          ...(Number.isFinite(step.first) ? { firstOutputAt: step.first } : {}),
+        });
+      }
+      ready = Math.max(ready, Number.isFinite(step.toolsDone) ? step.toolsDone : step.last);
+      step = null;
+    }
+  }
+  return steps;
 }
 
 // Antigravity keeps protobuf blobs in SQLite. Only the few fields read here are decoded;

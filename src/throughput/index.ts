@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
-import type { ActivityRow, HarnessId, ThroughputPayload, ThroughputRow } from "../types.ts";
+import { basename, dirname, join, relative } from "node:path";
+import type { ActivityRow, HarnessId, SpeedTotals, ThroughputPayload, ThroughputRow } from "../types.ts";
 import { dataPath } from "../paths.ts";
 import {
   readAntigravity,
@@ -14,7 +14,7 @@ import {
   readPi,
   type FileResult,
 } from "./readers.ts";
-import { activityByDay, mergeIntervals, rowsFromSamples, type Interval } from "./stats.ts";
+import { activityByDay, addTotals, emptyTotals, mergeIntervals, rowsFromSamples, sessionsFromSamples, type Interval } from "./stats.ts";
 
 // ccusage only reports totals, so speed is read from each tool's own session files. The
 // first pass reads every file, which can take a while for gigabytes of Codex rollouts, so it
@@ -23,16 +23,18 @@ import { activityByDay, mergeIntervals, rowsFromSamples, type Interval } from ".
 
 const HOME = homedir();
 const CACHE_FILE = dataPath("throughput-cache.json");
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const RESCAN_AFTER_MS = 60_000;
 
-/** Tools that record when each request started and finished, rather than leaving it to log order. */
-export const EXACT_HARNESSES: HarnessId[] = ["opencode", "pi", "antigravity", "copilot"];
+/** Tools that record when each request was sent and finished, rather than leaving it to log order. */
+export const TIMED_BY_TOOL: HarnessId[] = ["opencode", "pi", "antigravity", "copilot"];
 
 interface Source {
   harness: HarnessId;
   path: string;
   read: (path: string) => FileResult | Promise<FileResult>;
+  /** The session id ccusage reports for this file, for records that don't name their own. */
+  session?: string;
   /** Extra files whose changes mean this one must be read again (SQLite's write-ahead log). */
   companions?: string[];
 }
@@ -42,6 +44,7 @@ interface CachedFile {
   harness: HarnessId;
   rows: ThroughputRow[];
   intervals: Interval[];
+  sessions: Record<string, SpeedTotals>;
 }
 
 const text = (fn: (t: string) => FileResult) => async (path: string) => fn(await Bun.file(path).text());
@@ -62,6 +65,8 @@ function walk(dir: string, keep: (name: string) => boolean, depth = 6, out: stri
   return out;
 }
 
+const stem = (path: string) => basename(path).replace(/\.[^.]+$/, "");
+
 const envDirs = (name: string) =>
   (process.env[name] ?? "")
     .split(",")
@@ -71,21 +76,37 @@ const envDirs = (name: string) =>
 function claudeSources(): Source[] {
   const roots = envDirs("CLAUDE_CONFIG_DIR");
   const dirs = (roots.length ? roots : [join(HOME, ".config", "claude"), join(HOME, ".claude")]).map((d) => join(d, "projects"));
-  return dirs.flatMap((d) => walk(d, (n) => n.endsWith(".jsonl"))).map((path) => ({ harness: "claude", path, read: text(readClaude) }));
+  return dirs
+    .flatMap((d) => walk(d, (n) => n.endsWith(".jsonl")))
+    .map((path) => ({ harness: "claude", path, read: text(readClaude), session: stem(path) }));
 }
 
 function codexSources(): Source[] {
   const home = process.env.CODEX_HOME || join(HOME, ".codex");
-  return [join(home, "sessions"), join(home, "archived_sessions")]
-    .flatMap((d) => walk(d, (n) => n.endsWith(".jsonl")))
-    .map((path) => ({ harness: "codex", path, read: text(readCodex) }));
+  const sessions = join(home, "sessions");
+  // ccusage names a rollout by its path under sessions/ (YYYY/MM/DD/rollout-...).
+  const live = walk(sessions, (n) => n.endsWith(".jsonl")).map((path): Source => ({
+    harness: "codex",
+    path,
+    read: text(readCodex),
+    session: relative(sessions, path).replaceAll("\\", "/").replace(/\.jsonl$/, ""),
+  }));
+  const archived = walk(join(home, "archived_sessions"), (n) => n.endsWith(".jsonl")).map((path): Source => ({
+    harness: "codex",
+    path,
+    read: text(readCodex),
+    session: stem(path),
+  }));
+  return [...live, ...archived];
 }
 
 function piSources(): Source[] {
+  // Pi names files <timestamp>_<session id>.jsonl.
   return walk(join(HOME, ".pi", "agent", "sessions"), (n) => n.endsWith(".jsonl")).map((path) => ({
     harness: "pi",
     path,
     read: text(readPi),
+    session: stem(path).replace(/^[^_]*_/, ""),
   }));
 }
 
@@ -103,7 +124,7 @@ function copilotSources(): Source[] {
   const events = walk(join(home, "session-state"), (n) => n === "events.jsonl", 1);
   return [
     ...otel.map((path): Source => ({ harness: "copilot", path, read: text(readCopilotOtel) })),
-    ...events.map((path): Source => ({ harness: "copilot", path, read: text(readCopilotEvents) })),
+    ...events.map((path): Source => ({ harness: "copilot", path, read: text(readCopilotEvents), session: basename(dirname(path)) })),
   ];
 }
 
@@ -125,7 +146,7 @@ function antigravitySources(): Source[] {
       ];
   return roots
     .flatMap((d) => walk(d, (n) => n.endsWith(".db"), 0))
-    .map((path) => ({ harness: "antigravity", path, read: readAntigravity, companions: [`${path}-wal`] }));
+    .map((path) => ({ harness: "antigravity", path, read: readAntigravity, companions: [`${path}-wal`], session: stem(path) }));
 }
 
 function listSources(): Source[] {
@@ -184,18 +205,18 @@ function saveDisk(scannedAt: string): void {
 function build(status: ThroughputPayload["status"], scannedAt: string | null): ThroughputPayload {
   const rows = new Map<string, ThroughputRow>();
   const intervals = new Map<HarnessId, Interval[]>();
+  const sessions: Record<string, SpeedTotals> = {};
   for (const f of files.values()) {
+    for (const [id, totals] of Object.entries(f.sessions ?? {})) addTotals((sessions[`${f.harness}-${id}`] ??= emptyTotals()), totals);
     for (const r of f.rows) {
       const key = `${r.day}\n${r.harness}\n${r.model}`;
       const into = rows.get(key);
       if (!into) {
-        rows.set(key, { ...r, hist: { ...r.hist } });
+        rows.set(key, { ...r, ...emptyTotals() });
+        addTotals(rows.get(key)!, r);
         continue;
       }
-      into.responses += r.responses;
-      into.outputTokens += r.outputTokens;
-      into.ms += r.ms;
-      for (const [bin, n] of Object.entries(r.hist)) into.hist[Number(bin)] = (into.hist[Number(bin)] ?? 0) + n;
+      addTotals(into, r);
     }
     const list = intervals.get(f.harness) ?? [];
     for (const i of f.intervals) list.push([i[0], i[1]]);
@@ -203,7 +224,7 @@ function build(status: ThroughputPayload["status"], scannedAt: string | null): T
   }
   const activity: ActivityRow[] = [];
   for (const [harness, list] of intervals) activity.push(...activityByDay(harness, mergeIntervals(list)));
-  return { status, scannedAt, exact: EXACT_HARNESSES, rows: [...rows.values()], activity };
+  return { status, scannedAt, timedByTool: TIMED_BY_TOOL, rows: [...rows.values()], activity, sessions };
 }
 
 async function scan(): Promise<void> {
@@ -220,6 +241,7 @@ async function scan(): Promise<void> {
         sig,
         harness: source.harness,
         rows: rowsFromSamples(source.harness, result.samples),
+        sessions: sessionsFromSamples(result.samples, source.session),
         intervals: mergeIntervals([...spans, ...(result.activity ?? [])]),
       });
     } catch {
@@ -252,7 +274,7 @@ export async function getThroughput(waitMs = 0): Promise<ThroughputPayload> {
   loadDisk();
   if (!scanning && Date.now() - lastScanAt > RESCAN_AFTER_MS) void startScan();
   if (scanning && waitMs > 0) await Promise.race([scanning, Bun.sleep(waitMs)]);
-  return payload ?? { status: "scanning", scannedAt: null, exact: EXACT_HARNESSES, rows: [], activity: [] };
+  return payload ?? { status: "scanning", scannedAt: null, timedByTool: TIMED_BY_TOOL, rows: [], activity: [], sessions: {} };
 }
 
 /** Runs a full pass and waits for it; for tests and scripts. */

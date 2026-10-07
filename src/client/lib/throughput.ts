@@ -3,13 +3,16 @@ import { summarizeSpeed, type SpeedSummary } from "../../throughput/stats.ts";
 import type { HarnessFilter } from "./aggregate.ts";
 
 // Narrows the server's per-day speed rows to the selected range and tool, the same way the
-// usage numbers are narrowed, then rolls them up per tool and per model.
+// usage numbers are narrowed, then rolls them up per tool and per model. Sessions keep their
+// whole-life speed, since the session list itself is what the range narrows.
 
 export interface RangeThroughput {
   byHarness: Map<HarnessId, SpeedSummary>;
   byModel: Map<string, SpeedSummary>;
   activeMs: Map<HarnessId, number>;
-  exact: Set<HarnessId>;
+  /** Keyed by SessionEntry.id. */
+  bySession: Map<string, SpeedSummary>;
+  timedByTool: Set<HarnessId>;
 }
 
 export const modelKey = (harness: HarnessId, model: string) => `${harness}::${model}`;
@@ -48,17 +51,43 @@ export function throughputInRange(
   const activeMs = new Map<HarnessId, number>();
   for (const a of payload.activity) if (keep(a)) activeMs.set(a.harness, (activeMs.get(a.harness) ?? 0) + a.activeMs);
 
-  return { byHarness: rollUp(toolRows), byModel: rollUp(modelRows), activeMs, exact: new Set(payload.exact) };
+  const bySession = new Map<string, SpeedSummary>();
+  for (const [id, totals] of Object.entries(payload.sessions ?? {})) {
+    const s = summarizeSpeed([totals]);
+    if (s) bySession.set(id, s);
+  }
+
+  return {
+    byHarness: rollUp(toolRows),
+    byModel: rollUp(modelRows),
+    activeMs,
+    bySession,
+    timedByTool: new Set(payload.timedByTool),
+  };
 }
 
 export function formatRate(tokensPerSecond: number): string {
   return tokensPerSecond >= 100 ? Math.round(tokensPerSecond).toString() : tokensPerSecond.toFixed(1);
 }
 
-export function speedTitle(s: SpeedSummary, exact: boolean): string {
-  const how = exact
-    ? "Timed from when the request was sent to its last token, as the tool records it."
-    : "Timed from the log line before the response to its last token, so it includes time to first token.";
-  return `Output tokens per second while generating, over ${s.responses.toLocaleString("en-US")} responses. ` +
-    `Median ${formatRate(s.median)}, p90 ${formatRate(s.p90)}. ${how}`;
+/** Below this many responses a speed is shown dimmed, since one slow request can swing it. */
+export const FEW_RESPONSES = 10;
+
+export function formatWait(ms: number): string {
+  return ms < 10_000 ? `${(ms / 1000).toFixed(1)} s` : ms < 120_000 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60_000)} min`;
+}
+
+export function speedTitle(s: SpeedSummary, timedByTool: boolean, scope: "range" | "session" = "range"): string {
+  const plural = (n: number) => (n === 1 ? "response" : "responses");
+  const count = s.responses < FEW_RESPONSES
+    ? `Only ${s.responses} ${plural(s.responses)} in this ${scope}, so treat this as rough. `
+    : "";
+  const source = timedByTool
+    ? "The tool records when each request was sent and when its last token arrived."
+    : "Timed from the log line before each response to its last token.";
+  const wait = s.medianWaitMs !== undefined ? ` Typical wait for the first output: ${formatWait(s.medianWaitMs)}.` : "";
+  return `${count}Approximate output tokens per second over ${s.responses.toLocaleString("en-US")} ` +
+    `${plural(s.responses)} (median ${formatRate(s.median)}, p90 ${formatRate(s.p90)}). ${source} ` +
+    "That includes waiting for the first token, which grows with the size of the context, " +
+    `so this reads lower than the model's own generation speed.${wait}`;
 }

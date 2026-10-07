@@ -167,17 +167,23 @@ export interface DashboardPayload {
   sessions: SessionEntry[];
 }
 
-/** Output speed for one tool and model on one local day, from the tool's own session files. */
-export interface ThroughputRow {
-  day: string; // YYYY-MM-DD
-  harness: HarnessId;
-  model: string;
+/** Speed counts that add up across days, models or files. */
+export interface SpeedTotals {
   responses: number;
   outputTokens: number;
-  /** Time spent generating those tokens. */
+  /** Time from sending each request to its last token. */
   ms: number;
   /** Sparse histogram of per-response tok/s, keyed by rateBin(). */
   hist: Record<number, number>;
+  /** Sparse histogram of the wait for the first output, keyed by waitBin(), for tools that record it. */
+  waits?: Record<number, number>;
+}
+
+/** Output speed for one tool and model on one local day, from the tool's own session files. */
+export interface ThroughputRow extends SpeedTotals {
+  day: string; // YYYY-MM-DD
+  harness: HarnessId;
+  model: string;
 }
 
 /** How long a tool was working on one local day, with idle gaps left out. */
@@ -191,10 +197,15 @@ export interface ThroughputPayload {
   /** "scanning" until the first pass over the session files finishes. */
   status: "ready" | "scanning";
   scannedAt: string | null;
-  /** Tools whose timings are measured from request start to finish; the rest are inferred from log order. */
-  exact: HarnessId[];
+  /**
+   * Tools that record when each request was sent and finished; the rest are inferred from
+   * log order. Either way the time includes waiting for the first token.
+   */
+  timedByTool: HarnessId[];
   rows: ThroughputRow[];
   activity: ActivityRow[];
+  /** Speed per session over its whole life, keyed like SessionEntry.id ("<harness>-<sessionId>"). */
+  sessions: Record<string, SpeedTotals>;
 }
 
 export interface StartupConfig {

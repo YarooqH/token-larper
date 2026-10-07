@@ -2,7 +2,8 @@ import React, { useMemo } from "react";
 import { ModelPrices } from "../components/ModelPrices.tsx";
 import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";
 import { modelTotals } from "../lib/aggregate.ts";
-import { formatRate, modelKey, speedTitle } from "../lib/throughput.ts";
+import { modelKey } from "../lib/throughput.ts";
+import { SpeedCell } from "../components/SpeedCell.tsx";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 
 export function Models() {
@@ -38,6 +39,7 @@ export function Models() {
               {estimated &&
                 noPriceCount > 0 &&
                 ` ${noPriceCount} ${noPriceCount === 1 ? "has" : "have"} no known price and ${noPriceCount === 1 ? "is" : "are"} left out of estimates.`}
+              {throughput && models.length > 0 && " Speed is approximate and includes the wait for the first token; hover a value for details."}
             </p>
           </div>
         </header>
@@ -86,9 +88,7 @@ export function Models() {
                     <td className="bar-col"><ShareBar value={m.totalTokens} max={max} color={seriesOf(m.harness).color} /></td>
                     <td className="num">{formatCompactNumber(m.inputTokens)}</td>
                     <td className="num">{formatCompactNumber(m.outputTokens)}</td>
-                    <td className={speed ? "num" : "num muted"} title={speed ? speedTitle(speed, throughput!.exact.has(m.harness)) : undefined}>
-                      {speed ? `${formatRate(speed.tokensPerSecond)} tok/s` : "—"}
-                    </td>
+                    <SpeedCell harness={m.harness} speed={speed} />
                     <td className="num">{formatCompactNumber(m.cacheReadTokens)}</td>
                     <td className="num">{formatCompactNumber(m.cacheCreationTokens)}</td>
                     <td className="num strong">{formatCompactNumber(m.totalTokens)}</td>
