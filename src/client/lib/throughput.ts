@@ -9,7 +9,7 @@ export interface RangeThroughput {
   byHarness: Map<HarnessId, SpeedSummary>;
   byModel: Map<string, SpeedSummary>;
   activeMs: Map<HarnessId, number>;
-  exact: Set<HarnessId>;
+  timedByTool: Set<HarnessId>;
 }
 
 export const modelKey = (harness: HarnessId, model: string) => `${harness}::${model}`;
@@ -48,17 +48,25 @@ export function throughputInRange(
   const activeMs = new Map<HarnessId, number>();
   for (const a of payload.activity) if (keep(a)) activeMs.set(a.harness, (activeMs.get(a.harness) ?? 0) + a.activeMs);
 
-  return { byHarness: rollUp(toolRows), byModel: rollUp(modelRows), activeMs, exact: new Set(payload.exact) };
+  return { byHarness: rollUp(toolRows), byModel: rollUp(modelRows), activeMs, timedByTool: new Set(payload.timedByTool) };
 }
 
 export function formatRate(tokensPerSecond: number): string {
   return tokensPerSecond >= 100 ? Math.round(tokensPerSecond).toString() : tokensPerSecond.toFixed(1);
 }
 
-export function speedTitle(s: SpeedSummary, exact: boolean): string {
-  const how = exact
-    ? "Timed from when the request was sent to its last token, as the tool records it."
-    : "Timed from the log line before the response to its last token, so it includes time to first token.";
-  return `Output tokens per second while generating, over ${s.responses.toLocaleString("en-US")} responses. ` +
-    `Median ${formatRate(s.median)}, p90 ${formatRate(s.p90)}. ${how}`;
+/** Below this many responses a speed is shown dimmed, since one slow request can swing it. */
+export const FEW_RESPONSES = 10;
+
+export function speedTitle(s: SpeedSummary, timedByTool: boolean): string {
+  const count = s.responses < FEW_RESPONSES
+    ? `Only ${s.responses} ${s.responses === 1 ? "response" : "responses"} in this range, so treat this as rough. `
+    : "";
+  const source = timedByTool
+    ? "The tool records when each request was sent and when its last token arrived."
+    : "Timed from the log line before each response to its last token.";
+  return `${count}Approximate output tokens per second over ${s.responses.toLocaleString("en-US")} ` +
+    `${s.responses === 1 ? "response" : "responses"} (median ${formatRate(s.median)}, p90 ${formatRate(s.p90)}). ${source} ` +
+    "That includes waiting for the first token, which grows with the size of the context, " +
+    "so this reads lower than the model's own generation speed.";
 }
