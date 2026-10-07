@@ -16,6 +16,7 @@ import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from ".
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
 import { throughputInRange } from "./lib/throughput.ts";
 import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
+import { Live } from "./views/Live.tsx";
 import { Models } from "./views/Models.tsx";
 import { Overview } from "./views/Overview.tsx";
 import { Projects } from "./views/Projects.tsx";
@@ -35,10 +36,11 @@ import {
 } from "./themes.ts";
 import { localDateKey } from "./utils.ts";
 
-type View = "overview" | "tools" | "models" | "projects" | "sessions" | "rank";
+type View = "overview" | "live" | "tools" | "models" | "projects" | "sessions" | "rank";
 
 const VIEWS: { id: View; label: string; title: string; blurb: string }[] = [
   { id: "overview", label: "Overview", title: "Usage overview", blurb: "Tokens and cost across your coding tools." },
+  { id: "live", label: "Live", title: "Live", blurb: "Tokens per minute, burn rate and each response as it lands, read straight from your coding tools' session logs." },
   { id: "tools", label: "Tools", title: "Tools", blurb: "How each coding tool was used in this range." },
   { id: "models", label: "Models", title: "Models", blurb: "Token totals by model and tool." },
   { id: "projects", label: "Projects", title: "Projects", blurb: "Where your tokens went, by repository." },
@@ -552,6 +554,7 @@ export function App() {
               aria-current={prefs.view === v.id ? "page" : undefined}
               onClick={() => updatePrefs({ view: v.id })}
             >
+              {v.id === "live" && <span className="live-tab-dot" aria-hidden="true" />}
               {v.label}
             </button>
           ))}
@@ -572,19 +575,23 @@ export function App() {
 
         {view.id !== "rank" && (
         <div className="filters">
-          <DateRangePicker
-            range={range}
-            firstDay={firstDay}
-            onChange={(r) => updatePrefs({ preset: r.preset, customStart: r.start, customEnd: r.end })}
-          />
+          {view.id !== "live" && (
+            <DateRangePicker
+              range={range}
+              firstDay={firstDay}
+              onChange={(r) => updatePrefs({ preset: r.preset, customStart: r.start, customEnd: r.end })}
+            />
+          )}
           <SelectMenu label="Tool" value={harness} options={toolOptions} onChange={setHarness} className="tool-picker" />
-          <div className="field cost-field">
-            <span className="field-label">Cost</span>
-            <div className="cost-segmented" role="group" aria-label="Cost basis">
-              <button type="button" aria-pressed={!estimated} onClick={() => updatePrefs({ estimated: false })}>Verified</button>
-              <button type="button" aria-pressed={estimated} onClick={() => updatePrefs({ estimated: true })} title="Estimated API value">Estimate</button>
+          {view.id !== "live" && (
+            <div className="field cost-field">
+              <span className="field-label">Cost</span>
+              <div className="cost-segmented" role="group" aria-label="Cost basis">
+                <button type="button" aria-pressed={!estimated} onClick={() => updatePrefs({ estimated: false })}>Verified</button>
+                <button type="button" aria-pressed={estimated} onClick={() => updatePrefs({ estimated: true })} title="Estimated API value">Estimate</button>
+              </div>
             </div>
-          </div>
+          )}
           {searchable && (
             <label className="field field-search">
               <span className="field-label">Search</span>
@@ -599,6 +606,7 @@ export function App() {
 
         <main className="content">
           {view.id === "overview" && <Overview bucket={prefs.bucket} setBucket={(bucket) => updatePrefs({ bucket })} />}
+          {view.id === "live" && <Live />}
           {view.id === "tools" && <Tools />}
           {view.id === "models" && <Models />}
           {view.id === "projects" && <Projects />}

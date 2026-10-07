@@ -77,6 +77,7 @@ The screens below use sample data. No local sessions or project names are includ
 * **18 agents, one total**: Every supported harness is detected automatically and counted together, with filters per tool, model, session, and project.
 * **Subscription-aware**: Verified API costs are kept apart from the estimated **"LARP Value"**, the API price of tokens you used through a flat-rate plan like Claude Pro/Max, Copilot, or Antigravity. Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
 * **Model speed**: Approximate output tokens per second for each tool and model, and tokens per minute while a tool is working, read from the session files of Claude Code, Codex, OpenCode, Pi, Antigravity, Gemini CLI, and Copilot CLI. See [Speed and Tokens per Minute](#speed-and-tokens-per-minute).
+* **Live mode**: The **Live** tab updates within a second of each response: tokens, output, and requests per minute, a burn rate in dollars per hour, a rolling chart, the sessions working right now, and a feed of the latest responses. See [Live](#live).
 * **Hall of Larp**: Lifetime token burn, 14 achievements, an 11-tier rank ladder with rivals, a day streak in the header, and a 1200×630 share card.
 * **Six styles, your colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corners, spacing, borders, and shadows. Pick a base color and an accent from presets or any custom color, or import a tweakcn/shadcn CSS theme.
 * **Cross-platform**: The engine, scrapers, and dashboard behave the same on Windows, macOS (Apple Silicon and Intel), and Linux. The tray icon is Windows-only.
@@ -344,6 +345,16 @@ Speed includes waiting for the first token, and that wait grows with the size of
 Responses under 20 output tokens are left out of Speed, since they are almost all wait. **Tokens/min** on the Tools tab divides all of a tool's tokens, cache reads included, by the time it was working; gaps of more than 2 minutes between responses don't count. Other tools show a dash.
 
 The first read of the session files runs in the background and can take a few seconds per gigabyte. Results are saved per file in `throughput-cache.json` in the data folder, so later reads only open files that changed.
+
+### Live
+The **Live** tab follows the session files of Claude Code, Codex, Pi, Gemini CLI, and Copilot CLI (with OpenTelemetry file export on) as they are written, and shows each response within about a second. It reads only what was added since its last read, and stops 30 seconds after the last Live tab closes.
+
+* **Tokens / min**, **Output / min**, and **Requests / min** cover the last 60 seconds, with the 5-minute average underneath and a 15-minute sparkline. Tokens include cache reads, the same as everywhere else in the dashboard, so they run far above output.
+* **Burn rate** is the pace of the last 5 minutes in dollars per hour, at API list prices (OpenRouter's, or the built-in Claude rates), whether or not you pay per token.
+* The chart covers the last 15 minutes in 15-second bars or the last hour in 1-minute bars. A response counts when its last token is logged.
+* **Active sessions** lists sessions with a response in the last 15 minutes; **Latest responses** lists the last 30, and a response that is still streaming updates in place.
+
+The window is the last hour, read again from the session files each time the server starts. OpenCode and Antigravity keep their logs in SQLite databases, so they aren't followed live; their usage appears on the other tabs after a sync.
 
 ### Headless Server Mode
 If running on a remote headless server or Docker container, you can explicitly disable the tray icon (automatically disabled on macOS/Linux):

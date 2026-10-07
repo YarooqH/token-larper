@@ -1356,6 +1356,40 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .kpi-link:hover { color: var(--text); text-decoration-color: currentColor; }
 .kpi-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
 
+/* ---------- Live ---------- */
+
+.live-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: var(--text-2); font-size: 12.5px; }
+.live-status-text { flex: 1 1 320px; max-width: 90ch; }
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.live-badge i, .live-tab-dot, .live-when i { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--text-3); }
+.live-badge.is-live i { background: var(--accent); animation: live-pulse 1.6s ease-out infinite; }
+.live-badge.is-reconnecting { background: var(--warning-bg); color: var(--warning-text); }
+.live-badge.is-reconnecting i { background: currentColor; }
+.live-tab-dot { display: inline-block; margin-right: 6px; vertical-align: 1px; background: var(--accent); }
+.live-when { display: inline-flex; align-items: center; gap: 7px; }
+.live-when.is-recent i { background: var(--accent); animation: live-pulse 1.6s ease-out infinite; }
+.live-row { animation: live-arrive 1.2s ease-out; }
+
+@keyframes live-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
+@keyframes live-arrive {
+  from { background: var(--accent-soft); }
+  to { background: transparent; }
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1020px) {
@@ -1408,7 +1442,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spin { animation: none; }
+  .spin, .live-badge i, .live-when i, .live-row { animation: none; }
   *, *::before, *::after { transition-duration: 0s !important; scroll-behavior: auto !important; }
 }
 

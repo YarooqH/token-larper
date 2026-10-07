@@ -5,6 +5,7 @@ import { buildClientBundle, PREBUILT_CLIENT } from "./clientBuild.ts";
 import { getDashboardData, stopCcusageRuns, withPricing } from "./ccusage.ts";
 import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./startup.ts";
 import { getThroughput } from "./throughput/index.ts";
+import { liveResponse } from "./live/index.ts";
 import { startSystemTray, stopSystemTray } from "./tray/index.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
 import { logoSvgFile } from "./client/logoMark.ts";
@@ -185,6 +186,10 @@ function startServer(preferredPort: number) {
     if (url.pathname === "/api/throughput" && req.method === "GET") {
       const wait = url.searchParams.get("wait") === "1" ? 15_000 : 0;
       return Response.json(await getThroughput(wait));
+    }
+
+    if (url.pathname === "/api/live" && req.method === "GET") {
+      return liveResponse(req);
     }
 
     if (url.pathname === "/api/tray-status" && req.method === "GET") {
