@@ -80,23 +80,31 @@ test("Estimate mode keeps every usage row and only adds the price section", () =
 });
 
 describe("Speed column", () => {
-  const throughput = {
+  const throughput = (responses: number) => ({
     byHarness: new Map(),
-    byModel: new Map([["claude::claude-opus-5-5", { responses: 1632, tokensPerSecond: 97.3, median: 84.1, p90: 123.1 }]]),
+    byModel: new Map([["claude::claude-opus-5-5", { responses, tokensPerSecond: 97.3, median: 84.1, p90: 123.1 }]]),
     activeMs: new Map(),
-    exact: new Set<HarnessId>(["pi"]),
-  };
+    timedByTool: new Set<HarnessId>(["pi"]),
+  });
 
-  test("shows tok/s for timed models, explains it on hover, and dashes the rest", () => {
-    const html = render(<Models />, { throughput });
+  test("marks speeds approximate, explains the first-token wait on hover, and dashes the rest", () => {
+    const html = render(<Models />, { throughput: throughput(1632) });
     expect(html).toContain(">Speed<");
-    expect(html).toContain("97.3 tok/s");
-    expect(html).toContain("over 1,632 responses");
-    expect(html).toContain("includes time to first token");
+    expect(html).toContain('<td class="num" title="Approximate output tokens per second over 1,632 responses');
+    expect(html).toContain("≈97.3 tok/s");
+    expect(html).toContain("waiting for the first token");
+    expect(html).toContain("Speed is approximate");
     expect(html).toContain('<td class="num muted">—</td>');
   });
 
+  test("dims a speed from only a few responses and says so", () => {
+    const html = render(<Models />, { throughput: throughput(2) });
+    expect(html).toContain('<td class="num muted" title="Only 2 responses in this range, so treat this as rough.');
+  });
+
   test("dashes every model before the first scan finishes", () => {
-    expect(render(<Models />)).not.toContain("tok/s");
+    const html = render(<Models />);
+    expect(html).not.toContain("tok/s");
+    expect(html).not.toContain("Speed is approximate");
   });
 });

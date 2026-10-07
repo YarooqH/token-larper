@@ -191,8 +191,11 @@ export interface ThroughputPayload {
   /** "scanning" until the first pass over the session files finishes. */
   status: "ready" | "scanning";
   scannedAt: string | null;
-  /** Tools whose timings are measured from request start to finish; the rest are inferred from log order. */
-  exact: HarnessId[];
+  /**
+   * Tools that record when each request was sent and finished; the rest are inferred from
+   * log order. Either way the time includes waiting for the first token.
+   */
+  timedByTool: HarnessId[];
   rows: ThroughputRow[];
   activity: ActivityRow[];
 }

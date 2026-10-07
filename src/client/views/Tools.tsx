@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";
+import { SpeedCell } from "../components/SpeedCell.tsx";
 import { harnessTotals, summarize } from "../lib/aggregate.ts";
 import { formatDay } from "../lib/range.ts";
-import { formatRate, speedTitle } from "../lib/throughput.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 
 export function Tools() {
@@ -21,8 +21,8 @@ export function Tools() {
           <div>
             <h2>Tools with usage</h2>
             <p>
-              Select a tool to filter the whole dashboard to it. Speed is output tokens per second while a model
-              generates; Tokens/min counts every token per minute the tool was working.
+              Select a tool to filter the whole dashboard to it. Speed is approximate output tokens per second,
+              including the wait for the first token; Tokens/min counts every token per minute the tool was working.
             </p>
           </div>
         </header>
@@ -69,9 +69,7 @@ export function Tools() {
                       <td className="num">{formatCurrency(costOf(t))}</td>
                       <td className="num">{t.activeDays}</td>
                       <td className="num">{t.cacheHitRate.toFixed(1)}%</td>
-                      <td className={speed ? "num" : "num muted"} title={speed ? speedTitle(speed, throughput!.exact.has(t.harness)) : undefined}>
-                        {speed ? `${formatRate(speed.tokensPerSecond)} tok/s` : "—"}
-                      </td>
+                      <SpeedCell harness={t.harness} speed={speed} />
                       <td className={activeMs >= 60_000 ? "num" : "num muted"} title={activeMs > 0 ? tokensPerMinuteTitle(activeMs) : undefined}>
                         {activeMs >= 60_000 ? formatCompactNumber(t.totalTokens / (activeMs / 60_000)) : "—"}
                       </td>

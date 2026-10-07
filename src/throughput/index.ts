@@ -26,8 +26,8 @@ const CACHE_FILE = dataPath("throughput-cache.json");
 const CACHE_VERSION = 1;
 const RESCAN_AFTER_MS = 60_000;
 
-/** Tools that record when each request started and finished, rather than leaving it to log order. */
-export const EXACT_HARNESSES: HarnessId[] = ["opencode", "pi", "antigravity", "copilot"];
+/** Tools that record when each request was sent and finished, rather than leaving it to log order. */
+export const TIMED_BY_TOOL: HarnessId[] = ["opencode", "pi", "antigravity", "copilot"];
 
 interface Source {
   harness: HarnessId;
@@ -203,7 +203,7 @@ function build(status: ThroughputPayload["status"], scannedAt: string | null): T
   }
   const activity: ActivityRow[] = [];
   for (const [harness, list] of intervals) activity.push(...activityByDay(harness, mergeIntervals(list)));
-  return { status, scannedAt, exact: EXACT_HARNESSES, rows: [...rows.values()], activity };
+  return { status, scannedAt, timedByTool: TIMED_BY_TOOL, rows: [...rows.values()], activity };
 }
 
 async function scan(): Promise<void> {
@@ -252,7 +252,7 @@ export async function getThroughput(waitMs = 0): Promise<ThroughputPayload> {
   loadDisk();
   if (!scanning && Date.now() - lastScanAt > RESCAN_AFTER_MS) void startScan();
   if (scanning && waitMs > 0) await Promise.race([scanning, Bun.sleep(waitMs)]);
-  return payload ?? { status: "scanning", scannedAt: null, exact: EXACT_HARNESSES, rows: [], activity: [] };
+  return payload ?? { status: "scanning", scannedAt: null, timedByTool: TIMED_BY_TOOL, rows: [], activity: [] };
 }
 
 /** Runs a full pass and waits for it; for tests and scripts. */
