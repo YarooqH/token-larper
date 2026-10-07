@@ -84,6 +84,7 @@ describe("Speed column", () => {
     byHarness: new Map(),
     byModel: new Map([["claude::claude-opus-5-5", { responses, tokensPerSecond: 97.3, median: 84.1, p90: 123.1 }]]),
     activeMs: new Map(),
+    bySession: new Map(),
     timedByTool: new Set<HarnessId>(["pi"]),
   });
 

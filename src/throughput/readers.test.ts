@@ -1,4 +1,8 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   antigravityModel,
   readClaude,
@@ -6,6 +10,7 @@ import {
   readCopilotEvents,
   readCopilotOtel,
   readGemini,
+  readOpencode,
   readPi,
 } from "./readers.ts";
 
@@ -17,14 +22,14 @@ describe("readClaude", () => {
   test("times a message from the line that triggered it to its last streamed block", () => {
     const text = lines(
       { type: "user", uuid: "u1", timestamp: at(0) },
-      { type: "assistant", uuid: "a1", parentUuid: "u1", timestamp: at(4), message: { id: "msg_1", model: "claude-opus-5-5", usage: { output_tokens: 300 } } },
+      { type: "assistant", uuid: "a1", parentUuid: "u1", sessionId: "s1", timestamp: at(4), message: { id: "msg_1", model: "claude-opus-5-5", usage: { output_tokens: 300 } } },
       { type: "assistant", uuid: "a2", parentUuid: "a1", timestamp: at(6), message: { id: "msg_1", model: "claude-opus-5-5", usage: { output_tokens: 300 } } },
       { type: "user", uuid: "u2", parentUuid: "a2", timestamp: at(9) },
       { type: "assistant", uuid: "a3", parentUuid: "u2", timestamp: at(11), message: { id: "msg_2", model: "claude-opus-5-5", usage: { output_tokens: 80 } } },
     );
     expect(readClaude(text).samples).toEqual([
-      { model: "claude-opus-5-5", start: t(0), end: t(6), outputTokens: 300 },
-      { model: "claude-opus-5-5", start: t(9), end: t(11), outputTokens: 80 },
+      { model: "claude-opus-5-5", start: t(0), end: t(6), outputTokens: 300, session: "s1" },
+      { model: "claude-opus-5-5", start: t(9), end: t(11), outputTokens: 80, session: undefined },
     ]);
   });
 
@@ -95,6 +100,7 @@ test("readPi takes the start from the message and the end from its log line", ()
 
 describe("readGemini", () => {
   const session = {
+    sessionId: "g1",
     messages: [
       { type: "user", timestamp: at(0) },
       { type: "gemini", timestamp: at(10), model: "gemini-3-flash-preview", tokens: { output: 100, thoughts: 50 }, toolCalls: [{ timestamp: at(12) }] },
@@ -104,13 +110,15 @@ describe("readGemini", () => {
 
   test("starts a reply after the prompt or the previous reply's last tool call, counting thoughts", () => {
     expect(readGemini(JSON.stringify(session)).samples).toEqual([
-      { model: "gemini-3-flash-preview", start: t(0), end: t(10), outputTokens: 150 },
-      { model: "gemini-3-flash-preview", start: t(12), end: t(20), outputTokens: 200 },
+      { model: "gemini-3-flash-preview", start: t(0), end: t(10), outputTokens: 150, session: "g1" },
+      { model: "gemini-3-flash-preview", start: t(12), end: t(20), outputTokens: 200, session: "g1" },
     ]);
   });
 
   test("reads the JSONL layout too", () => {
-    expect(readGemini(lines({ sessionId: "s" }, ...session.messages)).samples).toHaveLength(2);
+    const samples = readGemini(lines({ sessionId: "g1" }, ...session.messages)).samples;
+    expect(samples).toHaveLength(2);
+    expect(samples[0]!.session).toBe("g1");
   });
 });
 
@@ -121,12 +129,17 @@ test("readCopilotOtel reads chat spans with hrTime start and end", () => {
       name: "chat claude-opus-4.6-1m-internal",
       startTime: [1791204620, 0],
       endTime: [1791204625, 500_000_000],
-      attributes: { "gen_ai.operation.name": "chat", "gen_ai.response.model": "claude-opus-4.6-1m-internal", "gen_ai.usage.output_tokens": 300 },
+      attributes: {
+        "gen_ai.operation.name": "chat",
+        "gen_ai.response.model": "claude-opus-4.6-1m-internal",
+        "gen_ai.usage.output_tokens": 300,
+        "gen_ai.conversation.id": "c1",
+      },
     },
     { type: "span", name: "invoke_agent", startTime: [1, 0], endTime: [2, 0], attributes: { "gen_ai.operation.name": "invoke_agent" } },
   );
   expect(readCopilotOtel(text).samples).toEqual([
-    { model: "claude-opus-4.6", start: 1791204620000, end: 1791204625500, outputTokens: 300 },
+    { model: "claude-opus-4.6", start: 1791204620000, end: 1791204625500, outputTokens: 300, session: "c1" },
   ]);
 });
 
@@ -145,4 +158,57 @@ test("antigravityModel matches ccusage's model names", () => {
   expect(antigravityModel(undefined, 246)).toBe("gemini-2.5-pro");
   expect(antigravityModel(undefined, 342)).toBe("gpt-oss-120b-medium");
   expect(antigravityModel(undefined, undefined)).toBeNull();
+});
+
+describe("readOpencode", () => {
+  function withDb(fill: (db: Database) => void, check: (path: string) => void) {
+    const dir = mkdtempSync(join(tmpdir(), "tl-opencode-"));
+    const path = join(dir, "opencode.db");
+    const db = new Database(path);
+    db.run("create table message (id text primary key, session_id text, time_created integer, time_updated integer, data text)");
+    db.run("create table part (id text primary key, message_id text, session_id text, time_created integer, time_updated integer, data text)");
+    fill(db);
+    db.close();
+    try {
+      check(path);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  // Row columns hold a migration time on purpose: the reader must use the times in the data.
+  const MIGRATED = 1;
+  const message = (db: Database, id: string, data: object) =>
+    db.run("insert into message values (?, 'ses_1', ?, ?, ?)", [id, MIGRATED, MIGRATED, JSON.stringify(data)]);
+  const part = (db: Database, id: string, messageId: string, data: object) =>
+    db.run("insert into part values (?, ?, 'ses_1', ?, ?, ?)", [id, messageId, MIGRATED, MIGRATED, JSON.stringify(data)]);
+
+  test("times each step from its request to its last token, leaving tool runs out", () => {
+    withDb(
+      (db) => {
+        message(db, "m1", { role: "assistant", modelID: "kimi", time: { created: t(0), completed: t(60) }, tokens: { output: 900 } });
+        part(db, "p1", "m1", { type: "step-start" });
+        part(db, "p2", "m1", { type: "reasoning", time: { start: t(2), end: t(4) } });
+        part(db, "p3", "m1", { type: "tool", state: { time: { start: t(6), end: t(40) } } });
+        part(db, "p4", "m1", { type: "step-finish", tokens: { output: 300, reasoning: 100 } });
+        part(db, "p5", "m1", { type: "step-start" });
+        part(db, "p6", "m1", { type: "text", time: { start: t(41), end: t(50) } });
+        part(db, "p7", "m1", { type: "step-finish", tokens: { output: 500, reasoning: 0 } });
+      },
+      (path) => {
+        expect(readOpencode(path).samples).toEqual([
+          { model: "kimi", session: "ses_1", start: t(0), end: t(6), outputTokens: 400, firstOutputAt: t(2) },
+          { model: "kimi", session: "ses_1", start: t(40), end: t(50), outputTokens: 500, firstOutputAt: t(41) },
+        ]);
+      },
+    );
+  });
+
+  test("falls back to the message's own times when it has no parts", () => {
+    withDb(
+      (db) => message(db, "m1", { role: "assistant", modelID: "glm", time: { created: t(0), completed: t(9) }, tokens: { output: 200, reasoning: 50 } }),
+      (path) => {
+        expect(readOpencode(path).samples).toEqual([{ model: "glm", session: "ses_1", start: t(0), end: t(9), outputTokens: 250 }]);
+      },
+    );
+  });
 });

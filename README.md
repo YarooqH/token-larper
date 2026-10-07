@@ -331,13 +331,13 @@ Switch **Cost** to **Estimate** to see the prices. The **Models** tab then adds 
 Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may go unpriced. Verified costs from ccusage are never changed. Set `TOKEN_LARPER_OFFLINE=1` to skip the download and use only the saved list (if any) and the built-in rates.
 
 ### Speed and Tokens per Minute
-The **Tools** and **Models** tabs show an approximate **Speed** column: output tokens per second, timed from when a request is sent to when its last token arrives. ccusage only reports totals, so Token Larper reads the timing from each tool's own session files. Hover a value for the median, p90, and number of responses behind it; a value from fewer than 10 responses is dimmed.
+The **Tools**, **Models**, and **Sessions** tabs show an approximate **Speed** column: output tokens per second, timed from when a request is sent to when its last token arrives. ccusage only reports totals, so Token Larper reads the timing from each tool's own session files. Hover a value for the median, p90, and number of responses behind it; a value from fewer than 10 responses is dimmed. On the Tools and Models tabs, Speed follows the date range; on the Sessions tab, each session shows its speed over its whole life.
 
 Speed includes waiting for the first token, and that wait grows with the size of the context. A request with a 500K-token context can spend most of its time before any output appears, so Speed reads lower than a model's own generation speed and lower than providers' published figures. Treat it as how fast responses reach you, not a benchmark.
 
 | Tool | Where the timing comes from |
 | --- | --- |
-| OpenCode, Pi, Antigravity | The tool records when each request was sent and finished. |
+| OpenCode, Pi, Antigravity | The tool records when each request was sent and finished. OpenCode also records when the first output arrived, so its hover text adds the typical wait for it, and time spent running tools between model calls is left out. |
 | Claude Code, Codex, Gemini CLI | Inferred from the log line before each response (the prompt or a tool result) and the response's last line. |
 | Copilot CLI | Per request only with OpenTelemetry file export on (`COPILOT_OTEL_ENABLED=true`, `COPILOT_OTEL_EXPORTER_TYPE=file`). Without it, Copilot gets Tokens/min but no Speed. |
 

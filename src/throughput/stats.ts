@@ -1,4 +1,4 @@
-import type { ActivityRow, HarnessId, ThroughputRow } from "../types.ts";
+import type { ActivityRow, HarnessId, SpeedTotals, ThroughputRow } from "../types.ts";
 import { localDateKey } from "../client/utils.ts";
 
 // Shared by the server, which turns parsed responses into per-day rows, and the dashboard,
@@ -10,6 +10,10 @@ export interface Sample {
   start: number;
   end: number;
   outputTokens: number;
+  /** When the first output arrived, for tools that record it. */
+  firstOutputAt?: number;
+  /** The session the response belongs to, when the record names it; otherwise the file's session. */
+  session?: string;
 }
 
 export type Interval = [start: number, end: number];
@@ -23,18 +27,22 @@ const MIN_TOKENS = 20;
 const MIN_MS = 200;
 const MAX_MS = 30 * 60_000;
 
-// Rates are bucketed on a log scale, 10% per bin, so a range's median and p90 come from
-// summing bins instead of keeping every response.
+// Rates and waits are bucketed on a log scale, 10% per bin, so a range's median and p90 come
+// from summing bins instead of keeping every response.
 const BIN_GROWTH = Math.log(1.1);
-const MAX_BIN = 100; // about 13,800 tok/s
+const MAX_RATE_BIN = 100; // about 13,800 tok/s
+const MAX_WAIT_BIN = 160; // about 4.2 hours, in milliseconds
 
-export function rateBin(tokensPerSecond: number): number {
-  if (!(tokensPerSecond > 1)) return 0;
-  return Math.min(MAX_BIN, Math.floor(Math.log(tokensPerSecond) / BIN_GROWTH));
+function logBin(value: number, max: number): number {
+  if (!(value > 1)) return 0;
+  return Math.min(max, Math.floor(Math.log(value) / BIN_GROWTH));
 }
 
-/** The geometric middle of a bin. */
-export function binRate(bin: number): number {
+export const rateBin = (tokensPerSecond: number) => logBin(tokensPerSecond, MAX_RATE_BIN);
+export const waitBin = (ms: number) => logBin(ms, MAX_WAIT_BIN);
+
+/** The geometric middle of a bin: tok/s for a rate bin, milliseconds for a wait bin. */
+export function binValue(bin: number): number {
   return Math.exp((bin + 0.5) * BIN_GROWTH);
 }
 
@@ -75,62 +83,93 @@ export function activityByDay(harness: HarnessId, merged: Interval[]): ActivityR
   return [...byDay].map(([day, activeMs]) => ({ day, harness, activeMs }));
 }
 
+export const emptyTotals = (): SpeedTotals => ({ responses: 0, outputTokens: 0, ms: 0, hist: {} });
+
+function addSample(into: SpeedTotals, s: Sample): void {
+  const ms = s.end - s.start;
+  into.responses += 1;
+  into.outputTokens += s.outputTokens;
+  into.ms += ms;
+  const bin = rateBin(s.outputTokens / (ms / 1000));
+  into.hist[bin] = (into.hist[bin] ?? 0) + 1;
+  if (s.firstOutputAt !== undefined && s.firstOutputAt >= s.start && s.firstOutputAt <= s.end) {
+    const waits = (into.waits ??= {});
+    const w = waitBin(s.firstOutputAt - s.start);
+    waits[w] = (waits[w] ?? 0) + 1;
+  }
+}
+
+function addHist(into: Record<number, number>, from: Record<number, number>): void {
+  for (const [bin, n] of Object.entries(from)) into[Number(bin)] = (into[Number(bin)] ?? 0) + n;
+}
+
+export function addTotals(into: SpeedTotals, from: SpeedTotals): void {
+  into.responses += from.responses;
+  into.outputTokens += from.outputTokens;
+  into.ms += from.ms;
+  addHist(into.hist, from.hist);
+  if (from.waits) addHist((into.waits ??= {}), from.waits);
+}
+
 /** Per-day, per-model speed rows for one tool. A response counts toward the day its request started. */
 export function rowsFromSamples(harness: HarnessId, samples: Sample[]): ThroughputRow[] {
   const rows = new Map<string, ThroughputRow>();
   for (const s of samples) {
     if (!countsForSpeed(s)) continue;
     const day = localDateKey(new Date(s.start));
-    const key = `${day}\n${s.model}`;
+    const key = `${day}
+${s.model}`;
     let row = rows.get(key);
     if (!row) {
-      row = { day, harness, model: s.model, responses: 0, outputTokens: 0, ms: 0, hist: {} };
+      row = { day, harness, model: s.model, ...emptyTotals() };
       rows.set(key, row);
     }
-    const ms = s.end - s.start;
-    row.responses += 1;
-    row.outputTokens += s.outputTokens;
-    row.ms += ms;
-    const bin = rateBin(s.outputTokens / (ms / 1000));
-    row.hist[bin] = (row.hist[bin] ?? 0) + 1;
+    addSample(row, s);
   }
   return [...rows.values()];
 }
 
+/** Speed totals per session, keyed by session id. */
+export function sessionsFromSamples(samples: Sample[], fallback: string | undefined): Record<string, SpeedTotals> {
+  const out: Record<string, SpeedTotals> = {};
+  for (const s of samples) {
+    const session = s.session ?? fallback;
+    if (!session || !countsForSpeed(s)) continue;
+    addSample((out[session] ??= emptyTotals()), s);
+  }
+  return out;
+}
+
 export interface SpeedSummary {
   responses: number;
-  /** Output tokens over generation time, so long responses weigh more than short ones. */
+  /** Output tokens over total response time, so long responses weigh more than short ones. */
   tokensPerSecond: number;
   median: number;
   p90: number;
+  /** Median wait for the first output, for tools that record when it arrived. */
+  medianWaitMs?: number;
 }
 
-function percentile(hist: Map<number, number>, total: number, p: number): number {
-  const target = p * total;
+function percentile(hist: Record<number, number>, p: number): number {
+  const bins = Object.keys(hist).map(Number).sort((a, b) => a - b);
+  const total = bins.reduce((acc, b) => acc + hist[b]!, 0);
   let seen = 0;
-  for (const bin of [...hist.keys()].sort((a, b) => a - b)) {
-    seen += hist.get(bin)!;
-    if (seen >= target) return binRate(bin);
+  for (const bin of bins) {
+    seen += hist[bin]!;
+    if (seen >= p * total) return binValue(bin);
   }
   return 0;
 }
 
-export function summarizeSpeed(rows: ThroughputRow[]): SpeedSummary | null {
-  let responses = 0;
-  let tokens = 0;
-  let ms = 0;
-  const hist = new Map<number, number>();
-  for (const r of rows) {
-    responses += r.responses;
-    tokens += r.outputTokens;
-    ms += r.ms;
-    for (const [bin, n] of Object.entries(r.hist)) hist.set(Number(bin), (hist.get(Number(bin)) ?? 0) + n);
-  }
-  if (responses === 0 || ms <= 0) return null;
+export function summarizeSpeed(rows: SpeedTotals[]): SpeedSummary | null {
+  const t = emptyTotals();
+  for (const r of rows) addTotals(t, r);
+  if (t.responses === 0 || t.ms <= 0) return null;
   return {
-    responses,
-    tokensPerSecond: tokens / (ms / 1000),
-    median: percentile(hist, responses, 0.5),
-    p90: percentile(hist, responses, 0.9),
+    responses: t.responses,
+    tokensPerSecond: t.outputTokens / (t.ms / 1000),
+    median: percentile(t.hist, 0.5),
+    p90: percentile(t.hist, 0.9),
+    ...(t.waits ? { medianWaitMs: percentile(t.waits, 0.5) } : {}),
   };
 }
