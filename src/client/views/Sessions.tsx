@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import type { SessionEntry } from "../../types.ts";
 import { ToolTag, useDashboard } from "../context.tsx";
+import { SpeedCell } from "../components/SpeedCell.tsx";
 import { formatDay } from "../lib/range.ts";
 import { cleanProjectPath, formatCompactNumber, formatCurrency } from "../utils.ts";
 
@@ -22,7 +23,7 @@ export function matchesSession(s: SessionEntry, q: string): boolean {
 }
 
 export function SessionTable({ sessions, showProject = true }: { sessions: SessionEntry[]; showProject?: boolean }) {
-  const { costOf, estimated } = useDashboard();
+  const { costOf, estimated, throughput } = useDashboard();
   const [limit, setLimit] = useState(PAGE);
   const shown = sessions.slice(0, limit);
 
@@ -38,6 +39,7 @@ export function SessionTable({ sessions, showProject = true }: { sessions: Sessi
               <th>Models</th>
               <th className="num">Input</th>
               <th className="num">Output</th>
+              <th className="num">Speed</th>
               <th className="num">Cache read</th>
               <th className="num">Total</th>
               <th className="num">{estimated ? "Est. value" : "Cost"}</th>
@@ -68,6 +70,7 @@ export function SessionTable({ sessions, showProject = true }: { sessions: Sessi
                 </td>
                 <td className="num">{formatCompactNumber(s.inputTokens)}</td>
                 <td className="num">{formatCompactNumber(s.outputTokens)}</td>
+                <SpeedCell harness={s.harness} speed={throughput?.bySession.get(s.id)} scope="session" />
                 <td className="num">{formatCompactNumber(s.cacheReadTokens)}</td>
                 <td className="num strong">{formatCompactNumber(s.totalTokens)}</td>
                 <td className="num">{formatCurrency(costOf(s))}</td>
