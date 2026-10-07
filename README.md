@@ -333,6 +333,8 @@ Estimates do not include OpenRouter's long-context surcharges, and a model name 
 ### Speed and Tokens per Minute
 The **Tools**, **Models**, and **Sessions** tabs show an approximate **Speed** column: output tokens per second, timed from when a request is sent to when its last token arrives. ccusage only reports totals, so Token Larper reads the timing from each tool's own session files. Hover a value for the median, p90, and number of responses behind it; a value from fewer than 10 responses is dimmed. On the Tools and Models tabs, Speed follows the date range; on the Sessions tab, each session shows its speed over its whole life.
 
+**Speed over time** on the Tools and Models tabs draws one line per tool or per model, per day, week, or month, so you can compare them as models and versions change. Switch between **Average** (all output tokens over all response time, the same as the Speed column) and **Median** (the middle response's speed), or to **Table** for the exact numbers. Values from fewer than 10 responses are dimmed. The Models chart shows the 7 models with the most responses in the range; pick a tool to compare only its models.
+
 Speed includes waiting for the first token, and that wait grows with the size of the context. A request with a 500K-token context can spend most of its time before any output appears, so Speed reads lower than a model's own generation speed and lower than providers' published figures. Treat it as how fast responses reach you, not a benchmark.
 
 | Tool | Where the timing comes from |

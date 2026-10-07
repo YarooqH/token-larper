@@ -339,3 +339,159 @@ export function ActivityCalendar({ days, costOf, weeks, rangeStart, rangeEnd }: 
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+
+export interface LineSeries extends SeriesInfo {
+  /** One per period; null leaves a gap in the line. */
+  values: (number | null)[];
+  /** Values to show dimmed in the tooltip, such as ones from very few responses. */
+  dim?: boolean[];
+}
+
+interface LineChartProps {
+  /** One per period, for the tooltip. */
+  labels: string[];
+  /** One per period, for the x axis. */
+  shortLabels: string[];
+  series: LineSeries[];
+  formatValue: (value: number) => string;
+  /** Explains dimmed values; shown under the tooltip when it lists one. */
+  dimNote?: string;
+  ariaLabel: string;
+}
+
+/** Lines for comparing a rate across series over time, with a crosshair that lists every series. */
+export function LineChart({ labels, shortLabels, series, formatValue, dimNote, ariaLabel }: LineChartProps) {
+  const [active, setActive] = useState<number | null>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 800, h: 230 });
+
+  useEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => entry && setSize({ w: entry.contentRect.width, h: entry.contentRect.height }));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [labels.length === 0]);
+
+  const n = labels.length;
+  if (n === 0) return <div className="uchart-empty">No timed responses for this filter.</div>;
+
+  const ticks = niceTicks(Math.max(0, ...series.flatMap((s) => s.values.map((v) => v ?? 0))));
+  const yMax = ticks[ticks.length - 1] || 1;
+  const x = (i: number) => ((i + 0.5) / n) * size.w;
+  const y = (v: number) => size.h * (1 - v / yMax);
+  const labelEvery = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(size.w / 64))));
+
+  function indexFromPointer(event: React.MouseEvent<HTMLDivElement>): number {
+    const box = event.currentTarget.getBoundingClientRect();
+    return Math.min(n - 1, Math.max(0, Math.floor(((event.clientX - box.left) / box.width) * n)));
+  }
+
+  function handleKey(event: React.KeyboardEvent<HTMLDivElement>) {
+    const i = active ?? n - 1;
+    let next = i;
+    if (event.key === "ArrowLeft") next = Math.max(0, i - 1);
+    else if (event.key === "ArrowRight") next = Math.min(n - 1, i + 1);
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = n - 1;
+    else return;
+    event.preventDefault();
+    setActive(next);
+  }
+
+  const lines = series.map((s) => {
+    const segments: string[] = [];
+    const lone: number[] = [];
+    let run: number[] = [];
+    const flush = () => {
+      if (run.length === 1) lone.push(run[0]!);
+      else if (run.length > 1) segments.push(run.map((i, k) => `${k ? "L" : "M"}${x(i).toFixed(1)},${y(s.values[i]!).toFixed(1)}`).join(" "));
+      run = [];
+    };
+    s.values.forEach((v, i) => (v === null ? flush() : run.push(i)));
+    flush();
+    return { s, d: segments.join(" "), lone };
+  });
+
+  const tip = active === null
+    ? []
+    : series
+        .map((s) => ({ ...s, value: s.values[active] ?? null, isDim: s.dim?.[active] ?? false }))
+        .filter((s): s is typeof s & { value: number } => s.value !== null)
+        .sort((a, b) => b.value - a.value);
+  const tipSide = active !== null && active >= n / 2 ? "left" : "right";
+
+  return (
+    <div className="uchart">
+      <div className="uchart-plot">
+        <div className="uchart-grid" aria-hidden="true">
+          {ticks.map((t) => (
+            <div key={t} className="uchart-gridline" style={{ bottom: `${(t / yMax) * 100}%` }}>
+              <span>{formatAxis(t, false)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="lchart-area" ref={areaRef}>
+          <svg width={size.w} height={size.h} aria-hidden="true">
+            {active !== null && <line className="lchart-crosshair" x1={x(active)} x2={x(active)} y1={0} y2={size.h} />}
+            {lines.map(({ s, d, lone }) => (
+              <g key={s.key} style={{ color: s.color }}>
+                {d && <path className="lchart-line" d={d} />}
+                {lone.map((i) => <circle key={i} className="lchart-dot" cx={x(i)} cy={y(s.values[i]!)} r={4} />)}
+                {active !== null && s.values[active] != null && (
+                  <circle className="lchart-dot" cx={x(active)} cy={y(s.values[active]!)} r={4.5} />
+                )}
+              </g>
+            ))}
+          </svg>
+        </div>
+
+        <div
+          className="uchart-bars lchart-hit"
+          role="group"
+          tabIndex={0}
+          aria-label={`${ariaLabel}. Use left and right arrow keys to move between periods.`}
+          onMouseMove={(e) => setActive(indexFromPointer(e))}
+          onMouseLeave={() => setActive(null)}
+          onKeyDown={handleKey}
+          onBlur={() => setActive(null)}
+        />
+
+        {active !== null && (
+          <div
+            className={`uchart-tip side-${tipSide}`}
+            style={{ left: `calc(var(--axis-w) + (100% - var(--axis-w)) * ${(active + 0.5) / n})` }}
+            role="status"
+          >
+            <div className="uchart-tip-head">
+              <strong>{labels[active]}</strong>
+            </div>
+            {tip.length === 0 ? (
+              <div className="uchart-tip-empty">No timed responses</div>
+            ) : (
+              <ul>
+                {tip.map((s) => (
+                  <li key={s.key}>
+                    <i style={{ background: s.color }} />
+                    <span>{s.name}</span>
+                    <b className={s.isDim ? "muted" : undefined}>{formatValue(s.value)}</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {dimNote && tip.some((s) => s.isDim) && <div className="uchart-tip-foot">{dimNote}</div>}
+          </div>
+        )}
+      </div>
+
+      <div className="uchart-xaxis" aria-hidden="true">
+        {shortLabels.map((label, i) => (
+          <span key={i}>{i % labelEvery === (n - 1) % labelEvery && <em>{label}</em>}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
