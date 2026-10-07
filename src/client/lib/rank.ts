@@ -137,9 +137,16 @@ export function weekSpan(day: string): string {
   return formatSpan(monday, addDays(monday, 6));
 }
 
-export function lifetimeStats(data: DashboardPayload): LifetimeStats {
-  const days = data.daily.filter((d) => d.totalTokens > 0).sort((a, b) => a.period.localeCompare(b.period));
+/** Days with any usage, oldest first. */
+function activeDaysOf(data: DashboardPayload): TimePeriodRow[] {
+  return data.daily.filter((d) => d.totalTokens > 0).sort((a, b) => a.period.localeCompare(b.period));
+}
 
+/**
+ * Consecutive-day runs over sorted active days. A run still counts as current when its
+ * last day is yesterday: today isn't over, so the streak is alive until it's missed.
+ */
+function streaksOf(days: TimePeriodRow[], today: string): { longest: Streak | null; current: Streak | null } {
   let longest: Streak | null = null;
   let run: Streak | null = null;
   for (const d of days) {
@@ -151,9 +158,30 @@ export function lifetimeStats(data: DashboardPayload): LifetimeStats {
     run = next;
     if (!longest || next.days > longest.days) longest = next;
   }
-  const today = todayKey();
   const last: Streak | null = run;
   const current = last && (last.end === today || last.end === addDays(today, -1)) ? last : null;
+  return { longest, current };
+}
+
+export interface DayStreak {
+  /** Consecutive active days ending today, or yesterday if today has no usage yet. */
+  days: number;
+  /** Whether today already has usage, so the streak is safe for the day. */
+  doneToday: boolean;
+}
+
+/** The streak shown in the header and the tray popup. */
+export function dayStreak(data: DashboardPayload, today: string = todayKey()): DayStreak {
+  const days = activeDaysOf(data);
+  return {
+    days: streaksOf(days, today).current?.days ?? 0,
+    doneToday: days.some((d) => d.period === today),
+  };
+}
+
+export function lifetimeStats(data: DashboardPayload): LifetimeStats {
+  const days = activeDaysOf(data);
+  const { longest, current } = streaksOf(days, todayKey());
 
   const projects = new Map<string, { name: string; tokens: number }>();
   for (const s of data.sessions) {

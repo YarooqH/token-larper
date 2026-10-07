@@ -118,8 +118,8 @@ export function SettingsDialog({
             </div>
             <div className="setting-row">
               <div className="setting-copy">
-                <strong id="setting-ranks-label">Show ranks</strong>
-                <p>Show the Rank tab and level label in the header.</p>
+                <strong id="setting-ranks-label">Show stats</strong>
+                <p>Show the Stats tab and day streak in the header.</p>
               </div>
               <button
                 type="button"

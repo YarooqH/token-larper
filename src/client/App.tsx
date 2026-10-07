@@ -6,11 +6,12 @@ import { DashboardProvider, type Dashboard } from "./context.tsx";
 import { DateRangePicker } from "./components/DateRangePicker.tsx";
 import { AppFooter } from "./components/AppFooter.tsx";
 import { Logo } from "./components/Logo.tsx";
-import { RankChip } from "./components/RankChip.tsx";
+import { StreakChip } from "./components/StreakChip.tsx";
 import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
 import { UpdateBanner } from "./components/UpdateBanner.tsx";
 import { useUpdates } from "./lib/updates.ts";
+import { dayStreak } from "./lib/rank.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
 import { throughputInRange } from "./lib/throughput.ts";
@@ -42,7 +43,7 @@ const VIEWS: { id: View; label: string; title: string; blurb: string }[] = [
   { id: "models", label: "Models", title: "Models", blurb: "Token totals by model and tool." },
   { id: "projects", label: "Projects", title: "Projects", blurb: "Where your tokens went, by repository." },
   { id: "sessions", label: "Sessions", title: "Sessions", blurb: "Individual coding sessions." },
-  { id: "rank", label: "Rank", title: "Hall of Larp", blurb: "Lifetime rank, rivals, records, and badges. Date and tool filters don't apply here." },
+  { id: "rank", label: "Stats", title: "Hall of Larp", blurb: "Lifetime rank, day streak, rivals, records, and badges. Date and tool filters don't apply here." },
 ];
 
 // View and filter choices are a per-browser convenience; the dashboard works without them.
@@ -509,7 +510,7 @@ export function App() {
             )}
           </div>
           <div className="topbar-actions">
-            {prefs.showRanks && <RankChip tokens={data.totals.totalTokens} active={view.id === "rank"} onOpen={() => updatePrefs({ view: "rank" })} />}
+            {prefs.showRanks && <StreakChip streak={dayStreak(data)} active={view.id === "rank"} onOpen={() => updatePrefs({ view: "rank" })} />}
             <span className="updated" title={new Date(data.generatedAt).toLocaleString()}>
               Updated {new Date(data.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
             </span>
