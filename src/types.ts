@@ -167,6 +167,36 @@ export interface DashboardPayload {
   sessions: SessionEntry[];
 }
 
+/** Output speed for one tool and model on one local day, from the tool's own session files. */
+export interface ThroughputRow {
+  day: string; // YYYY-MM-DD
+  harness: HarnessId;
+  model: string;
+  responses: number;
+  outputTokens: number;
+  /** Time spent generating those tokens. */
+  ms: number;
+  /** Sparse histogram of per-response tok/s, keyed by rateBin(). */
+  hist: Record<number, number>;
+}
+
+/** How long a tool was working on one local day, with idle gaps left out. */
+export interface ActivityRow {
+  day: string;
+  harness: HarnessId;
+  activeMs: number;
+}
+
+export interface ThroughputPayload {
+  /** "scanning" until the first pass over the session files finishes. */
+  status: "ready" | "scanning";
+  scannedAt: string | null;
+  /** Tools whose timings are measured from request start to finish; the rest are inferred from log order. */
+  exact: HarnessId[];
+  rows: ThroughputRow[];
+  activity: ActivityRow[];
+}
+
 export interface StartupConfig {
   enabled: boolean;
   openBrowserOnBoot: boolean;

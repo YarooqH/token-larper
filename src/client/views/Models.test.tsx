@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { HarnessId } from "../../types.ts";
 import { Models } from "./Models.tsx";
 import { render } from "../testing/dashboard.tsx";
 
@@ -76,4 +77,26 @@ test("Estimate mode keeps every usage row and only adds the price section", () =
   const rows = (html: string) => (html.match(/<tr>/g) ?? []).length;
   // Three models in the usage table; Estimate adds a header and three rows for the prices.
   expect(rows(estimate())).toBe(rows(verified()) + 4);
+});
+
+describe("Speed column", () => {
+  const throughput = {
+    byHarness: new Map(),
+    byModel: new Map([["claude::claude-opus-5-5", { responses: 1632, tokensPerSecond: 97.3, median: 84.1, p90: 123.1 }]]),
+    activeMs: new Map(),
+    exact: new Set<HarnessId>(["pi"]),
+  };
+
+  test("shows tok/s for timed models, explains it on hover, and dashes the rest", () => {
+    const html = render(<Models />, { throughput });
+    expect(html).toContain(">Speed<");
+    expect(html).toContain("97.3 tok/s");
+    expect(html).toContain("over 1,632 responses");
+    expect(html).toContain("includes time to first token");
+    expect(html).toContain('<td class="num muted">—</td>');
+  });
+
+  test("dashes every model before the first scan finishes", () => {
+    expect(render(<Models />)).not.toContain("tok/s");
+  });
 });

@@ -2,10 +2,11 @@ import React, { useMemo, useState } from "react";
 import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";
 import { harnessTotals, summarize } from "../lib/aggregate.ts";
 import { formatDay } from "../lib/range.ts";
+import { formatRate, speedTitle } from "../lib/throughput.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 
 export function Tools() {
-  const { data, days, harness, setHarness, costOf, estimated, seriesOf } = useDashboard();
+  const { data, days, harness, setHarness, costOf, estimated, seriesOf, throughput } = useDashboard();
   const [showAll, setShowAll] = useState(false);
   const tools = useMemo(() => harnessTotals(days), [days]);
   const total = useMemo(() => summarize(days).totalTokens, [days]);
@@ -19,7 +20,10 @@ export function Tools() {
         <header className="panel-head">
           <div>
             <h2>Tools with usage</h2>
-            <p>Select a tool to filter the whole dashboard to it.</p>
+            <p>
+              Select a tool to filter the whole dashboard to it. Speed is output tokens per second while a model
+              generates; Tokens/min counts every token per minute the tool was working.
+            </p>
           </div>
         </header>
         {tools.length === 0 ? (
@@ -36,6 +40,8 @@ export function Tools() {
                   <th className="num">{estimated ? "Est. value" : "Cost"}</th>
                   <th className="num">Active days</th>
                   <th className="num">Cache read</th>
+                  <th className="num">Speed</th>
+                  <th className="num">Tokens/min</th>
                   <th>Top model</th>
                   <th>Last active</th>
                 </tr>
@@ -43,6 +49,8 @@ export function Tools() {
               <tbody>
                 {tools.map((t) => {
                   const meta = data.harnesses.find((h) => h.meta.id === t.harness)?.meta;
+                  const speed = throughput?.byHarness.get(t.harness);
+                  const activeMs = throughput?.activeMs.get(t.harness) ?? 0;
                   return (
                     <tr
                       key={t.harness}
@@ -61,6 +69,12 @@ export function Tools() {
                       <td className="num">{formatCurrency(costOf(t))}</td>
                       <td className="num">{t.activeDays}</td>
                       <td className="num">{t.cacheHitRate.toFixed(1)}%</td>
+                      <td className={speed ? "num" : "num muted"} title={speed ? speedTitle(speed, throughput!.exact.has(t.harness)) : undefined}>
+                        {speed ? `${formatRate(speed.tokensPerSecond)} tok/s` : "—"}
+                      </td>
+                      <td className={activeMs >= 60_000 ? "num" : "num muted"} title={activeMs > 0 ? tokensPerMinuteTitle(activeMs) : undefined}>
+                        {activeMs >= 60_000 ? formatCompactNumber(t.totalTokens / (activeMs / 60_000)) : "—"}
+                      </td>
                       <td><code className="model-name">{t.models[0]?.modelName ?? "—"}</code></td>
                       <td className="nowrap muted">{t.lastActive ? formatDay(t.lastActive, true) : "—"}</td>
                     </tr>
@@ -111,4 +125,10 @@ export function Tools() {
       </section>
     </>
   );
+}
+
+function tokensPerMinuteTitle(activeMs: number): string {
+  const hours = activeMs / 3_600_000;
+  const time = hours >= 1 ? `${hours.toFixed(1)} h` : `${Math.round(activeMs / 60_000)} min`;
+  return `All tokens, cache reads included, over ${time} of work. Gaps of more than 2 minutes between responses are left out.`;
 }

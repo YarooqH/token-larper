@@ -2,6 +2,7 @@ import React, { createContext, useContext } from "react";
 import type { DashboardPayload, HarnessId, SessionEntry, TimePeriodRow } from "../types.ts";
 import type { HarnessFilter } from "./lib/aggregate.ts";
 import type { DateRange } from "./lib/range.ts";
+import type { RangeThroughput } from "./lib/throughput.ts";
 import type { SeriesInfo } from "./charts.tsx";
 
 export interface Dashboard {
@@ -15,6 +16,8 @@ export interface Dashboard {
   days: TimePeriodRow[];
   /** Sessions whose last activity falls in the range, narrowed to the selected tool. */
   sessions: SessionEntry[];
+  /** Output speed and working time in the range, narrowed to the selected tool; null until the first scan ends. */
+  throughput?: RangeThroughput | null;
   series: SeriesInfo[];
   seriesOf: (id: HarnessId) => SeriesInfo;
   nameOf: (id: HarnessId) => string;
