@@ -1,6 +1,6 @@
 import { localDateKey } from "../utils.ts";
 
-export type RangePreset = "7d" | "30d" | "90d" | "month" | "last-month" | "year" | "all" | "custom";
+export type RangePreset = "today" | "7d" | "30d" | "90d" | "month" | "last-month" | "year" | "all" | "custom";
 
 /** An inclusive span of local calendar days, as YYYY-MM-DD keys. */
 export interface DateRange {
@@ -10,6 +10,7 @@ export interface DateRange {
 }
 
 export const RANGE_PRESETS: { id: Exclude<RangePreset, "custom">; label: string }[] = [
+  { id: "today", label: "Today" },
   { id: "7d", label: "Last 7 days" },
   { id: "30d", label: "Last 30 days" },
   { id: "90d", label: "Last 90 days" },
@@ -49,7 +50,8 @@ export function presetRange(preset: Exclude<RangePreset, "custom">, firstDay: st
   const today = parseDay(end);
   let start = end;
   let last = end;
-  if (preset === "7d") start = addDays(end, -6);
+  if (preset === "today") start = end;
+  else if (preset === "7d") start = addDays(end, -6);
   else if (preset === "30d") start = addDays(end, -29);
   else if (preset === "90d") start = addDays(end, -89);
   else if (preset === "month") start = localDateKey(new Date(today.getFullYear(), today.getMonth(), 1));
