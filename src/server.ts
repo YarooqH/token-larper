@@ -5,7 +5,7 @@ import { buildClientBundle, PREBUILT_CLIENT } from "./clientBuild.ts";
 import { getDashboardData, stopCcusageRuns, withPricing } from "./ccusage.ts";
 import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./startup.ts";
 import { getThroughput } from "./throughput/index.ts";
-import { startSystemTray, stopSystemTray } from "./tray.ts";
+import { startSystemTray, stopSystemTray } from "./tray/index.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
 import { logoSvgFile } from "./client/logoMark.ts";
 import { appleTouchIconPng, faviconIco } from "./icons.ts";
