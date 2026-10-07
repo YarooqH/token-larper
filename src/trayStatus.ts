@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { DashboardPayload, StartupConfig } from "./types.ts";
 import { dataPath } from "./paths.ts";
-import { rankFor } from "./client/lib/rank.ts";
+import { dayStreak, rankFor } from "./client/lib/rank.ts";
 import { formatCurrency, localDateKey } from "./client/utils.ts";
 
 // Everything the tray shows is formatted here, so the PowerShell script only places
@@ -60,6 +60,7 @@ export function buildTrayStatus(data: DashboardPayload, startup: StartupConfig) 
   const weekTokens = week.reduce((acc, d) => acc + d.totalTokens, 0);
   const weekCost = week.reduce((acc, d) => acc + d.verifiedCost, 0);
   const rank = rankFor(data.totals.totalTokens);
+  const streak = dayStreak(data, today);
 
   const todayTokens = todayRow?.totalTokens ?? 0;
   const todayCost = todayRow?.verifiedCost ?? 0;
@@ -74,14 +75,17 @@ export function buildTrayStatus(data: DashboardPayload, startup: StartupConfig) 
     todayCostText: formatCurrency(todayCost),
     weekText: `${compact(weekTokens)} · ${formatCurrency(weekCost)}`,
     allTimeText: allTime,
-    levelText: `Lv ${rank.tier.level}`,
-    levelTitle: rank.tier.title,
+    streakText: streak.days > 0 ? `${streak.days} day streak` : "No streak",
+    // Lit once today has usage; dim while the streak still needs today (or there is none).
+    streakActive: streak.days > 0 && streak.doneToday,
     updatedText: syncing ? "Syncing…" : `Updated ${updated}`,
     theme,
     // Menu and tooltip
     summaryText: `Today ${compact(todayTokens)} · ${formatCurrency(todayCost)}   All time ${allTime}`,
     shortTooltip: `today ${compact(todayTokens)} · ${formatCurrency(todayCost)}`,
     // Older tray scripts read these; keep them until every running tray has restarted.
+    levelText: `Lv ${rank.tier.level}`,
+    levelTitle: rank.tier.title,
     totalTokensText: compact(data.totals.totalTokens),
     verifiedCostText: formatCurrency(data.totals.verifiedCost),
     estimatedCostText: formatCurrency(data.totals.estimatedCost),

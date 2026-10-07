@@ -109,8 +109,8 @@ $popup.TopMost = $true
 $popup.KeyPreview = $true
 $popup.ClientSize = New-Object System.Drawing.Size(300, 222)
 
-$popupTitle = New-PopupLabel "Token Larper" 20 16 170 22 10 $true "MiddleLeft"
-$popupLevel = New-PopupLabel "" 190 16 90 22 9 $true "MiddleRight"
+$popupTitle = New-PopupLabel "Token Larper" 20 16 110 22 10 $true "MiddleLeft"
+$popupStreak = New-PopupLabel "" 130 16 150 22 9 $true "MiddleRight"
 $popupTodayCaption = New-PopupLabel "Today" 20 50 260 18 9 $false "MiddleLeft"
 $popupTodayTokens = New-PopupLabel "Loading..." 17 68 160 40 21 $true "MiddleLeft"
 $popupTodayCost = New-PopupLabel "" 160 76 120 28 12 $true "MiddleRight"
@@ -146,10 +146,10 @@ function Set-PopupTheme($theme) {
 
   $c = @{}
   foreach ($name in $t.Keys) { $c[$name] = [System.Drawing.ColorTranslator]::FromHtml($t[$name]) }
+  $script:popupColors = $c
   $popup.BackColor = $c.surface
   foreach ($label in @($popupTitle, $popupTodayTokens, $popupTodayCost, $popupWeek, $popupAll)) { $label.ForeColor = $c.text }
   foreach ($label in @($popupTodayCaption, $popupWeekCaption, $popupAllCaption, $popupUpdated)) { $label.ForeColor = $c.text3 }
-  $popupLevel.ForeColor = $c.gold
   $popupRule.BackColor = $c.border
   $popupOpen.LinkColor = $c.accent
   $popupOpen.ActiveLinkColor = $c.text
@@ -319,7 +319,7 @@ function Update-TrayStatus {
         $tooltip = $tooltip.Substring(0, 63)
       }
       $notifyIcon.Text = $tooltip
-      $popupLevel.Text = $st.levelText
+      $popupStreak.Text = $st.streakText
       $popupTodayCaption.Text = $st.todayCaptionText
       $popupTodayTokens.Text = $st.todayTokensText
       $popupTodayCost.Text = $st.todayCostText
@@ -327,6 +327,7 @@ function Update-TrayStatus {
       $popupAll.Text = $st.allTimeText
       $popupUpdated.Text = $st.updatedText
       Set-PopupTheme $st.theme
+      $popupStreak.ForeColor = if ($st.streakActive) { $script:popupColors.gold } else { $script:popupColors.text3 }
       $itemBoot.Checked = [bool]$st.bootEnabled
       $itemOpenOnBoot.Checked = [bool]$st.openBrowserOnBoot
     }

@@ -76,7 +76,7 @@ The screens below use sample data. No local sessions or project names are includ
 * **Private and offline**: No API keys and no proxy to set up. Two optional requests leave your machine, and neither sends anything about your usage: an update check that asks npm for the latest version number (turn it off in **Settings → Updates**), and a once-a-day download of OpenRouter's public model price list (set `TOKEN_LARPER_OFFLINE=1` to skip it).
 * **18 agents, one total**: Every supported harness is detected automatically and counted together, with filters per tool, model, session, and project.
 * **Subscription-aware**: Verified API costs are kept apart from the estimated **"LARP Value"**, the API price of tokens you used through a flat-rate plan like Claude Pro/Max, Copilot, or Antigravity. Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
-* **Hall of Larp**: Lifetime token burn, 14 achievements, an 11-tier rank ladder with rivals, and a 1200×630 share card.
+* **Hall of Larp**: Lifetime token burn, 14 achievements, an 11-tier rank ladder with rivals, a day streak in the header, and a 1200×630 share card.
 * **Six styles, your colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corners, spacing, borders, and shadows. Pick a base color and an accent from presets or any custom color, or import a tweakcn/shadcn CSS theme.
 * **Cross-platform**: The engine, scrapers, and dashboard behave the same on Windows, macOS (Apple Silicon and Intel), and Linux. The tray icon is Windows-only.
 * **Lightweight install**: About 5 MB with its dependencies, on top of Bun. No Electron, no database, and the dashboard ships prebuilt.
@@ -353,7 +353,7 @@ NO_TRAY=1 bun start
 
 ## Hall of Larp (Rank & Gamification)
 
-Token Larper includes a dedicated **Rank** view designed to celebrate your token burn:
+Token Larper includes a dedicated **Stats** tab designed to celebrate your token burn. Your current day streak sits in the header next to the tab, and in the tray popup:
 * **11 Lifetime Tiers**: Progress from *Script Larper* (0 tokens) to *Deity of the Infinite Context Window* (1B+ tokens).
 * **Rival Leaderboards**: Compete against quirky procedural AI rivals as your token count climbs.
 * **14 Achievements**: Unlock badges for late-night hacking sessions, burning $100+ in a single day, or harnessing 5+ different agents.
@@ -430,7 +430,7 @@ tokenlarper/
 │   └── client/               # React 19 Frontend Dashboard
 │       ├── App.tsx           # Layout, navigation, date ranges, and global state
 │       ├── charts.tsx        # Stacked SVG bar & trend charts
-│       ├── views/            # Overview, Tools, Models, Sessions, Projects, Rank
+│       ├── views/            # Overview, Tools, Models, Sessions, Projects, Stats
 │       └── styles.css        # Custom responsive CSS design system (Dark/Light)
 ```
 

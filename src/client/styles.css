@@ -777,27 +777,26 @@ img { display: block; }
 .segmented button:hover { color: var(--text); }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgb(0 0 0 / 12%); }
 
-/* ---------- Rank: header chip ---------- */
+/* ---------- Stats: header streak chip ---------- */
 
-.rank-chip {
+.streak-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   height: 34px;
-  padding: 0 10px;
+  padding: 0 11px 0 9px;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: var(--surface);
-  color: var(--text);
-  font-size: 12.5px;
-  font-weight: 600;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
-.rank-chip svg { color: var(--gold); }
-.rank-chip:hover, .rank-chip.is-active { border-color: var(--gold); }
-.rank-chip-level { color: var(--gold); font-weight: 700; }
-.rank-chip-title { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rank-chip-bar { width: 36px; height: 4px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
-.rank-chip-bar span { display: block; height: 100%; background: var(--gold); }
+.streak-chip.is-lit { color: var(--gold); }
+.streak-chip-days { color: var(--text-2); }
+.streak-chip.is-lit .streak-chip-days { color: var(--text); }
+.streak-chip:hover, .streak-chip.is-active { border-color: var(--gold); }
 
 /* ---------- Rank: minimal sheet ----------
    Rank, four numbers, the next rival, and a row of badges. Details live behind a click.
@@ -1237,8 +1236,8 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .btn { min-height: var(--control-h); }
 .icon-btn { width: var(--control-h); height: var(--control-h); }
 .segmented button { border-radius: max(0px, calc(var(--radius-control) - 2px)); }
-.pill, .rank-chip { border-radius: var(--radius-pill); }
-.rank-chip { border-width: var(--border-w); }
+.pill, .streak-chip { border-radius: var(--radius-pill); }
+.streak-chip { border-width: var(--border-w); }
 .modal, .range-popover, .uchart-tip, .splash-card { border-width: var(--border-w); border-radius: var(--radius); }
 
 /* Brutal controls press into their shadow. */
@@ -1393,7 +1392,6 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
   .uchart-tip { min-width: 160px; }
   .idle-list li { grid-template-columns: 1fr; gap: 4px; }
   .table-compact .bar-col { display: none; }
-  .rank-chip-title, .rank-chip-bar { display: none; }
   .sheet { margin-top: 24px; }
   .sheet-head { gap: 14px; }
   .sheet-level { min-width: 44px; }
