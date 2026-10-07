@@ -24,11 +24,13 @@ function Sparkline({ values }: { values: number[] }) {
 
 type DeltaUnit = "percent" | "points" | "days";
 
+const previousSpan = (days: number) => (days === 1 ? "previous day" : `previous ${days} days`);
+
 function Delta({ current, previous, unit, days }: { current: number; previous: number | null; unit: DeltaUnit; days: number }) {
   if (previous === null) return <span className="kpi-delta">All recorded usage</span>;
-  const vs = `vs previous ${days} ${days === 1 ? "day" : "days"}`;
+  const vs = `vs ${previousSpan(days)}`;
   if (unit === "percent" && previous === 0) {
-    return <span className="kpi-delta">{current > 0 ? `No usage in the previous ${days} days` : `None ${vs}`}</span>;
+    return <span className="kpi-delta">{current > 0 ? `No usage in the ${previousSpan(days)}` : `None ${vs}`}</span>;
   }
   const diff = unit === "percent" ? ((current - previous) / previous) * 100 : current - previous;
   const flat = Math.abs(diff) < (unit === "days" ? 0.5 : 0.05);
@@ -112,7 +114,7 @@ export function KpiCards() {
             : `${formatCompactNumber(current.cacheReadTokens)} cached tokens`}
         </p>
         {previous && previous.activeDays === 0 ? (
-          <span className="kpi-delta">No usage in the previous {prevDays} days</span>
+          <span className="kpi-delta">No usage in the {previousSpan(prevDays)}</span>
         ) : (
           <Delta current={current.cacheHitRate} previous={previous?.cacheHitRate ?? null} unit="points" days={prevDays} />
         )}
