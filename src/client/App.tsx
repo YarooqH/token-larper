@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Moon, Power, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
+import { AlertTriangle, Moon, Power, Radio, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
 import type { DashboardPayload, HarnessId, StartupConfig, ThroughputPayload } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";
@@ -16,7 +16,7 @@ import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from ".
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
 import { throughputInRange } from "./lib/throughput.ts";
 import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
-import { Live } from "./views/Live.tsx";
+import { LiveMode } from "./views/LiveMode.tsx";
 import { Models } from "./views/Models.tsx";
 import { Overview } from "./views/Overview.tsx";
 import { Projects } from "./views/Projects.tsx";
@@ -36,11 +36,10 @@ import {
 } from "./themes.ts";
 import { localDateKey } from "./utils.ts";
 
-type View = "overview" | "live" | "tools" | "models" | "projects" | "sessions" | "rank";
+type View = "overview" | "tools" | "models" | "projects" | "sessions" | "rank";
 
 const VIEWS: { id: View; label: string; title: string; blurb: string }[] = [
   { id: "overview", label: "Overview", title: "Usage overview", blurb: "Tokens and cost across your coding tools." },
-  { id: "live", label: "Live", title: "Live", blurb: "Tokens per minute, burn rate and each response as it lands, read straight from your coding tools' session logs." },
   { id: "tools", label: "Tools", title: "Tools", blurb: "How each coding tool was used in this range." },
   { id: "models", label: "Models", title: "Models", blurb: "Token totals by model and tool." },
   { id: "projects", label: "Projects", title: "Projects", blurb: "Where your tokens went, by repository." },
@@ -60,12 +59,14 @@ interface Prefs {
   bucket: Bucket;
   estimated: boolean;
   checkUpdates: boolean;
+  /** Live mode replaces the dashboard with one live-updating page; #live links to it. */
+  live: boolean;
   /** The version whose banner was closed; a later version shows it again. */
   dismissedUpdate?: string;
 }
 
 function loadPrefs(): Prefs {
-  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false, checkUpdates: true };
+  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false, checkUpdates: true, live: false };
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     const saved: Partial<Prefs> = raw && typeof raw === "object" ? raw : {};
@@ -86,11 +87,12 @@ function loadPrefs(): Prefs {
       preset: preset === "custom" && !customDatesValid ? defaults.preset : preset,
       estimated: saved.estimated === true,
       checkUpdates: saved.checkUpdates !== false,
+      live: location.hash === "#live" || (location.hash === "" && saved.live === true),
       ...(typeof saved.dismissedUpdate === "string" ? { dismissedUpdate: saved.dismissedUpdate } : {}),
       ...(customDatesValid ? { customStart: saved.customStart, customEnd: saved.customEnd } : {}),
     };
   } catch {
-    return { ...defaults, view: viewFromHash() ?? "overview" };
+    return { ...defaults, view: viewFromHash() ?? "overview", live: location.hash === "#live" };
   }
 }
 
@@ -153,20 +155,33 @@ export function App() {
   }, [prefs]);
 
   useEffect(() => {
-    const hash = prefs.view === "overview" ? "" : `#${prefs.view}`;
+    const hash = prefs.live ? "#live" : prefs.view === "overview" ? "" : `#${prefs.view}`;
     if (location.hash !== hash) history.replaceState(null, "", `${location.pathname}${hash}`);
-  }, [prefs.view]);
+  }, [prefs.view, prefs.live]);
 
   useEffect(() => {
     const onHash = () => {
+      if (location.hash === "#live") {
+        setPrefs((p) => (p.live ? p : { ...p, live: true }));
+        return;
+      }
       const requestedView = viewFromHash() ?? "overview";
       const view = requestedView === "rank" && !prefs.showRanks ? "overview" : requestedView;
       if (view !== requestedView) history.replaceState(null, "", location.pathname);
-      setPrefs((p) => (p.view === view ? p : { ...p, view }));
+      setPrefs((p) => (p.view === view && !p.live ? p : { ...p, view, live: false }));
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, [prefs.showRanks]);
+
+  useEffect(() => {
+    if (!prefs.live || showSettings) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.fullscreenElement) setPrefs((p) => ({ ...p, live: false }));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prefs.live, showSettings]);
 
   useEffect(() => {
     applyTheme(theme, appearance, importedTheme);
@@ -493,7 +508,7 @@ export function App() {
 
   return (
     <DashboardProvider value={ctx}>
-      <div className="app">
+      <div className={prefs.live ? "app is-live" : "app"}>
         <header className="topbar">
           <div className="brand">
             <Logo className="brand-logo" />
@@ -512,10 +527,22 @@ export function App() {
             )}
           </div>
           <div className="topbar-actions">
-            {prefs.showRanks && <StreakChip streak={dayStreak(data)} active={view.id === "rank"} onOpen={() => updatePrefs({ view: "rank" })} />}
-            <span className="updated" title={new Date(data.generatedAt).toLocaleString()}>
-              Updated {new Date(data.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-            </span>
+            <button
+              type="button"
+              className="live-toggle"
+              aria-pressed={prefs.live}
+              onClick={() => updatePrefs({ live: !prefs.live })}
+              title={prefs.live ? "Leave Live mode (Esc)" : "Live mode: tokens per minute as they happen"}
+            >
+              <Radio size={15} aria-hidden="true" />
+              <span>Live</span>
+            </button>
+            {!prefs.live && prefs.showRanks && <StreakChip streak={dayStreak(data)} active={view.id === "rank"} onOpen={() => updatePrefs({ view: "rank" })} />}
+            {!prefs.live && (
+              <span className="updated" title={new Date(data.generatedAt).toLocaleString()}>
+                Updated {new Date(data.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              </span>
+            )}
             <button
               className="icon-btn"
               onClick={toggleTheme}
@@ -535,86 +562,86 @@ export function App() {
             >
               <Settings size={16} />
             </button>
-            <button className="btn" disabled={refreshing} onClick={() => void fetchDashboard({ refresh: true, forceDeepScan: true })} title="Refresh all tools; Antigravity scans in the background">
-              <RefreshCw size={15} className={refreshing ? "spin" : ""} aria-hidden="true" />
-              <span>{refreshing ? "Scanning…" : "Sync"}</span>
-            </button>
+            {!prefs.live && (
+              <button className="btn" disabled={refreshing} onClick={() => void fetchDashboard({ refresh: true, forceDeepScan: true })} title="Refresh all tools; Antigravity scans in the background">
+                <RefreshCw size={15} className={refreshing ? "spin" : ""} aria-hidden="true" />
+                <span>{refreshing ? "Scanning…" : "Sync"}</span>
+              </button>
+            )}
           </div>
         </header>
 
-        {showUpdateBanner && (
-          <UpdateBanner updates={updates} onDismiss={() => updatePrefs({ dismissedUpdate: updates.status?.latest ?? undefined })} />
-        )}
+        {prefs.live ? <LiveMode /> : (
+          <>
+            {showUpdateBanner && (
+              <UpdateBanner updates={updates} onDismiss={() => updatePrefs({ dismissedUpdate: updates.status?.latest ?? undefined })} />
+            )}
 
-        <nav className="tabs" aria-label="Dashboard views">
-          {VIEWS.filter((v) => v.id !== "rank" || prefs.showRanks).map((v) => (
-            <button
-              key={v.id}
-              className="tab"
-              aria-current={prefs.view === v.id ? "page" : undefined}
-              onClick={() => updatePrefs({ view: v.id })}
-            >
-              {v.id === "live" && <span className="live-tab-dot" aria-hidden="true" />}
-              {v.label}
-            </button>
-          ))}
-        </nav>
+            <nav className="tabs" aria-label="Dashboard views">
+              {VIEWS.filter((v) => v.id !== "rank" || prefs.showRanks).map((v) => (
+                <button
+                  key={v.id}
+                  className="tab"
+                  aria-current={prefs.view === v.id ? "page" : undefined}
+                  onClick={() => updatePrefs({ view: v.id })}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </nav>
 
-        {/* The Rank tab's character sheet carries its own heading. */}
-        {view.id !== "rank" && (
-          <div className="intro">
-            <div>
-              <span className="eyebrow">Local usage</span>
-              <h2>{view.title}</h2>
-              <p>{view.blurb}</p>
-            </div>
-          </div>
-        )}
-
-        {error && <div className="inline-error" role="alert">Sync failed: {error}</div>}
-
-        {view.id !== "rank" && (
-        <div className="filters">
-          {view.id !== "live" && (
-            <DateRangePicker
-              range={range}
-              firstDay={firstDay}
-              onChange={(r) => updatePrefs({ preset: r.preset, customStart: r.start, customEnd: r.end })}
-            />
-          )}
-          <SelectMenu label="Tool" value={harness} options={toolOptions} onChange={setHarness} className="tool-picker" />
-          {view.id !== "live" && (
-            <div className="field cost-field">
-              <span className="field-label">Cost</span>
-              <div className="cost-segmented" role="group" aria-label="Cost basis">
-                <button type="button" aria-pressed={!estimated} onClick={() => updatePrefs({ estimated: false })}>Verified</button>
-                <button type="button" aria-pressed={estimated} onClick={() => updatePrefs({ estimated: true })} title="Estimated API value">Estimate</button>
+            {/* The Rank tab's character sheet carries its own heading. */}
+            {view.id !== "rank" && (
+              <div className="intro">
+                <div>
+                  <span className="eyebrow">Local usage</span>
+                  <h2>{view.title}</h2>
+                  <p>{view.blurb}</p>
+                </div>
               </div>
+            )}
+
+            {error && <div className="inline-error" role="alert">Sync failed: {error}</div>}
+
+            {view.id !== "rank" && (
+            <div className="filters">
+              <DateRangePicker
+                range={range}
+                firstDay={firstDay}
+                onChange={(r) => updatePrefs({ preset: r.preset, customStart: r.start, customEnd: r.end })}
+              />
+              <SelectMenu label="Tool" value={harness} options={toolOptions} onChange={setHarness} className="tool-picker" />
+              <div className="field cost-field">
+                <span className="field-label">Cost</span>
+                <div className="cost-segmented" role="group" aria-label="Cost basis">
+                  <button type="button" aria-pressed={!estimated} onClick={() => updatePrefs({ estimated: false })}>Verified</button>
+                  <button type="button" aria-pressed={estimated} onClick={() => updatePrefs({ estimated: true })} title="Estimated API value">Estimate</button>
+                </div>
+              </div>
+              {searchable && (
+                <label className="field field-search">
+                  <span className="field-label">Search</span>
+                  <span className="search">
+                    <Search size={15} aria-hidden="true" />
+                    <input type="search" placeholder={`Search ${view.label.toLowerCase()}`} value={search} onChange={(e) => setSearch(e.target.value)} />
+                  </span>
+                </label>
+              )}
             </div>
-          )}
-          {searchable && (
-            <label className="field field-search">
-              <span className="field-label">Search</span>
-              <span className="search">
-                <Search size={15} aria-hidden="true" />
-                <input type="search" placeholder={`Search ${view.label.toLowerCase()}`} value={search} onChange={(e) => setSearch(e.target.value)} />
-              </span>
-            </label>
-          )}
-        </div>
+            )}
+
+            <main className="content">
+              {view.id === "overview" && <Overview bucket={prefs.bucket} setBucket={(bucket) => updatePrefs({ bucket })} />}
+              {view.id === "tools" && <Tools />}
+              {view.id === "models" && <Models />}
+              {view.id === "projects" && <Projects />}
+              {view.id === "sessions" && <Sessions />}
+              {view.id === "rank" && <Rank />}
+            </main>
+
+            <AppFooter />
+          </>
         )}
-
-        <main className="content">
-          {view.id === "overview" && <Overview bucket={prefs.bucket} setBucket={(bucket) => updatePrefs({ bucket })} />}
-          {view.id === "live" && <Live />}
-          {view.id === "tools" && <Tools />}
-          {view.id === "models" && <Models />}
-          {view.id === "projects" && <Projects />}
-          {view.id === "sessions" && <Sessions />}
-          {view.id === "rank" && <Rank />}
-        </main>
-
-        <AppFooter />
 
         {showSettings && (
           <SettingsDialog

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { HarnessId, LiveEvent, LiveSnapshot, LiveUpdate, PeriodHarnessBreakdown, TimePeriodRow } from "../../types.ts";
-import { rowsFromSamples, summarizeSpeed, type Sample, type SpeedSummary } from "../../throughput/stats.ts";
+import { countsForSpeed, rowsFromSamples, summarizeSpeed, type Sample, type SpeedSummary } from "../../throughput/stats.ts";
 import type { HarnessFilter } from "./aggregate.ts";
 
 // Rolling numbers for the Live tab, worked out in the browser from the responses the server
@@ -127,6 +127,8 @@ export interface LiveSession {
   lastMinute: number;
   totals: LiveTotals;
   speed: SpeedSummary | null;
+  /** The latest response's whole prompt (input, cache write and cache read): how full its context was. */
+  context: number;
 }
 
 /** Sessions with a response in the last `withinMs`, most recently active first. */
@@ -153,9 +155,79 @@ export function liveSessions(events: LiveEvent[], now: number, withinMs: number)
       lastMinute: totalsBetween(list, now - MINUTE, Infinity).totalTokens,
       totals: totalsBetween(list, -Infinity, Infinity),
       speed: liveSpeed(list),
+      context: latest.inputTokens + latest.cacheCreationTokens + latest.cacheReadTokens,
     });
   }
   return out.sort((a, b) => b.lastAt - a.lastAt);
+}
+
+/** One response's output speed, or null when its start isn't known or it is too short to say. */
+export function responseSpeed(e: LiveEvent): number | null {
+  if (e.start === undefined) return null;
+  const sample = { model: e.model, start: e.start, end: e.at, outputTokens: e.outputTokens };
+  return countsForSpeed(sample) ? e.outputTokens / ((e.at - e.start) / 1000) : null;
+}
+
+export interface RollingSeries {
+  /** Sample times, oldest first; the last is now. */
+  times: number[];
+  /** Tokens in the minute up to each sample time, per key. */
+  byKey: Map<string, number[]>;
+}
+
+/**
+ * Tokens per minute as a rolling 60-second sum, sampled every `stepMs` over the last `spanMs`
+ * for each key. The last sample equals the "last minute" figure, so the trace and the headline
+ * number always agree.
+ */
+export function rollingSeries(events: LiveEvent[], now: number, spanMs: number, stepMs: number, keyOf: (e: LiveEvent) => string): RollingSeries {
+  const count = Math.floor(spanMs / stepMs) + 1;
+  const times = Array.from({ length: count }, (_, i) => now - (count - 1 - i) * stepMs);
+  const byKey = new Map<string, number[]>();
+  const first = times[0]! - MINUTE;
+  for (const e of events) {
+    if (e.at <= first || e.at > now) continue;
+    const key = keyOf(e);
+    let values = byKey.get(key);
+    if (!values) byKey.set(key, (values = new Array<number>(count).fill(0)));
+    const tokens = eventTokens(e);
+    // The event counts toward every sample in (at, at + 1 min].
+    const from = Math.max(0, Math.ceil((e.at - times[0]!) / stepMs));
+    for (let i = from; i < count && times[i]! - e.at < MINUTE; i++) if (times[i]! >= e.at) values[i]! += tokens;
+  }
+  return { times, byKey };
+}
+
+export interface Ranked {
+  key: string;
+  harness: HarnessId;
+  model?: string;
+  totals: LiveTotals;
+  /** Tokens in the last minute. */
+  lastMinute: number;
+  speed: SpeedSummary | null;
+}
+
+/** Totals since `from` per tool or per model, largest first. */
+export function rankBy(events: LiveEvent[], from: number, now: number, by: "tool" | "model"): Ranked[] {
+  const groups = new Map<string, LiveEvent[]>();
+  for (const e of events) {
+    if (e.at < from) continue;
+    const key = by === "tool" ? e.harness : `${e.harness}::${e.model}`;
+    const list = groups.get(key);
+    if (list) list.push(e);
+    else groups.set(key, [e]);
+  }
+  return [...groups]
+    .map(([key, list]): Ranked => ({
+      key,
+      harness: list[0]!.harness,
+      ...(by === "model" ? { model: list[0]!.model } : {}),
+      totals: totalsBetween(list, -Infinity, Infinity),
+      lastMinute: totalsBetween(list, now - MINUTE, Infinity).totalTokens,
+      speed: liveSpeed(list),
+    }))
+    .sort((a, b) => b.totals.totalTokens - a.totals.totalTokens);
 }
 
 /** "now", "12 s ago", "4 min ago". */

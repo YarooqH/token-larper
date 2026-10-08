@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { LiveEvent } from "../../types.ts";
-import { MINUTE, ago, forTool, liveBuckets, liveSessions, perMinute, totalsBetween } from "./live.ts";
+import { MINUTE, ago, forTool, liveBuckets, liveSessions, perMinute, rankBy, responseSpeed, rollingSeries, totalsBetween } from "./live.ts";
 
 const NOW = Date.parse("2026-10-08T10:30:20.000Z");
 
@@ -91,4 +91,40 @@ test("ago", () => {
   expect(ago(1200)).toBe("now");
   expect(ago(42_000)).toBe("42 s ago");
   expect(ago(5 * MINUTE + 1)).toBe("5 min ago");
+});
+
+describe("rollingSeries", () => {
+  test("samples a rolling minute up to now, so the last point matches the last-minute total", () => {
+    const { times, byKey } = rollingSeries(events, NOW, 15 * MINUTE, 5_000, (e) => e.harness);
+    expect(times.at(-1)).toBe(NOW);
+    expect(times).toHaveLength(181);
+    expect(byKey.get("claude")!.at(-1)! + byKey.get("codex")!.at(-1)!).toBe(totalsBetween(events, NOW - MINUTE, Infinity).totalTokens);
+  });
+
+  test("counts a response for exactly the minute after it lands", () => {
+    const at = NOW - 3 * MINUTE;
+    const { times, byKey } = rollingSeries([ev({ at })], NOW, 15 * MINUTE, 5_000, () => "x");
+    const counted = times.filter((t, i) => byKey.get("x")![i]! > 0);
+    expect(counted[0]).toBe(at);
+    expect(counted.at(-1)).toBe(at + MINUTE - 5_000);
+  });
+});
+
+test("rankBy totals per tool or model since a time, largest first", () => {
+  const tools = rankBy(events, NOW - 15 * MINUTE, NOW, "tool");
+  expect(tools.map((r) => r.key)).toEqual(["claude", "codex"]);
+  expect(tools[0]!.totals.responses).toBe(2);
+  const models = rankBy(events, NOW - 15 * MINUTE, NOW, "model");
+  expect(models.map((r) => r.model)).toEqual(["claude-opus-5-5", "gpt-5.5"]);
+});
+
+test("responseSpeed needs a start and enough output", () => {
+  expect(responseSpeed(ev({ at: NOW, start: NOW - 4_000 }))).toBe(25);
+  expect(responseSpeed(ev({ at: NOW }))).toBeNull();
+  expect(responseSpeed(ev({ at: NOW, start: NOW - 4_000, outputTokens: 5 }))).toBeNull();
+});
+
+test("liveSessions reports how full the latest prompt was", () => {
+  const [s] = liveSessions([ev({ at: NOW - 9_000, cacheReadTokens: 5 }), ev({ at: NOW - 1_000, inputTokens: 3, cacheCreationTokens: 7, cacheReadTokens: 90_000 })], NOW, MINUTE);
+  expect(s!.context).toBe(90_010);
 });
