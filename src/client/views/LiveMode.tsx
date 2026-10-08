@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { HarnessId, LiveEvent } from "../../types.ts";
+import type { HarnessId, LiveEvent, PlanUsage } from "../../types.ts";
 import { useDashboard } from "../context.tsx";
 import { Maximize2, Minimize2 } from "../components/Icons.tsx";
 import { formatRate } from "../lib/throughput.ts";
@@ -69,6 +69,53 @@ function niceMax(max: number): number {
 
 // ---------------------------------------------------------------------------
 
+const HOUR = 60 * MINUTE;
+
+/** "just now", "12 min ago", "6 h ago", "3 d ago". */
+function checkedAgo(ms: number): string {
+  if (ms < MINUTE) return "just now";
+  if (ms < HOUR) return `${Math.floor(ms / MINUTE)} min ago`;
+  if (ms < 48 * HOUR) return `${Math.floor(ms / HOUR)} h ago`;
+  return `${Math.floor(ms / (24 * HOUR))} d ago`;
+}
+
+function Meter({ label, value, stale }: { label: string; value: number | null; stale?: string }) {
+  const shown = stale ? null : value;
+  return (
+    <span
+      className={`lm-meter ${shown !== null && shown >= 80 ? "is-high" : ""}`}
+      role="meter"
+      aria-label={`${label} limit used`}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={shown ?? undefined}
+      title={stale}
+    >
+      <span className="lm-meter-label">{label}</span>
+      <span className="lm-meter-track" aria-hidden="true">
+        <span style={{ width: `${Math.min(100, shown ?? 0)}%` }} />
+      </span>
+      <span className="lm-meter-value">{shown === null ? "—" : `${Math.round(shown)}%`}</span>
+    </span>
+  );
+}
+
+/** How much of the Claude plan's limits is used, as the Claude desktop app last saw it. */
+function PlanMeter({ plan, now }: { plan: PlanUsage; now: number }) {
+  const age = Math.max(0, now - plan.at);
+  return (
+    <div
+      className={`lm-plan ${age > 5 * HOUR ? "is-stale" : ""}`}
+      title="From the Claude desktop app, which checks your plan's limits every 15 minutes or so while it is checking usage. Limits count chats and Claude Code alike."
+    >
+      <span className="lm-label">Plan</span>
+      <Meter label="5-hour" value={plan.fiveHour} stale={age > 5 * HOUR ? "The 5-hour window has reset since the app last checked." : undefined} />
+      <Meter label="Week" value={plan.weekly} stale={age > 7 * 24 * HOUR ? "The week has reset since the app last checked." : undefined} />
+      <span className="lm-note">checked {checkedAgo(age)}</span>
+    </div>
+  );
+}
+
 function Header({ feed, tool, setTool, span, setSpan, tools }: {
   feed: LiveFeed;
   tool: HarnessFilter;
@@ -96,6 +143,7 @@ function Header({ feed, tool, setTool, span, setSpan, tools }: {
         <span className={`lm-badge is-${feed.status}`}><i aria-hidden="true" />{status}</span>
         <span className="lm-clock">{clock(feed.now)}</span>
       </div>
+      {feed.snapshot?.plan && <PlanMeter plan={feed.snapshot.plan} now={feed.now} />}
       <div className="lm-controls">
         {tools.length > 1 && (
           <div className="segmented lm-tools" role="group" aria-label="Tool">
@@ -172,7 +220,7 @@ function Trace({ events, now, spanMs, order }: { events: LiveEvent[]; now: numbe
         {[0.5, 1].map((f) => (
           <g key={f}>
             <line className="lm-grid" x1={0} x2={width} y1={y(yMax * f)} y2={y(yMax * f)} />
-            <text className="lm-axis" x={4} y={y(yMax * f) + 14}>{axisNumber(yMax * f)}/min</text>
+            {totals.some((t) => t > 0) && <text className="lm-axis" x={4} y={y(yMax * f) + 14}>{axisNumber(yMax * f)}/min</text>}
           </g>
         ))}
         <line className="lm-grid is-base" x1={0} x2={width} y1={height} y2={height} />
@@ -531,10 +579,53 @@ export function LiveBoard({ feed }: { feed: LiveFeed }) {
       </div>
       <p className="lm-footnote">
         Following {feed.snapshot.files} {feed.snapshot.files === 1 ? "session file" : "session files"} from the last hour.
-        {notFollowed.length > 0 && ` ${listFormat.format(notFollowed)} ${notFollowed.length === 1 ? "keeps its" : "keep their"} logs in a database and ${notFollowed.length === 1 ? "isn't" : "aren't"} followed live.`}
-        {" "}Costs are at API list prices. Press Esc to leave Live mode.
+        {notFollowed.length > 0 && ` ${listFormat.format(notFollowed)} ${notFollowed.length === 1 ? "isn't" : "aren't"} followed live.`}
+        {" "}Press Esc to leave Live mode.
       </p>
+      <Limitations notFollowed={notFollowed} />
     </div>
+  );
+}
+
+/** What Live mode can't see, so its numbers aren't read as the whole picture. */
+function Limitations({ notFollowed }: { notFollowed: string[] }) {
+  return (
+    <details className="lm-limits">
+      <summary>What Live mode can't see</summary>
+      <ul>
+        <li>
+          <strong>Claude chats.</strong> Chats on claude.ai and in the Claude app aren't saved on this computer, so they never appear
+          here. The plan meter is the only number that includes them.
+        </li>
+        <li>
+          <strong>Some tools.</strong> Live mode follows Claude Code (including the Code tab in the Claude app), Codex, Pi, Gemini CLI,
+          Antigravity, and Copilot CLI with OpenTelemetry file export turned on.
+          {notFollowed.length > 0 && ` Of the tools you use, ${listFormat.format(notFollowed)} ${notFollowed.length === 1 ? "isn't" : "aren't"} followed.`}
+          {" "}Every tool still shows up in the dashboard after a sync.
+        </li>
+        <li>
+          <strong>Responses in progress.</strong> A response counts when its last token is logged, so a long one lands all at once and
+          tokens per minute comes in bursts.
+        </li>
+        <li>
+          <strong>More than an hour back.</strong> Only the last hour is kept. It is read again from the session files when Token Larper
+          starts.
+        </li>
+        <li>
+          <strong>What you actually pay.</strong> Costs and the burn rate use API list prices, even on a subscription. A model with no
+          known price adds $0.
+        </li>
+        <li>
+          <strong>Pure generation speed.</strong> Speed includes the wait for the first token. Antigravity records times to the second,
+          so its short steps read rough.
+        </li>
+        <li>
+          <strong>Up-to-the-minute plan limits.</strong> The plan meter comes from a file the Claude app updates every 15 minutes or so,
+          only while it is checking usage, and only for the account it checked last. The file isn't documented and could change.
+        </li>
+      </ul>
+      <p className="lm-note">Tokens include cache reads, the same as everywhere else in the dashboard, so they run far above what the model writes.</p>
+    </details>
   );
 }
 

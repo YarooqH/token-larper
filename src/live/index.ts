@@ -1,12 +1,13 @@
 import { statSync } from "node:fs";
 import { Database } from "bun:sqlite";
-import type { HarnessId, LiveEvent, LiveSnapshot, LiveUpdate } from "../types.ts";
+import type { HarnessId, LiveEvent, LiveSnapshot, LiveUpdate, PlanUsage } from "../types.ts";
 import { estimateFrontierCost } from "../ccusage.ts";
 import { pricing } from "../pricing.ts";
 import { resolveSessionProject } from "../projects.ts";
 import { listSources } from "../throughput/index.ts";
 import { antigravityStep } from "../throughput/readers.ts";
 import { LIVE_TOOLS, parserFor, type LineParser, type LiveUsage } from "./parsers.ts";
+import { planUsagePath, readPlanUsage } from "./plan.ts";
 
 // Follows the session files written to in the last hour and pushes each response to the
 // open Live tabs as soon as it lands. It only runs while a Live tab is connected. Logs are
@@ -48,6 +49,8 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 let lastDiscover = 0;
 let idleSince: number | null = null;
 let ready: Promise<void> | null = null;
+let plan: PlanUsage | null = null;
+let planSig = "";
 
 /** Stores a response and marks it for sending, unless it is unchanged since the last read. */
 function record(u: LiveUsage, changed: Map<string, LiveEvent>): void {
@@ -173,6 +176,18 @@ async function readLog(f: Followed, cutoff: number, changed: Map<string, LiveEve
   }
 }
 
+/** Re-reads the plan sample when the desktop app has written a new one; true if it changed. */
+async function pollPlan(): Promise<boolean> {
+  const path = planUsagePath();
+  const sig = fileSig(path);
+  if (sig === planSig) return false;
+  planSig = sig;
+  const next = await readPlanUsage(path);
+  const changed = JSON.stringify(next) !== JSON.stringify(plan);
+  plan = next;
+  return changed;
+}
+
 async function poll(): Promise<LiveEvent[]> {
   const now = Date.now();
   if (now - lastDiscover >= DISCOVER_MS) discover(now);
@@ -195,8 +210,9 @@ function schedule(): void {
     timer = null;
     if (listeners.size === 0 && idleSince !== null && Date.now() - idleSince > IDLE_STOP_MS) return;
     const changed = await poll().catch(() => []);
-    if (changed.length) {
-      const update: LiveUpdate = { files: followed.size, events: changed };
+    const planChanged = await pollPlan().catch(() => false);
+    if (changed.length || planChanged) {
+      const update: LiveUpdate = { files: followed.size, events: changed, ...(planChanged ? { plan } : {}) };
       for (const listener of listeners) listener(update);
     }
     schedule();
@@ -209,7 +225,7 @@ function start(): Promise<void> {
     // The first pass reads the last hour of every recent file before anything is sent. Costs
     // need the price list, which otherwise only loads with a usage refresh.
     lastDiscover = 0;
-    ready = pricing.ensure().then(poll).then(() => undefined, () => undefined);
+    ready = pricing.ensure().then(poll).then(pollPlan).then(() => undefined, () => undefined);
   }
   return ready.then(() => {
     if (!timer) schedule();
@@ -223,6 +239,7 @@ export function liveSnapshot(): LiveSnapshot {
     tools: LIVE_TOOLS,
     files: followed.size,
     events: [...events.values()].filter((e) => e.at >= cutoff),
+    plan,
   };
 }
 

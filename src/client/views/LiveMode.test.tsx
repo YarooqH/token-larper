@@ -24,7 +24,7 @@ const event = (over: Partial<LiveEvent>): LiveEvent => ({
 
 const feed = (events: LiveEvent[], over: Partial<LiveFeed> = {}): LiveFeed => ({
   status: "live",
-  snapshot: { windowMs: 60 * 60_000, tools: ["claude", "codex", "pi", "gemini", "copilot", "antigravity"], files: 3 },
+  snapshot: { windowMs: 60 * 60_000, tools: ["claude", "codex", "pi", "gemini", "copilot", "antigravity"], files: 3, plan: null },
   events,
   now: NOW,
   ...over,
@@ -57,8 +57,8 @@ describe("Live mode", () => {
   test("says which tools in use aren't followed live, and how to leave", () => {
     const data = { ...fakeDashboard().data, harnesses: [harness("antigravity", "Antigravity"), harness("opencode", "OpenCode")] };
     const html = render(<LiveBoard feed={feed([])} />, { data });
-    expect(html).toContain("OpenCode keeps its logs in a database");
-    expect(html).not.toContain("Antigravity keeps");
+    expect(html).toContain("OpenCode isn&#x27;t followed live");
+    expect(html).toContain("Of the tools you use, OpenCode isn&#x27;t followed");
     expect(html).toContain("Press Esc to leave Live mode");
     expect(html).toContain("Each response lands here as it finishes");
   });
@@ -67,5 +67,34 @@ describe("Live mode", () => {
     const html = render(<LiveBoard feed={feed([], { status: "connecting", snapshot: null })} />);
     expect(html).toContain("Connecting");
     expect(html).not.toContain("Tokens per minute");
+  });
+
+  test("shows the plan's limits and when the app checked them", () => {
+    const plan = { at: NOW - 12 * 60_000, fiveHour: 45, weekly: 86 };
+    const html = render(<LiveBoard feed={feed([], { snapshot: { ...feed([]).snapshot!, plan } })} />);
+    expect(html).toContain('aria-label="5-hour limit used"');
+    expect(html).toContain(">45%<");
+    expect(html).toContain('class="lm-meter is-high"');
+    expect(html).toContain("checked 12 min ago");
+  });
+
+  test("blanks the 5-hour limit once its window has reset since the last check", () => {
+    const plan = { at: NOW - 6 * 60 * 60_000, fiveHour: 45, weekly: 14 };
+    const html = render(<LiveBoard feed={feed([], { snapshot: { ...feed([]).snapshot!, plan } })} />);
+    expect(html).toContain("The 5-hour window has reset");
+    expect(html).not.toContain(">45%<");
+    expect(html).toContain(">14%<");
+    expect(html).toContain("checked 6 h ago");
+  });
+
+  test("leaves the plan meter out when the Claude app has no samples", () => {
+    expect(render(<LiveBoard feed={feed([])} />)).not.toContain("lm-plan");
+  });
+
+  test("lists what Live mode can't see", () => {
+    const html = render(<LiveBoard feed={feed([])} />);
+    expect(html).toContain("What Live mode can&#x27;t see");
+    expect(html).toContain("Claude chats.");
+    expect(html).toContain("API list prices");
   });
 });

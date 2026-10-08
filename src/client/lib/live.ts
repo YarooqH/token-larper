@@ -268,7 +268,7 @@ export function useLiveFeed(): LiveFeed {
     });
     source.addEventListener("update", (message) => {
       const u = JSON.parse((message as MessageEvent<string>).data) as LiveUpdate;
-      setSnapshot((s) => (s ? { ...s, files: u.files } : s));
+      setSnapshot((s) => (s ? { ...s, files: u.files, ...(u.plan !== undefined ? { plan: u.plan } : {}) } : s));
       setById((prev) => {
         const next = new Map(prev);
         for (const e of u.events) next.set(e.id, e);

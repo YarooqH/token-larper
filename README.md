@@ -354,9 +354,22 @@ Press **Live** in the top bar (or open `http://localhost:4269/#live`) to swap th
 * **Output, Speed, Requests, Burn rate**: output tokens per minute, the median response's tok/s over 5 minutes, requests per minute, and the last 5 minutes' pace in dollars per hour at API list prices.
 * **By tool** and **By model**: tokens in the time span, what each is burning right now, its speed and cost.
 * **Output speed**: each response as a dot, with the 5-minute median as a line.
+* **Plan limits**: how much of your Claude plan's 5-hour and weekly limits is used, with when it was last checked. It comes from the Claude desktop app's own record (`plan-usage-history.json` in its data folder), so it only appears if that app is installed and signed in. Plan limits count everything, chats included.
 * **Sessions**: sessions that answered in the last 15 minutes, with tokens per minute now, context size (the latest prompt, cache included), speed, and cost over the last hour. **Responses** lists the newest 14.
 
-Live mode follows the session files of Claude Code, Codex, Pi, Gemini CLI, and Copilot CLI (with OpenTelemetry file export on) as they are written, reading only what was added since its last read, about once a second. Antigravity keeps each conversation in a SQLite database, so Live mode reads the steps added since its last read instead; its thinking tokens count toward speed but, as in ccusage's totals, not toward token counts. It stops 30 seconds after you leave Live mode. Tokens include cache reads, the same as everywhere else in the dashboard, so they run far above output. The window is the last hour, read again from the session files each time the server starts. OpenCode isn't followed live yet; its usage appears in the dashboard after a sync.
+Live mode follows the session files of Claude Code, Codex, Pi, Gemini CLI, and Copilot CLI (with OpenTelemetry file export on) as they are written, reading only what was added since its last read, about once a second. Antigravity keeps each conversation in a SQLite database, so Live mode reads the steps added since its last read instead. It stops 30 seconds after you leave Live mode.
+
+#### What Live mode can't see
+
+* **Claude chats.** Chats on claude.ai and in the Claude app aren't saved on your computer, so they never appear. The plan meter is the only number that includes them.
+* **Some tools.** OpenCode and the tools only ccusage reads (Amp, Droid, Goose and the rest) aren't followed live. They show up in the dashboard after a sync.
+* **Responses in progress.** A response counts when its last token is logged, so a long one lands all at once and tokens per minute comes in bursts.
+* **More than an hour back.** Only the last hour is kept, read again from the session files when Token Larper starts.
+* **What you actually pay.** Costs and the burn rate use API list prices, even on a subscription. A model with no known price adds $0.
+* **Pure generation speed.** Speed includes the wait for the first token. Antigravity records times to the second, so its short steps read rough. Antigravity's thinking tokens count toward speed but, as in ccusage's totals, not toward token counts.
+* **Up-to-the-minute plan limits.** The Claude app samples your limits every 15 minutes or so, only while it is checking usage, and only for the account it checked last. When the last sample is older than 5 hours, the 5-hour limit shows a dash, because that window has reset since. The file isn't documented and could change.
+
+Tokens include cache reads, the same as everywhere else in the dashboard, so they run far above what the model writes. The same list sits at the bottom of the Live screen under **What Live mode can't see**.
 
 ### Headless Server Mode
 If running on a remote headless server or Docker container, you can explicitly disable the tray icon (automatically disabled on macOS/Linux):
