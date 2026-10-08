@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   antigravityModel,
+  antigravityStep,
   readClaude,
   readCodex,
   readCopilotEvents,
@@ -211,4 +212,39 @@ describe("readOpencode", () => {
       },
     );
   });
+});
+
+// Just enough protobuf to build an Antigravity step: varints and length-delimited fields.
+function varint(n: number): number[] {
+  const out: number[] = [];
+  do {
+    let byte = n % 128;
+    n = Math.floor(n / 128);
+    if (n > 0) byte |= 0x80;
+    out.push(byte);
+  } while (n > 0);
+  return out;
+}
+const num = (field: number, value: number) => [...varint(field * 8), ...varint(value)];
+const msg = (field: number, bytes: number[]) => [...varint(field * 8 + 2), ...varint(bytes.length), ...bytes];
+const time = (field: number, seconds: number) => msg(field, num(1, seconds));
+
+test("antigravityStep reads tokens the way ccusage counts them", () => {
+  const usage = [...num(1, 1318), ...num(2, 4680), ...num(3, 472), ...num(5, 220157), ...num(9, 83), ...num(10, 389)];
+  const step = antigravityStep(new Uint8Array([...time(1, 1_791_500_000), ...time(8, 1_791_500_009), ...msg(9, usage)]));
+  expect(step).toEqual({
+    model: "gemini-3.8-flash-high",
+    start: 1_791_500_000_000,
+    end: 1_791_500_009_000,
+    inputTokens: 4680,
+    outputTokens: 389,
+    thinkingTokens: 83,
+    cacheReadTokens: 220157,
+  });
+});
+
+test("antigravityStep falls back to reply plus thinking minus thinking, and skips steps without usage", () => {
+  const usage = [...num(1, 1318), ...num(3, 300), ...num(9, 100)];
+  expect(antigravityStep(new Uint8Array([...time(1, 100), ...time(8, 110), ...msg(9, usage)]))!.outputTokens).toBe(200);
+  expect(antigravityStep(new Uint8Array([...time(1, 100), ...time(8, 110)]))).toBeNull();
 });

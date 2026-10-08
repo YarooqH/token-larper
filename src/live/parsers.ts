@@ -289,8 +289,8 @@ export function copilotOtelParser(): LineParser {
   };
 }
 
-/** Tools whose session files are plain appended lines, so they can be followed live. */
-export const LIVE_TOOLS: HarnessId[] = ["claude", "codex", "pi", "gemini", "copilot"];
+/** Tools followed live: appended log lines, or (Antigravity) a database polled for new steps. */
+export const LIVE_TOOLS: HarnessId[] = ["claude", "codex", "pi", "gemini", "copilot", "antigravity"];
 
 export function parserFor(harness: HarnessId, path: string, session?: string): LineParser | null {
   switch (harness) {

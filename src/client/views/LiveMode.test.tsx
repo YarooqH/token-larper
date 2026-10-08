@@ -24,7 +24,7 @@ const event = (over: Partial<LiveEvent>): LiveEvent => ({
 
 const feed = (events: LiveEvent[], over: Partial<LiveFeed> = {}): LiveFeed => ({
   status: "live",
-  snapshot: { windowMs: 60 * 60_000, tools: ["claude", "codex", "pi", "gemini", "copilot"], files: 3 },
+  snapshot: { windowMs: 60 * 60_000, tools: ["claude", "codex", "pi", "gemini", "copilot", "antigravity"], files: 3 },
   events,
   now: NOW,
   ...over,
@@ -55,9 +55,10 @@ describe("Live mode", () => {
   });
 
   test("says which tools in use aren't followed live, and how to leave", () => {
-    const data = { ...fakeDashboard().data, harnesses: [harness("claude", "Claude Code"), harness("antigravity", "Antigravity")] };
+    const data = { ...fakeDashboard().data, harnesses: [harness("antigravity", "Antigravity"), harness("opencode", "OpenCode")] };
     const html = render(<LiveBoard feed={feed([])} />, { data });
-    expect(html).toContain("Antigravity keeps its logs in a database");
+    expect(html).toContain("OpenCode keeps its logs in a database");
+    expect(html).not.toContain("Antigravity keeps");
     expect(html).toContain("Press Esc to leave Live mode");
     expect(html).toContain("Each response lands here as it finishes");
   });

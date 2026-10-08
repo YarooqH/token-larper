@@ -225,6 +225,8 @@ export interface LiveEvent {
   outputTokens: number;
   cacheCreationTokens: number;
   cacheReadTokens: number;
+  /** Thinking a tool reports apart from output (Antigravity). It counts toward speed but not toward totals, as in ccusage's numbers. */
+  reasoningTokens?: number;
   /** At list prices; 0 for a model with no known price. */
   cost: number;
 }

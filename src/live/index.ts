@@ -1,13 +1,17 @@
 import { statSync } from "node:fs";
+import { Database } from "bun:sqlite";
 import type { HarnessId, LiveEvent, LiveSnapshot, LiveUpdate } from "../types.ts";
 import { estimateFrontierCost } from "../ccusage.ts";
+import { pricing } from "../pricing.ts";
+import { resolveSessionProject } from "../projects.ts";
 import { listSources } from "../throughput/index.ts";
+import { antigravityStep } from "../throughput/readers.ts";
 import { LIVE_TOOLS, parserFor, type LineParser, type LiveUsage } from "./parsers.ts";
 
 // Follows the session files written to in the last hour and pushes each response to the
-// open Live tabs as soon as its line lands. It only runs while a Live tab is connected.
-// Files are read on from where the last read stopped, so a quiet poll costs one stat per
-// followed file.
+// open Live tabs as soon as it lands. It only runs while a Live tab is connected. Logs are
+// read on from where the last read stopped; Antigravity's databases are queried for steps
+// after the last one read. A quiet poll costs a stat or two per followed file.
 
 export const LIVE_WINDOW_MS = 60 * 60_000;
 const POLL_MS = 1000;
@@ -16,14 +20,23 @@ const DISCOVER_MS = 10_000;
 const IDLE_STOP_MS = 30_000;
 /** A file first seen above this size is read from its last part only. */
 const BACKFILL_MAX_BYTES = 32 * 1024 * 1024;
+/** Antigravity can fill in a step's usage after its row is written, so the last few are read again. */
+const RECHECK_STEPS = 10;
 
 interface Followed {
   path: string;
   harness: HarnessId;
   session?: string;
-  parser: LineParser;
+  /** For appended logs. */
+  parser?: LineParser;
   /** Bytes read so far, always just past a newline; -1 before the first read. */
   offset: number;
+  /** For databases: the size and time of the database and its write-ahead log at the last read. */
+  dbSig?: string;
+  /** For databases: the highest step index read. */
+  lastStep?: number;
+  /** For databases: the project folder's name, looked up once; "" when unknown. */
+  project?: string;
 }
 
 type Listener = (update: LiveUpdate) => void;
@@ -36,8 +49,35 @@ let lastDiscover = 0;
 let idleSince: number | null = null;
 let ready: Promise<void> | null = null;
 
-function withCost(u: LiveUsage): LiveEvent {
-  return { ...u, cost: estimateFrontierCost({ modelName: u.model, ...u }) };
+/** Stores a response and marks it for sending, unless it is unchanged since the last read. */
+function record(u: LiveUsage, changed: Map<string, LiveEvent>): void {
+  const prev = events.get(u.id);
+  if (prev && prev.at === u.at && prev.outputTokens === u.outputTokens && prev.inputTokens === u.inputTokens) return;
+  const event: LiveEvent = { ...u, cost: estimateFrontierCost({ modelName: u.model, ...u }) };
+  events.set(event.id, event);
+  changed.set(event.id, event);
+}
+
+function fileSig(path: string): string {
+  try {
+    const s = statSync(path);
+    return `${s.size}:${Math.round(s.mtimeMs)}`;
+  } catch {
+    return "-";
+  }
+}
+
+/** The latest modified time among files that exist, or -Infinity. */
+function lastWrite(paths: string[]): number {
+  let latest = -Infinity;
+  for (const p of paths) {
+    try {
+      latest = Math.max(latest, statSync(p).mtimeMs);
+    } catch {
+      // A write-ahead log only exists while the database is open.
+    }
+  }
+  return latest;
 }
 
 /** Reads whole lines from offset to size; a line still being written waits for the next poll. */
@@ -53,23 +93,63 @@ function discover(now: number): void {
   const seen = new Set<string>();
   for (const source of listSources()) {
     if (!LIVE_TOOLS.includes(source.harness)) continue;
-    let mtime: number;
-    try {
-      mtime = statSync(source.path).mtimeMs;
-    } catch {
-      continue;
-    }
+    // A database's own file can sit untouched for days while its write-ahead log grows.
+    const mtime = lastWrite([source.path, ...(source.companions ?? [])]);
     // Files quiet for the whole window are dropped, and read again if they wake up.
-    if (now - mtime > LIVE_WINDOW_MS) continue;
+    if (!(now - mtime <= LIVE_WINDOW_MS)) continue;
     seen.add(source.path);
     if (followed.has(source.path)) continue;
+    const base = { path: source.path, harness: source.harness, session: source.session, offset: -1 };
+    if (source.harness === "antigravity") {
+      followed.set(source.path, { ...base, lastStep: -Infinity });
+      continue;
+    }
     const parser = parserFor(source.harness, source.path, source.session);
-    if (parser) followed.set(source.path, { path: source.path, harness: source.harness, session: source.session, parser, offset: -1 });
+    if (parser) followed.set(source.path, { ...base, parser });
   }
   for (const path of followed.keys()) if (!seen.has(path)) followed.delete(path);
 }
 
-async function readFile(f: Followed, cutoff: number, changed: Map<string, LiveEvent>): Promise<void> {
+/** Steps added to an Antigravity conversation, or filled in, since the last read. */
+function readAntigravity(f: Followed, cutoff: number, changed: Map<string, LiveEvent>): void {
+  const sig = `${fileSig(f.path)}|${fileSig(`${f.path}-wal`)}`;
+  if (sig === f.dbSig) return;
+  f.dbSig = sig;
+  const db = new Database(f.path, { readonly: true });
+  try {
+    const rows = db
+      .query("select idx, metadata from steps where idx > ? order by idx")
+      .all((f.lastStep ?? -Infinity) - RECHECK_STEPS) as { idx: number; metadata: unknown }[];
+    for (const r of rows) {
+      f.lastStep = Math.max(f.lastStep ?? -Infinity, r.idx);
+      if (!(r.metadata instanceof Uint8Array)) continue;
+      const step = antigravityStep(r.metadata);
+      if (!step || step.end < cutoff) continue;
+      if (f.project === undefined && f.session) f.project = resolveSessionProject("antigravity", f.session, "")?.name ?? "";
+      record(
+        {
+          id: `antigravity:${f.session ?? f.path}:${r.idx}`,
+          harness: "antigravity",
+          model: step.model,
+          start: step.start,
+          at: step.end,
+          ...(f.session ? { session: f.session } : {}),
+          ...(f.project ? { project: f.project } : {}),
+          inputTokens: step.inputTokens,
+          outputTokens: step.outputTokens,
+          cacheCreationTokens: 0,
+          cacheReadTokens: step.cacheReadTokens,
+          reasoningTokens: step.thinkingTokens,
+        },
+        changed,
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+async function readLog(f: Followed, cutoff: number, changed: Map<string, LiveEvent>): Promise<void> {
   let size: number;
   try {
     size = statSync(f.path).size;
@@ -84,17 +164,12 @@ async function readFile(f: Followed, cutoff: number, changed: Map<string, LiveEv
     f.offset = Math.max(0, size - BACKFILL_MAX_BYTES);
     partialFirstLine = f.offset > 0;
   }
-  if (size === f.offset) return;
+  if (size === f.offset || !f.parser) return;
   const { lines, next } = await readLines(f.path, f.offset, size);
   f.offset = next;
   for (const [i, line] of lines.entries()) {
     if (partialFirstLine && i === 0) continue;
-    for (const u of f.parser.feed(line)) {
-      if (u.at < cutoff) continue;
-      const event = withCost(u);
-      events.set(event.id, event);
-      changed.set(event.id, event);
-    }
+    for (const u of f.parser.feed(line)) if (u.at >= cutoff) record(u, changed);
   }
 }
 
@@ -105,9 +180,10 @@ async function poll(): Promise<LiveEvent[]> {
   const changed = new Map<string, LiveEvent>();
   for (const f of [...followed.values()]) {
     try {
-      await readFile(f, cutoff, changed);
+      if (f.harness === "antigravity") readAntigravity(f, cutoff, changed);
+      else await readLog(f, cutoff, changed);
     } catch {
-      // Locked or deleted mid-read: the next poll tries again.
+      // Locked, busy or deleted mid-read: the next poll tries again.
     }
   }
   for (const [id, e] of events) if (e.at < cutoff) events.delete(id);
@@ -130,9 +206,10 @@ function schedule(): void {
 function start(): Promise<void> {
   idleSince = null;
   if (!ready) {
-    // The first pass reads the last hour of every recent file before anything is sent.
+    // The first pass reads the last hour of every recent file before anything is sent. Costs
+    // need the price list, which otherwise only loads with a usage refresh.
     lastDiscover = 0;
-    ready = poll().then(() => undefined, () => undefined);
+    ready = pricing.ensure().then(poll).then(() => undefined, () => undefined);
   }
   return ready.then(() => {
     if (!timer) schedule();

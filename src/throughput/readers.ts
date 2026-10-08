@@ -506,6 +506,48 @@ export function antigravityModel(text: string | undefined, id: number | undefine
   return ANTIGRAVITY_ALIASES[name] ?? name;
 }
 
+export interface AntigravityStep {
+  model: string;
+  start: number;
+  end: number;
+  inputTokens: number;
+  /** The reply without thinking, as ccusage counts it. */
+  outputTokens: number;
+  thinkingTokens: number;
+  cacheReadTokens: number;
+}
+
+/**
+ * One step that called a model, from its metadata blob. Usage fields, checked against
+ * ccusage's daily totals: 2 input, 5 cache read, 10 reply, 9 thinking, 3 reply plus thinking.
+ */
+export function antigravityStep(metadata: Uint8Array): AntigravityStep | null {
+  const f = decodeProto(metadata);
+  const usageBytes = bytesField(f, 9);
+  if (!usageBytes) return null;
+  const usage = decodeProto(usageBytes);
+  const info = bytesField(f, 24);
+  const infoFields = info ? decodeProto(info) : [];
+  const model = antigravityModel(
+    textField(infoFields, 12) ?? textField(infoFields, 8),
+    numField(infoFields, 1) || numField(usage, 1),
+  );
+  const start = protoTime(bytesField(f, 1));
+  const end = protoTime(bytesField(f, 8));
+  if (!model || !Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const thinking = numField(usage, 9) ?? 0;
+  const generated = numField(usage, 3) ?? 0;
+  return {
+    model,
+    start,
+    end,
+    inputTokens: numField(usage, 2) ?? 0,
+    outputTokens: numField(usage, 10) ?? Math.max(0, generated - thinking),
+    thinkingTokens: thinking,
+    cacheReadTokens: numField(usage, 5) ?? 0,
+  };
+}
+
 /** Each Antigravity step that called a model records when it was created and finished. */
 export function readAntigravity(dbPath: string): FileResult {
   const samples: Sample[] = [];
@@ -514,20 +556,10 @@ export function readAntigravity(dbPath: string): FileResult {
     const rows = db.query("select metadata from steps").all() as { metadata: unknown }[];
     for (const r of rows) {
       if (!(r.metadata instanceof Uint8Array)) continue;
-      const f = decodeProto(r.metadata);
-      const usageBytes = bytesField(f, 9);
-      if (!usageBytes) continue;
-      const usage = decodeProto(usageBytes);
-      const info = bytesField(f, 24);
-      const infoFields = info ? decodeProto(info) : [];
-      const model = antigravityModel(
-        textField(infoFields, 12) ?? textField(infoFields, 8),
-        numField(infoFields, 1) || numField(usage, 1),
-      );
-      const start = protoTime(bytesField(f, 1));
-      const end = protoTime(bytesField(f, 8));
-      if (!model || !Number.isFinite(start) || !Number.isFinite(end)) continue;
-      samples.push({ model, start, end, outputTokens: numField(usage, 3) ?? 0 });
+      const step = antigravityStep(r.metadata);
+      if (!step) continue;
+      const { model, start, end } = step;
+      samples.push({ model, start, end, outputTokens: step.outputTokens + step.thinkingTokens });
     }
   } catch {
     // An older database without the steps table.

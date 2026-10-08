@@ -128,3 +128,7 @@ test("liveSessions reports how full the latest prompt was", () => {
   const [s] = liveSessions([ev({ at: NOW - 9_000, cacheReadTokens: 5 }), ev({ at: NOW - 1_000, inputTokens: 3, cacheCreationTokens: 7, cacheReadTokens: 90_000 })], NOW, MINUTE);
   expect(s!.context).toBe(90_010);
 });
+
+test("speed counts thinking a tool reports apart from output", () => {
+  expect(responseSpeed(ev({ at: NOW, start: NOW - 4_000, outputTokens: 60, reasoningTokens: 40 }))).toBe(25);
+});

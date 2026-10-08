@@ -112,7 +112,7 @@ export function perMinute(events: LiveEvent[], now: number, minutes: number, pic
 export function liveSpeed(events: LiveEvent[]): SpeedSummary | null {
   const samples: Sample[] = [];
   for (const e of events) {
-    if (e.start !== undefined) samples.push({ model: e.model, start: e.start, end: e.at, outputTokens: e.outputTokens });
+    if (e.start !== undefined) samples.push({ model: e.model, start: e.start, end: e.at, outputTokens: generated(e) });
   }
   return samples.length ? summarizeSpeed(rowsFromSamples("claude", samples)) : null;
 }
@@ -161,11 +161,14 @@ export function liveSessions(events: LiveEvent[], now: number, withinMs: number)
   return out.sort((a, b) => b.lastAt - a.lastAt);
 }
 
+/** Everything the model wrote, thinking included, for speed. */
+const generated = (e: LiveEvent) => e.outputTokens + (e.reasoningTokens ?? 0);
+
 /** One response's output speed, or null when its start isn't known or it is too short to say. */
 export function responseSpeed(e: LiveEvent): number | null {
   if (e.start === undefined) return null;
-  const sample = { model: e.model, start: e.start, end: e.at, outputTokens: e.outputTokens };
-  return countsForSpeed(sample) ? e.outputTokens / ((e.at - e.start) / 1000) : null;
+  const sample = { model: e.model, start: e.start, end: e.at, outputTokens: generated(e) };
+  return countsForSpeed(sample) ? sample.outputTokens / ((e.at - e.start) / 1000) : null;
 }
 
 export interface RollingSeries {
