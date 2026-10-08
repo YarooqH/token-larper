@@ -30,8 +30,12 @@ jobs:
           head=$(node -p "require('./package.json').version")
           base=$(git show "origin/$BASE:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
           echo "base $base, this PR $head"
-          node -e '
-            const [a, b] = process.argv.slice(1).map((v) => v.split("-")[0].split(".").map(Number));
-            for (let i = 0; i < 3; i++) if (a[i] !== b[i]) process.exit(a[i] > b[i] ? 0 : 1);
-            process.exit(1);
-          ' "$head" "$base" || { echo "::error file=package.json::Bump the version in package.json (base is $base)."; exit 1; }
+          # Prereleases go out from beta/* branches; main only gets final versions.
+          if [ "$BASE" = main ] && [[ "$head" == *-* ]]; then
+            echo "::error file=package.json::$head is a prerelease. Set the final version before merging to main."
+            exit 1
+          fi
+          HEAD_VERSION=$head BASE_VERSION=$base bun -e '
+            import { compareVersions } from "./src/semver.ts";
+            process.exit(compareVersions(String(process.env.HEAD_VERSION), String(process.env.BASE_VERSION)) > 0 ? 0 : 1);
+          ' || { echo "::error file=package.json::Bump the version in package.json (base is $base)."; exit 1; }
