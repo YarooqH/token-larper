@@ -58,8 +58,8 @@ function Figure({ value, className = "" }: { value: number; className?: string }
   );
 }
 
-/** Axis labels drop a trailing ".0": "100K", "2.5M". */
-const axisNumber = (n: number) => formatCompactNumber(n).replace(/\.0([KMB])$/, "$1");
+/** Axis labels drop trailing zeros: "100K", "2.5M", "5M". */
+const axisNumber = (n: number) => formatCompactNumber(n).replace(/\.?0+([KMB])$/, "$1");
 
 function niceMax(max: number): number {
   if (max <= 0) return 1;
@@ -445,7 +445,7 @@ function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
                   <dd>{s.speed ? <>{formatRate(s.speed.median)}<em>tok/s</em></> : "—"}</dd>
                 </div>
                 <div>
-                  <dt>Hour</dt>
+                  <dt>Last hour</dt>
                   <dd>{formatCurrency(s.totals.cost)}</dd>
                 </div>
               </dl>

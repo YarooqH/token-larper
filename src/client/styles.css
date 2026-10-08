@@ -1479,9 +1479,9 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-session header .lm-note { margin-left: auto; white-space: nowrap; }
 .lm-session-tool { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-2); font-size: 12.5px; white-space: nowrap; }
 .lm-session-tool code { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.lm-session dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.lm-session dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
 .lm-session dt { color: var(--text-3); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
-.lm-session dd { font-family: var(--mono); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lm-session dd { margin-top: 2px; font-family: var(--mono); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lm-pulse { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--text-3); }
 .lm-pulse.is-on { background: var(--accent); animation: live-pulse 1.6s ease-out infinite; }
 
@@ -1533,7 +1533,6 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
   .lm-grid-3 { grid-template-columns: 1fr; }
   .lm-readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 18px; }
   .lm-readout:nth-child(3) { padding-left: 0; border-left: 0; }
-  .lm-session dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lm-feed-row { grid-template-columns: auto 8px minmax(0, 1fr) auto; }
   .lm-feed-row .lm-feed-num:nth-of-type(n + 2) { display: none; }
 }
