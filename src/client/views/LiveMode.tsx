@@ -216,7 +216,7 @@ function Trace({ events, now, spanMs, order }: { events: LiveEvent[]; now: numbe
 
   return (
     <div className="lm-trace" ref={ref}>
-      <svg width={width} height={height} aria-hidden="true">
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
         {[0.5, 1].map((f) => (
           <g key={f}>
             <line className="lm-grid" x1={0} x2={width} y1={y(yMax * f)} y2={y(yMax * f)} />
@@ -283,7 +283,7 @@ function Tape({ events, now, spanMs }: { events: LiveEvent[]; now: number; spanM
   const maxOut = Math.max(1, ...shown.map((e) => e.outputTokens));
   return (
     <div className="lm-tape" ref={ref}>
-      <svg width={width} height={height} role="img" aria-label={`${shown.length} responses in the last ${spanMs / MINUTE} minutes`}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${shown.length} responses in the last ${spanMs / MINUTE} minutes`}>
         {shown.map((e) => {
           const h = Math.max(5, Math.sqrt(e.outputTokens / maxOut) * (height - 4));
           const speed = responseSpeed(e);
@@ -438,7 +438,7 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
         <span className="lm-note">{current ? `≈${formatRate(current.median)} tok/s median, last 5 min` : "No timed responses yet"}</span>
       </header>
       <div className="lm-speed" ref={ref}>
-        <svg width={width} height={height} role="img" aria-label={`Output speed of ${points.length} responses`}>
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Output speed of ${points.length} responses`}>
           <line className="lm-grid" x1={0} x2={width} y1={y(yMax / 2)} y2={y(yMax / 2)} />
           <text className="lm-axis" x={4} y={y(yMax / 2) - 5}>{formatRate(yMax / 2)} tok/s</text>
           <line className="lm-grid is-base" x1={0} x2={width} y1={height} y2={height} />

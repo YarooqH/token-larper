@@ -1424,7 +1424,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
   background: var(--surface);
   box-shadow: var(--shadow-card);
 }
-.lm-instrument { display: grid; gap: 18px; padding: clamp(18px, 2.4vw, 34px); }
+.lm-instrument { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: clamp(18px, 2.4vw, 34px); }
 .lm-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px 48px; }
 .lm-hero-main { display: grid; gap: 8px; min-width: 0; }
 .lm-hero-figure { color: var(--text); font-size: clamp(64px, 10vw, 148px); font-weight: 650; line-height: 0.88; }
@@ -1433,7 +1433,8 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-readout-value { font-family: var(--mono); font-size: clamp(22px, 2.2vw, 32px); font-weight: 600; letter-spacing: -0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .lm-trace, .lm-tape, .lm-speed { position: relative; }
-.lm-trace svg, .lm-tape svg, .lm-speed svg { display: block; overflow: visible; }
+/* Charts fill their box and scale to it until the next measurement redraws them at the new width. */
+.lm-trace svg, .lm-tape svg, .lm-speed svg { display: block; width: 100%; height: auto; overflow: visible; }
 .lm-grid { stroke: var(--border); stroke-width: 1; }
 .lm-grid.is-base { stroke: var(--border-strong); }
 .lm-axis { fill: var(--text-3); font-family: var(--mono); font-size: 11px; }
