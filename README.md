@@ -323,6 +323,17 @@ Set `TOKEN_LARPER_DATA_DIR` to use another folder. Versions before 1.5.0 kept th
 ### Updates
 When a new version is on npm, the dashboard shows a banner. **Update now** starts `bunx token-larper@latest` in the background; the new version replaces the running one on the same port and the dashboard reloads. You can also check from **Settings → Updates**, or turn automatic checks off there. A copy cloned from git updates with `git pull`.
 
+### Beta Versions
+Features that need testing before release are published as betas, like `1.18.0-beta.0`. Plain `bunx token-larper` and the update banner never pick them up. To try the newest beta:
+
+```bash
+bunx token-larper@beta
+```
+
+It replaces the running copy on the same port, like an update. A beta shows the banner once its final version is out; to go back to the current release before then, quit Token Larper and run `bunx token-larper@latest` (if it starts at login, turn that off and on again in Settings so it launches the release).
+
+**Publishing a beta (maintainers):** push a branch named `beta/<feature>` with a prerelease version in `package.json` (`1.18.0-beta.0`, then `-beta.1`, and so on). The release workflow publishes it under the `beta` tag and makes a GitHub prerelease. Before merging to main, set the final version (`1.18.0`); CI rejects a prerelease version on a PR into main.
+
 ### Estimated Prices
 When ccusage has no price for a model (a brand-new one, or usage through a flat-rate subscription), Token Larper estimates the cost from list prices. It downloads OpenRouter's public model price list once a day, keeps it in the data folder as `openrouter-pricing.json`, and prices any model on that list from it. Claude models it doesn't list use Anthropic's rates, built into the app. A model with neither has no price and is left out of estimates; nothing is guessed from its name. Only the price list is downloaded; nothing about your usage is sent, and if the download fails the last saved list is used.
 
