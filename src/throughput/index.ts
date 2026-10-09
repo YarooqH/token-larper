@@ -29,7 +29,7 @@ const RESCAN_AFTER_MS = 60_000;
 /** Tools that record when each request was sent and finished, rather than leaving it to log order. */
 export const TIMED_BY_TOOL: HarnessId[] = ["opencode", "pi", "antigravity", "copilot"];
 
-interface Source {
+export interface Source {
   harness: HarnessId;
   path: string;
   read: (path: string) => FileResult | Promise<FileResult>;
@@ -149,7 +149,7 @@ function antigravitySources(): Source[] {
     .map((path) => ({ harness: "antigravity", path, read: readAntigravity, companions: [`${path}-wal`], session: stem(path) }));
 }
 
-function listSources(): Source[] {
+export function listSources(): Source[] {
   return [
     ...claudeSources(),
     ...codexSources(),

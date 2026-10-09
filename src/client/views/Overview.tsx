@@ -19,7 +19,7 @@ const MODES: { id: ChartMode; label: string }[] = [
   { id: "token-types", label: "Token mix" },
 ];
 
-function Segmented<T extends string>({ label, value, options, onChange }: {
+export function Segmented<T extends string>({ label, value, options, onChange }: {
   label: string;
   value: T;
   options: { id: T; label: string }[];

@@ -208,6 +208,45 @@ export interface ThroughputPayload {
   sessions: Record<string, SpeedTotals>;
 }
 
+/** One model response read from a tool's session file as it was written. */
+export interface LiveEvent {
+  /** Stays the same when a response that is still streaming is sent again with larger counts. */
+  id: string;
+  harness: HarnessId;
+  model: string;
+  /** When the request went out, when the log shows it. */
+  start?: number;
+  /** When the latest token of the response was logged. */
+  at: number;
+  session?: string;
+  /** The working folder's name, when the log records one. */
+  project?: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  /** Thinking a tool reports apart from output (Antigravity). It counts toward speed but not toward totals, as in ccusage's numbers. */
+  reasoningTokens?: number;
+  /** At list prices; 0 for a model with no known price. */
+  cost: number;
+}
+
+/** The first message on /api/live: every response in the window, and what is being followed. */
+export interface LiveSnapshot {
+  windowMs: number;
+  /** Tools whose session files are followed live. */
+  tools: HarnessId[];
+  /** Session files written to within the window. */
+  files: number;
+  events: LiveEvent[];
+}
+
+/** Later messages on /api/live: responses that are new or have grown. */
+export interface LiveUpdate {
+  files: number;
+  events: LiveEvent[];
+}
+
 export interface StartupConfig {
   enabled: boolean;
   openBrowserOnBoot: boolean;
