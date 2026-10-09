@@ -163,7 +163,10 @@ export function App() {
         await liveFeedReady(1500);
         setLiveArming(false);
       }
+      let applied = false;
       const apply = () => {
+        if (applied) return;
+        applied = true;
         flushSync(() => setPrefs((p) => (p.live === next ? p : { ...p, live: next })));
         window.scrollTo(0, next ? 0 : dashboardScroll.current);
       };
@@ -176,7 +179,16 @@ export function App() {
       }
       root.dataset.vt = next ? "to-live" : "from-live";
       const transition = document.startViewTransition(apply);
-      await transition.finished.catch(() => {});
+      // A transition only starts on a painted frame. If the browser isn't painting (a
+      // throttled or covered window), switch anyway rather than leave the click hanging.
+      const stalled = setTimeout(() => {
+        if (applied) return;
+        transition.skipTransition();
+        apply();
+      }, 1000);
+      await Promise.race([transition.finished.catch(() => {}), new Promise((done) => setTimeout(done, 3000))]);
+      clearTimeout(stalled);
+      apply();
       delete root.dataset.vt;
     } finally {
       setLiveArming(false);
