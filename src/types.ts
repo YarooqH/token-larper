@@ -231,16 +231,6 @@ export interface LiveEvent {
   cost: number;
 }
 
-/** The Claude plan's usage limits, from the Claude desktop app's latest sample. */
-export interface PlanUsage {
-  /** When the app took the sample. */
-  at: number;
-  /** Percent of the 5-hour limit used. */
-  fiveHour: number | null;
-  /** Percent of the weekly limit used. */
-  weekly: number | null;
-}
-
 /** The first message on /api/live: every response in the window, and what is being followed. */
 export interface LiveSnapshot {
   windowMs: number;
@@ -249,16 +239,12 @@ export interface LiveSnapshot {
   /** Session files written to within the window. */
   files: number;
   events: LiveEvent[];
-  /** Null when the Claude desktop app has no plan samples on this computer. */
-  plan: PlanUsage | null;
 }
 
 /** Later messages on /api/live: responses that are new or have grown. */
 export interface LiveUpdate {
   files: number;
   events: LiveEvent[];
-  /** Present when the plan sample changed. */
-  plan?: PlanUsage | null;
 }
 
 export interface StartupConfig {

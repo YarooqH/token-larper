@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { HarnessId, LiveEvent, PlanUsage } from "../../types.ts";
+import type { HarnessId, LiveEvent } from "../../types.ts";
 import { useDashboard } from "../context.tsx";
-import { Maximize2, Minimize2 } from "../components/Icons.tsx";
+import { Info, Maximize2, Minimize2 } from "../components/Icons.tsx";
 import { formatRate } from "../lib/throughput.ts";
 import {
   MINUTE,
@@ -27,6 +27,7 @@ type Span = 15 | 60;
 const SPANS: Span[] = [15, 60];
 const SESSION_WINDOW_MS = 15 * MINUTE;
 const FEED_LENGTH = 14;
+const LIMITS_ID = "live-limitations";
 const MAX_MODELS = 6;
 
 const listFormat = new Intl.ListFormat("en-US", { type: "conjunction" });
@@ -69,53 +70,6 @@ function niceMax(max: number): number {
 
 // ---------------------------------------------------------------------------
 
-const HOUR = 60 * MINUTE;
-
-/** "just now", "12 min ago", "6 h ago", "3 d ago". */
-function checkedAgo(ms: number): string {
-  if (ms < MINUTE) return "just now";
-  if (ms < HOUR) return `${Math.floor(ms / MINUTE)} min ago`;
-  if (ms < 48 * HOUR) return `${Math.floor(ms / HOUR)} h ago`;
-  return `${Math.floor(ms / (24 * HOUR))} d ago`;
-}
-
-function Meter({ label, value, stale }: { label: string; value: number | null; stale?: string }) {
-  const shown = stale ? null : value;
-  return (
-    <span
-      className={`lm-meter ${shown !== null && shown >= 80 ? "is-high" : ""}`}
-      role="meter"
-      aria-label={`${label} limit used`}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={shown ?? undefined}
-      title={stale}
-    >
-      <span className="lm-meter-label">{label}</span>
-      <span className="lm-meter-track" aria-hidden="true">
-        <span style={{ width: `${Math.min(100, shown ?? 0)}%` }} />
-      </span>
-      <span className="lm-meter-value">{shown === null ? "—" : `${Math.round(shown)}%`}</span>
-    </span>
-  );
-}
-
-/** How much of the Claude plan's limits is used, as the Claude desktop app last saw it. */
-function PlanMeter({ plan, now }: { plan: PlanUsage; now: number }) {
-  const age = Math.max(0, now - plan.at);
-  return (
-    <div
-      className={`lm-plan ${age > 5 * HOUR ? "is-stale" : ""}`}
-      title="From the Claude desktop app, which checks your plan's limits every 15 minutes or so while it is checking usage. Limits count chats and Claude Code alike."
-    >
-      <span className="lm-label">Plan</span>
-      <Meter label="5-hour" value={plan.fiveHour} stale={age > 5 * HOUR ? "The 5-hour window has reset since the app last checked." : undefined} />
-      <Meter label="Week" value={plan.weekly} stale={age > 7 * 24 * HOUR ? "The week has reset since the app last checked." : undefined} />
-      <span className="lm-note">checked {checkedAgo(age)}</span>
-    </div>
-  );
-}
-
 function Header({ feed, tool, setTool, span, setSpan, tools }: {
   feed: LiveFeed;
   tool: HarnessFilter;
@@ -136,6 +90,14 @@ function Header({ feed, tool, setTool, span, setSpan, tools }: {
     else void document.documentElement.requestFullscreen?.().catch(() => {});
   };
   const status = feed.status === "live" ? "Live" : feed.status === "reconnecting" ? "Reconnecting" : "Connecting";
+  const showLimitations = () => {
+    const list = document.getElementById(LIMITS_ID) as HTMLDetailsElement | null;
+    if (!list) return;
+    list.open = true;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    list.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    list.querySelector("summary")?.focus({ preventScroll: true });
+  };
 
   return (
     <div className="lm-header">
@@ -143,7 +105,6 @@ function Header({ feed, tool, setTool, span, setSpan, tools }: {
         <span className={`lm-badge is-${feed.status}`}><i aria-hidden="true" />{status}</span>
         <span className="lm-clock">{clock(feed.now)}</span>
       </div>
-      {feed.snapshot?.plan && <PlanMeter plan={feed.snapshot.plan} now={feed.now} />}
       <div className="lm-controls">
         {tools.length > 1 && (
           <div className="segmented lm-tools" role="group" aria-label="Tool">
@@ -161,6 +122,10 @@ function Header({ feed, tool, setTool, span, setSpan, tools }: {
             <button key={s} type="button" aria-pressed={span === s} onClick={() => setSpan(s)}>{s} min</button>
           ))}
         </div>
+        <button type="button" className="lm-limits-link" onClick={showLimitations} aria-controls={LIMITS_ID}>
+          <Info size={14} aria-hidden="true" />
+          Limitations
+        </button>
         <button
           type="button"
           className="icon-btn"
@@ -590,12 +555,12 @@ export function LiveBoard({ feed }: { feed: LiveFeed }) {
 /** What Live mode can't see, so its numbers aren't read as the whole picture. */
 function Limitations({ notFollowed }: { notFollowed: string[] }) {
   return (
-    <details className="lm-limits">
+    <details className="lm-limits" id={LIMITS_ID}>
       <summary>What Live mode can't see</summary>
       <ul>
         <li>
           <strong>Claude chats.</strong> Chats on claude.ai and in the Claude app aren't saved on this computer, so they never appear
-          here. The plan meter is the only number that includes them.
+          here. Only the Code tab in the Claude app counts, since it runs Claude Code.
         </li>
         <li>
           <strong>Some tools.</strong> Live mode follows Claude Code (including the Code tab in the Claude app), Codex, Pi, Gemini CLI,
@@ -618,10 +583,6 @@ function Limitations({ notFollowed }: { notFollowed: string[] }) {
         <li>
           <strong>Pure generation speed.</strong> Speed includes the wait for the first token. Antigravity records times to the second,
           so its short steps read rough.
-        </li>
-        <li>
-          <strong>Up-to-the-minute plan limits.</strong> The plan meter comes from a file the Claude app updates every 15 minutes or so,
-          only while it is checking usage, and only for the account it checked last. The file isn't documented and could change.
         </li>
       </ul>
       <p className="lm-note">Tokens include cache reads, the same as everywhere else in the dashboard, so they run far above what the model writes.</p>

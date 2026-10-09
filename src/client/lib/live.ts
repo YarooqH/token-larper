@@ -292,7 +292,7 @@ function open(): void {
     const u = JSON.parse((message as MessageEvent<string>).data) as LiveUpdate;
     const byId = new Map(feed.byId);
     for (const e of u.events) byId.set(e.id, e);
-    const snapshot = feed.snapshot && { ...feed.snapshot, files: u.files, ...(u.plan !== undefined ? { plan: u.plan } : {}) };
+    const snapshot = feed.snapshot && { ...feed.snapshot, files: u.files };
     setFeed({ ...feed, snapshot, byId });
   });
   // EventSource reconnects by itself; the server answers a reconnect with a fresh snapshot.

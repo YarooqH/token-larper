@@ -59,6 +59,7 @@ export const Fish = icon([["path", { d: "M6.5 12c.94-3.46 4.94-6 8.5-6 3.56 0 6.
 export const Flame = icon([["path", { d: "M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4" }]]);
 export const FolderGit2 = icon([["path", { d: "M18 19a5 5 0 0 1-5-5v8" }], ["path", { d: "M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5" }], ["circle", { cx: "13", cy: "12", r: "2" }], ["circle", { cx: "20", cy: "19", r: "2" }]]);
 export const Heart = icon([["path", { d: "M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" }]]);
+export const Info = icon([["circle", { cx: "12", cy: "12", r: "10" }], ["path", { d: "M12 16v-4" }], ["path", { d: "M12 8h.01" }]]);
 export const Languages = icon([["path", { d: "m5 8 6 6" }], ["path", { d: "m4 14 6-6 2-3" }], ["path", { d: "M2 5h12" }], ["path", { d: "M7 2h1" }], ["path", { d: "m22 22-5-10-5 10" }], ["path", { d: "M14 18h6" }]]);
 export const Maximize2 = icon([["polyline", { points: "15 3 21 3 21 9" }], ["polyline", { points: "9 21 3 21 3 15" }], ["line", { x1: "21", x2: "14", y1: "3", y2: "10" }], ["line", { x1: "3", x2: "10", y1: "21", y2: "14" }]]);
 export const Minimize2 = icon([["polyline", { points: "4 14 10 14 10 20" }], ["polyline", { points: "20 10 14 10 14 4" }], ["line", { x1: "14", x2: "21", y1: "10", y2: "3" }], ["line", { x1: "3", x2: "10", y1: "21", y2: "14" }]]);

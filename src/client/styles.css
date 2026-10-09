@@ -1504,14 +1504,19 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 
 .lm-footnote { color: var(--text-3); font-size: 12px; text-align: center; }
 
-.lm-plan { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
-.lm-plan.is-stale .lm-meter-track span { opacity: 0.45; }
-.lm-meter { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
-.lm-meter-track { position: relative; width: 84px; height: 6px; overflow: hidden; border-radius: 99px; background: var(--surface-3); }
-.lm-meter-track span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 0.8s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.lm-meter.is-high .lm-meter-track span { background: var(--warning-text); }
-.lm-meter-value { min-width: 3.2ch; color: var(--text); font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
+.lm-limits-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.lm-limits-link:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.lm-limits { scroll-margin-top: 24px; }
 .lm-limits { max-width: 860px; margin: 0 auto; padding: 4px 0; color: var(--text-2); font-size: 13px; }
 .lm-limits summary { width: fit-content; margin: 0 auto; color: var(--text-2); font-weight: 650; cursor: pointer; }
 .lm-limits summary:hover { color: var(--text); }
