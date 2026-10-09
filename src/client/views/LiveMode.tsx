@@ -474,25 +474,32 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
     .map((e) => ({ e, v: responseSpeed(e) }))
     .filter((p): p is { e: LiveEvent; v: number } => p.v !== null);
 
-  // The median only uses responses inside the span, so the line never runs where no dots are.
+  // The median only uses responses inside the span, stops at the last one, and needs a few to
+  // go on, so it never runs where there are no dots or swings on a single response.
   const step = spanMs / 60;
-  const medians: { t: number; v: number }[] = [];
-  for (let t = now - spanMs; t <= now + 1; t += step) {
+  const lastAt = Math.max(-Infinity, ...points.map((p) => p.e.at));
+  const medians: ({ t: number; v: number } | null)[] = [];
+  for (let t = now - spanMs; t <= Math.min(now, lastAt + step); t += step) {
     const s = liveSpeed(inSpan.filter((e) => e.at > t - 5 * MINUTE && e.at <= t));
-    if (s) medians.push({ t, v: s.median });
+    medians.push(s && s.responses >= 3 ? { t, v: s.median } : null);
   }
+  const drawn = medians.filter((m): m is { t: number; v: number } => m !== null);
   // Scale to everything drawn, the line included, so nothing lands outside the chart.
-  const yMax = niceMax(Math.max(10, ...points.map((p) => p.v), ...medians.map((m) => m.v)) * 1.05);
+  const yMax = niceMax(Math.max(10, ...points.map((p) => p.v), ...drawn.map((m) => m.v)) * 1.05);
   const x = (t: number) => width - ((now - t) / spanMs) * width;
   const y = (v: number) => height - (Math.min(v, yMax) / yMax) * (height - 6) - 3;
-  const median = medians.map((m, i) => `${i ? "L" : "M"}${x(m.t).toFixed(1)},${y(m.v).toFixed(1)}`);
-  const current = liveSpeed(events.filter((e) => e.at >= now - 5 * MINUTE));
+  const median: string[] = [];
+  medians.forEach((m, i) => {
+    if (m) median.push(`${i > 0 && medians[i - 1] ? "L" : "M"}${x(m.t).toFixed(1)},${y(m.v).toFixed(1)}`);
+  });
+  // What the heading reports matches what the chart draws: the whole span.
+  const current = liveSpeed(inSpan);
 
   return (
     <section className="lm-panel">
       <header className="lm-panel-head">
         <h2 title="Each dot is one response, timed from the request to its last token. The line is the median of the 5 minutes before it.">Output speed</h2>
-        <span className="lm-note">{current ? `median ${formatRate(current.median)} tok/s` : "No timed responses yet"}</span>
+        <span className="lm-note">{current ? `median ${formatRate(current.median)} tok/s` : `None in the last ${spanMs / MINUTE} min`}</span>
       </header>
       <div className="lm-speed" ref={ref}>
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Output speed of ${points.length} responses`}>
