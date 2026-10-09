@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { AlertTriangle, Moon, Power, Radio, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
 import type { DashboardPayload, HarnessId, StartupConfig, ThroughputPayload } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
@@ -15,6 +16,7 @@ import { dayStreak } from "./lib/rank.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
 import { throughputInRange } from "./lib/throughput.ts";
+import { liveFeedReady, prepareLiveFeed } from "./lib/live.ts";
 import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
 import { LiveMode } from "./views/LiveMode.tsx";
 import { Models } from "./views/Models.tsx";
@@ -142,6 +144,45 @@ export function App() {
   const [importedTheme, setImportedTheme] = useState<ImportedTheme | null>(readImportedTheme);
 
   const updatePrefs = (patch: Partial<Prefs>) => setPrefs((p) => ({ ...p, ...patch }));
+  const [liveArming, setLiveArming] = useState(false);
+  const dashboardScroll = useRef(0);
+  const switching = useRef(false);
+
+  /**
+   * Swaps between the dashboard and Live mode with a view transition: the outgoing screen
+   * sinks away while the incoming one rises in, and the top bar's buttons glide into place.
+   * Live mode waits (briefly) for its data first, so it never transitions into an empty screen.
+   */
+  async function switchLive(next: boolean) {
+    if (switching.current) return;
+    switching.current = true;
+    try {
+      if (next) {
+        dashboardScroll.current = window.scrollY;
+        setLiveArming(true);
+        await liveFeedReady(1500);
+        setLiveArming(false);
+      }
+      const apply = () => {
+        flushSync(() => setPrefs((p) => (p.live === next ? p : { ...p, live: next })));
+        window.scrollTo(0, next ? 0 : dashboardScroll.current);
+      };
+      const root = document.documentElement;
+      const animate = typeof document.startViewTransition === "function"
+        && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!animate) {
+        apply();
+        return;
+      }
+      root.dataset.vt = next ? "to-live" : "from-live";
+      const transition = document.startViewTransition(apply);
+      await transition.finished.catch(() => {});
+      delete root.dataset.vt;
+    } finally {
+      setLiveArming(false);
+      switching.current = false;
+    }
+  }
   const updates = useUpdates(prefs.checkUpdates);
   const showUpdateBanner = updates.phase !== "idle" || (prefs.checkUpdates && !!updates.status?.updateAvailable
     && updates.status.latest !== prefs.dismissedUpdate);
@@ -177,7 +218,7 @@ export function App() {
   useEffect(() => {
     if (!prefs.live || showSettings) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !document.fullscreenElement) setPrefs((p) => ({ ...p, live: false }));
+      if (event.key === "Escape" && !document.fullscreenElement) void switchLive(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -529,9 +570,12 @@ export function App() {
           <div className="topbar-actions">
             <button
               type="button"
-              className="live-toggle"
+              className={liveArming ? "live-toggle is-arming" : "live-toggle"}
               aria-pressed={prefs.live}
-              onClick={() => updatePrefs({ live: !prefs.live })}
+              aria-busy={liveArming || undefined}
+              onPointerEnter={() => !prefs.live && prepareLiveFeed()}
+              onFocus={() => !prefs.live && prepareLiveFeed()}
+              onClick={() => void switchLive(!prefs.live)}
               title={prefs.live ? "Leave Live mode (Esc)" : "Live mode: tokens per minute as they happen"}
             >
               <Radio size={15} aria-hidden="true" />
@@ -544,7 +588,7 @@ export function App() {
               </span>
             )}
             <button
-              className="icon-btn"
+              className="icon-btn theme-btn"
               onClick={toggleTheme}
               title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
               aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
@@ -552,7 +596,7 @@ export function App() {
               {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
             </button>
             <button
-              className="icon-btn"
+              className="icon-btn settings-btn"
               onClick={() => {
                 setShowSettings(true);
                 void fetchStartup();
@@ -572,7 +616,7 @@ export function App() {
         </header>
 
         {prefs.live ? <LiveMode /> : (
-          <>
+          <div className="dash-stage">
             {showUpdateBanner && (
               <UpdateBanner updates={updates} onDismiss={() => updatePrefs({ dismissedUpdate: updates.status?.latest ?? undefined })} />
             )}
@@ -640,7 +684,7 @@ export function App() {
             </main>
 
             <AppFooter />
-          </>
+          </div>
         )}
 
         {showSettings && (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { HarnessId, LiveEvent, LiveSnapshot, LiveUpdate, PeriodHarnessBreakdown, TimePeriodRow } from "../../types.ts";
 import { countsForSpeed, rowsFromSamples, summarizeSpeed, type Sample, type SpeedSummary } from "../../throughput/stats.ts";
 import type { HarnessFilter } from "./aggregate.ts";
@@ -250,41 +250,105 @@ export interface LiveFeed {
   now: number;
 }
 
-/** Follows /api/live while mounted and ticks once a second so rolling windows move on their own. */
+// One connection to /api/live, shared by everything that shows live data. It opens when Live
+// mode is about to show (hovering its toggle counts) and closes a while after the last user
+// leaves; what it read stays, so coming back draws at once while a fresh snapshot loads.
+
+interface FeedState {
+  status: LiveStatus;
+  snapshot: LiveFeed["snapshot"];
+  byId: Map<string, LiveEvent>;
+}
+
+/** Stays open this long without a user, so leaving and coming back doesn't reconnect. */
+const LINGER_MS = 20_000;
+
+let feed: FeedState = { status: "connecting", snapshot: null, byId: new Map() };
+let source: EventSource | null = null;
+let users = 0;
+let lingerTimer: ReturnType<typeof setTimeout> | undefined;
+const listeners = new Set<() => void>();
+let waiters: (() => void)[] = [];
+
+function setFeed(next: FeedState): void {
+  feed = next;
+  for (const listener of listeners) listener();
+  if (next.snapshot) {
+    for (const resolve of waiters) resolve();
+    waiters = [];
+  }
+}
+
+function open(): void {
+  clearTimeout(lingerTimer);
+  if (source || typeof EventSource === "undefined") return;
+  const es = new EventSource("/api/live");
+  source = es;
+  es.addEventListener("snapshot", (message) => {
+    const { events, ...meta } = JSON.parse((message as MessageEvent<string>).data) as LiveSnapshot;
+    setFeed({ status: "live", snapshot: meta, byId: new Map(events.map((e) => [e.id, e])) });
+  });
+  es.addEventListener("update", (message) => {
+    const u = JSON.parse((message as MessageEvent<string>).data) as LiveUpdate;
+    const byId = new Map(feed.byId);
+    for (const e of u.events) byId.set(e.id, e);
+    const snapshot = feed.snapshot && { ...feed.snapshot, files: u.files, ...(u.plan !== undefined ? { plan: u.plan } : {}) };
+    setFeed({ ...feed, snapshot, byId });
+  });
+  // EventSource reconnects by itself; the server answers a reconnect with a fresh snapshot.
+  es.onerror = () => {
+    if (feed.status === "live") setFeed({ ...feed, status: "reconnecting" });
+  };
+}
+
+function lingerThenClose(): void {
+  clearTimeout(lingerTimer);
+  lingerTimer = setTimeout(() => {
+    if (users > 0 || !source) return;
+    source.close();
+    source = null;
+    setFeed({ ...feed, status: "connecting" });
+  }, LINGER_MS);
+}
+
+/** Starts reading ahead of Live mode showing, e.g. when the pointer reaches its toggle. */
+export function prepareLiveFeed(): void {
+  open();
+  if (users === 0) lingerThenClose();
+}
+
+/** Resolves once there is something to draw (a snapshot, or one kept from earlier), or after `timeoutMs`. */
+export function liveFeedReady(timeoutMs: number): Promise<void> {
+  prepareLiveFeed();
+  if (feed.snapshot) return Promise.resolve();
+  return new Promise((resolve) => {
+    waiters.push(resolve);
+    setTimeout(resolve, timeoutMs);
+  });
+}
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+/** The shared feed while mounted, ticking once a second so rolling windows move on their own. */
 export function useLiveFeed(): LiveFeed {
-  const [status, setStatus] = useState<LiveStatus>("connecting");
-  const [snapshot, setSnapshot] = useState<LiveFeed["snapshot"]>(null);
-  const [byId, setById] = useState<Map<string, LiveEvent>>(() => new Map());
+  const state = useSyncExternalStore(subscribe, () => feed, () => feed);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const source = new EventSource("/api/live");
-    source.addEventListener("snapshot", (message) => {
-      const s = JSON.parse((message as MessageEvent<string>).data) as LiveSnapshot;
-      const { events, ...meta } = s;
-      setSnapshot(meta);
-      setById(new Map(events.map((e) => [e.id, e])));
-      setStatus("live");
-    });
-    source.addEventListener("update", (message) => {
-      const u = JSON.parse((message as MessageEvent<string>).data) as LiveUpdate;
-      setSnapshot((s) => (s ? { ...s, files: u.files, ...(u.plan !== undefined ? { plan: u.plan } : {}) } : s));
-      setById((prev) => {
-        const next = new Map(prev);
-        for (const e of u.events) next.set(e.id, e);
-        return next;
-      });
-    });
-    // EventSource reconnects by itself; the server answers a reconnect with a fresh snapshot.
-    source.onerror = () => setStatus((s) => (s === "connecting" ? s : "reconnecting"));
+    users += 1;
+    open();
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => {
-      source.close();
+      users -= 1;
       clearInterval(tick);
+      if (users === 0) lingerThenClose();
     };
   }, []);
 
-  const windowMs = snapshot?.windowMs ?? 60 * MINUTE;
-  const events = [...byId.values()].filter((e) => now - e.at <= windowMs);
-  return { status, snapshot, events, now };
+  const windowMs = state.snapshot?.windowMs ?? 60 * MINUTE;
+  const events = [...state.byId.values()].filter((e) => now - e.at <= windowMs);
+  return { status: state.status, snapshot: state.snapshot, events, now };
 }

@@ -1554,6 +1554,71 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
   .lm-feed-row .lm-feed-num:nth-of-type(n + 2) { display: none; }
 }
 
+/* ---------- Switching in and out of Live mode ---------- */
+
+.dash-stage { display: flex; flex: 1 0 auto; flex-direction: column; min-width: 0; }
+
+.live-toggle.is-arming svg { animation: lm-breathe 0.9s ease-in-out infinite; }
+
+/*
+ * Names exist only while a switch runs, so they never create stacking contexts the rest of
+ * the time. The brand and the buttons both screens share glide to their new places; each
+ * screen's own blocks leave or arrive as separate layers, so nothing gets stretched.
+ */
+html[data-vt] .brand { view-transition-name: lt-brand; }
+html[data-vt] .live-toggle { view-transition-name: lt-toggle; }
+html[data-vt] .theme-btn { view-transition-name: lt-theme; }
+html[data-vt] .settings-btn { view-transition-name: lt-settings; }
+html[data-vt] .dash-stage { view-transition-name: lt-dash; }
+html[data-vt] .lm-header { view-transition-name: lt-live-head; }
+html[data-vt] .lm-instrument { view-transition-name: lt-live-hero; }
+html[data-vt] .lm-grid-3 { view-transition-name: lt-live-a; }
+html[data-vt] .lm-grid-2 { view-transition-name: lt-live-b; }
+html[data-vt] .lm-connecting { view-transition-name: lt-live-hero; }
+
+:root { --vt-ease: cubic-bezier(0.16, 1, 0.3, 1); --vt-ease-in: cubic-bezier(0.5, 0, 0.75, 0); }
+
+::view-transition-group(lt-brand),
+::view-transition-group(lt-toggle),
+::view-transition-group(lt-theme),
+::view-transition-group(lt-settings) { animation-duration: 560ms; animation-timing-function: var(--vt-ease); }
+::view-transition-old(root) { animation: 220ms var(--vt-ease-in) both lt-fade-out; }
+::view-transition-new(root) { animation: 420ms var(--vt-ease) 80ms both lt-fade-in; }
+
+/* Into Live: the dashboard sinks back and blurs; the live screen rises in, top to bottom. */
+html[data-vt="to-live"]::view-transition-old(lt-dash) { animation: 280ms var(--vt-ease-in) both lt-sink; }
+html[data-vt="to-live"]::view-transition-new(lt-live-head) { animation: 520ms var(--vt-ease) 90ms both lt-rise; }
+html[data-vt="to-live"]::view-transition-new(lt-live-hero) { animation: 680ms var(--vt-ease) 130ms both lt-rise-hero; }
+html[data-vt="to-live"]::view-transition-new(lt-live-a) { animation: 640ms var(--vt-ease) 210ms both lt-rise; }
+html[data-vt="to-live"]::view-transition-new(lt-live-b) { animation: 640ms var(--vt-ease) 280ms both lt-rise; }
+
+/* Out of Live: the live screen sinks back, lowest rows first; the dashboard rises in. */
+html[data-vt="from-live"]::view-transition-old(lt-live-b) { animation: 240ms var(--vt-ease-in) both lt-sink; }
+html[data-vt="from-live"]::view-transition-old(lt-live-a) { animation: 240ms var(--vt-ease-in) 30ms both lt-sink; }
+html[data-vt="from-live"]::view-transition-old(lt-live-hero) { animation: 260ms var(--vt-ease-in) 60ms both lt-sink; }
+html[data-vt="from-live"]::view-transition-old(lt-live-head) { animation: 240ms var(--vt-ease-in) 80ms both lt-sink; }
+html[data-vt="from-live"]::view-transition-new(lt-dash) { animation: 620ms var(--vt-ease) 160ms both lt-rise; }
+
+@keyframes lt-fade-out { to { opacity: 0; } }
+@keyframes lt-fade-in { from { opacity: 0; } }
+@keyframes lt-sink {
+  to { opacity: 0; transform: translateY(-10px) scale(0.975); filter: blur(10px); }
+}
+@keyframes lt-rise {
+  from { opacity: 0; transform: translateY(28px) scale(0.985); filter: blur(6px); }
+}
+@keyframes lt-rise-hero {
+  from { opacity: 0; transform: translateY(36px) scale(0.96); filter: blur(10px); }
+}
+
+/* Browsers without view transitions still get the live screen rising in. */
+@supports not (view-transition-name: none) {
+  .lm > * { animation: lt-rise 600ms var(--vt-ease) both; }
+  .lm > :nth-child(2) { animation-delay: 60ms; }
+  .lm > :nth-child(3) { animation-delay: 120ms; }
+  .lm > :nth-child(n + 4) { animation-delay: 180ms; }
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1020px) {
@@ -1606,7 +1671,8 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spin, .live-toggle svg, .lm-badge i, .lm-pulse, .lm-tick, .lm-feed-row { animation: none; }
+  .spin, .live-toggle svg, .lm-badge i, .lm-pulse, .lm-tick, .lm-feed-row, .lm > * { animation: none; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   *, *::before, *::after { transition-duration: 0s !important; scroll-behavior: auto !important; }
 }
 
