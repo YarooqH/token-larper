@@ -1406,6 +1406,8 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }
 .lm-figure { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
 .lm-figure small { margin-left: 0.22em; color: var(--text-3); font-size: 0.5em; letter-spacing: 0; }
+/* "5.5 K/min": a unit that follows K, M or B joins it rather than standing apart. */
+.lm-figure:has(small) + em { margin-left: 1px; }
 .lm-readout-value em, .lm-session dd em {
   margin-left: 4px;
   color: var(--text-3);
