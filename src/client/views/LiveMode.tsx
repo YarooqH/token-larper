@@ -317,12 +317,12 @@ function Tape({ events, now, spanMs }: { events: LiveEvent[]; now: number; spanM
   );
 }
 
-function Readout({ label, children, note }: { label: string; children: React.ReactNode; note: string }) {
+function Readout({ label, children, note, hint }: { label: string; children: React.ReactNode; note?: string; hint: string }) {
   return (
-    <div className="lm-readout">
+    <div className="lm-readout" title={hint}>
       <span className="lm-label">{label}</span>
       <span className="lm-readout-value">{children}</span>
-      <span className="lm-note">{note}</span>
+      {note && <span className="lm-note">{note}</span>}
     </div>
   );
 }
@@ -345,30 +345,31 @@ function Instrument({ events, now, spanMs, order, lead }: {
   const perResponse = hour.responses > 0 ? hour.cost / hour.responses : null;
 
   const burn = (
-    <Readout key="burn" label="Burn rate" note={`${formatCurrency(hour.cost)} in the last hour`}>
+    <Readout key="burn" label="Burn rate" note={`${formatCurrency(hour.cost)} last hour`} hint="The last 5 minutes' pace, at API list prices">
       {formatCurrency(five.cost * 12)}<em>/hr</em>
     </Readout>
   );
   const readouts = [
     ...(lead === "tokens" ? [burn] : []),
-    <Readout key="output" label="Output" note={`${formatCompactNumber(five.outputTokens / 5)}/min over 5 min`}>
+    <Readout key="output" label="Output" note={`5-min avg ${formatCompactNumber(five.outputTokens / 5)}`} hint="Tokens the models wrote in the last minute">
       <Figure value={minute.outputTokens} />
       <em>/min</em>
     </Readout>,
-    <Readout key="speed" label="Speed" note="Median response, last 5 min">
+    <Readout key="speed" label="Speed" hint="The median response's output tokens per second over the last 5 minutes, including the wait for the first token">
       {speed ? <>{formatRate(speed.median)}<em>tok/s</em></> : <span className="lm-dim">—</span>}
     </Readout>,
-    <Readout key="requests" label="Requests" note={`${(five.responses / 5).toFixed(1)}/min over 5 min`}>
+    <Readout key="requests" label="Requests" note={`5-min avg ${(five.responses / 5).toFixed(1)}`} hint="Responses that finished in the last minute">
       {minute.responses}<em>/min</em>
     </Readout>,
     <Readout
       key="context"
       label="Context"
-      note={biggest ? `${biggest.project || nameOf(biggest.harness)}, the largest active session` : "No session in the last 15 min"}
+      note={biggest ? biggest.project || nameOf(biggest.harness) : undefined}
+      hint="The largest latest prompt among sessions active in the last 15 minutes, cache included"
     >
       {biggest ? <Figure value={biggest.context} /> : <span className="lm-dim">—</span>}
     </Readout>,
-    <Readout key="agents" label="Agents working" note={`${sessions.length} active in the last 15 min`}>
+    <Readout key="agents" label="Agents working" note={`${sessions.length} in 15 min`} hint="Sessions that answered in the last minute">
       {working}<em>{working === 1 ? "session" : "sessions"}</em>
     </Readout>,
   ];
@@ -383,35 +384,32 @@ function Instrument({ events, now, spanMs, order, lead }: {
               {formatCurrency(five.cost * 12)}
               <small>/hr</small>
             </span>
-            <span className="lm-note">
-              {formatCurrency(hour.cost)} in the last hour
-              {perResponse !== null && ` · ${formatCurrency(perResponse)} per response`} · at API list prices, from the last 5 min
+            <span className="lm-note" title="The last 5 minutes' pace, at API list prices">
+              {formatCurrency(hour.cost)} last hour
+              {perResponse !== null && ` · ${formatCurrency(perResponse)} per response`}
             </span>
           </div>
         ) : (
           <div className="lm-hero-main">
             <div className="lm-hero-pair">
               <div>
-                <span className="lm-label">New tokens per minute</span>
+                <span className="lm-label" title="Input, cache writes and output in the last minute">New tokens per minute</span>
                 <Figure value={newTokens(minute)} className="lm-hero-figure" />
               </div>
               <div className="lm-hero-side">
-                <span className="lm-label">Cache re-reads</span>
+                <span className="lm-label" title="The conversation sent again from cache with each request">Cache re-reads</span>
                 <span className="lm-hero-side-value"><Figure value={minute.cacheReadTokens} /><em>/min</em></span>
               </div>
             </div>
-            <span className="lm-note">
-              Input, cache writes and output in the last minute · {formatCompactNumber(newTokens(five) / 5)}/min over 5 min. Cache
-              re-reads are the conversation sent again with each request.
-            </span>
+            <span className="lm-note">5-min avg {formatCompactNumber(newTokens(five) / 5)}</span>
           </div>
         )}
         <div className="lm-readouts">{readouts}</div>
       </div>
       {lead === "cost" ? (
-        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={eventTokens} title="Tokens per minute, cache re-reads included" />
+        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={eventTokens} title="Tokens / min, incl. cache re-reads" />
       ) : (
-        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={newTokens} title="New tokens per minute, cache re-reads left out" />
+        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={newTokens} title="New tokens / min" />
       )}
       <Tape events={events} now={now} spanMs={spanMs} />
     </section>
@@ -428,7 +426,7 @@ function RankList({ title, rows, by, spanMinutes }: { title: string; rows: Ranke
     <section className="lm-panel">
       <header className="lm-panel-head">
         <h2>{title}</h2>
-        <span className="lm-note">Tokens in the last {spanMinutes} min</span>
+        <span className="lm-note">Last {spanMinutes} min</span>
       </header>
       {shown.length === 0 ? (
         <p className="lm-empty">Nothing yet.</p>
@@ -490,8 +488,8 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
   return (
     <section className="lm-panel">
       <header className="lm-panel-head">
-        <h2>Output speed</h2>
-        <span className="lm-note">{current ? `≈${formatRate(current.median)} tok/s median, last 5 min` : "No timed responses yet"}</span>
+        <h2 title="Each dot is one response, timed from the request to its last token. The line is the median of the 5 minutes before it.">Output speed</h2>
+        <span className="lm-note">{current ? `median ${formatRate(current.median)} tok/s` : "No timed responses yet"}</span>
       </header>
       <div className="lm-speed" ref={ref}>
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Output speed of ${points.length} responses`}>
@@ -506,7 +504,6 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
           {median.length > 1 && <path className="lm-median" d={median.join(" ")} />}
         </svg>
       </div>
-      <p className="lm-note">Dots are single responses, timed from the request to the last token. The line is the median of the 5 minutes before it.</p>
     </section>
   );
 }
@@ -518,7 +515,7 @@ function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
     <section className="lm-panel lm-sessions">
       <header className="lm-panel-head">
         <h2>Sessions</h2>
-        <span className="lm-note">With a response in the last 15 min</span>
+        <span className="lm-note">Last 15 min</span>
       </header>
       {sessions.length === 0 ? (
         <p className="lm-empty">No session has answered in the last 15 minutes.</p>
@@ -568,7 +565,6 @@ function Feed({ events }: { events: LiveEvent[] }) {
     <section className="lm-panel lm-feed">
       <header className="lm-panel-head">
         <h2>Responses</h2>
-        <span className="lm-note">Newest first</span>
       </header>
       {latest.length === 0 ? (
         <p className="lm-empty">Waiting for the first response.</p>
@@ -642,11 +638,6 @@ export function LiveBoard({ feed, initialLead }: { feed: LiveFeed; initialLead?:
         <Sessions events={events} now={now} />
         <Feed events={events} />
       </div>
-      <p className="lm-footnote">
-        Following {feed.snapshot.files} {feed.snapshot.files === 1 ? "session file" : "session files"} from the last hour.
-        {notFollowed.length > 0 && ` ${listFormat.format(notFollowed)} ${notFollowed.length === 1 ? "isn't" : "aren't"} followed live.`}
-        {" "}Press Esc to leave Live mode.
-      </p>
       <Limitations notFollowed={notFollowed} />
     </div>
   );

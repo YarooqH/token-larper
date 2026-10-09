@@ -1405,7 +1405,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-dim { color: var(--text-3); }
 .lm-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }
 .lm-figure { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
-.lm-figure small { margin-left: 0.04em; color: var(--text-3); font-size: 0.5em; letter-spacing: 0; }
+.lm-figure small { margin-left: 0.22em; color: var(--text-3); font-size: 0.5em; letter-spacing: 0; }
 .lm-readout-value em, .lm-session dd em {
   margin-left: 4px;
   color: var(--text-3);
@@ -1511,7 +1511,6 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-feed-row code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lm-feed-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
-.lm-footnote { color: var(--text-3); font-size: 12px; text-align: center; }
 
 
 .lm-limits-link {

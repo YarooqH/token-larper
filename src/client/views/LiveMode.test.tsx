@@ -38,7 +38,7 @@ describe("Live mode", () => {
     expect(html).toContain('aria-label="Burn rate"');
     expect(html).toContain('lm-hero-figure">$0.48<small>/hr</small>');
     expect(html).toContain("$0.04 per response");
-    expect(html).toContain("Tokens per minute, cache re-reads included");
+    expect(html).toContain("Tokens / min, incl. cache re-reads");
     for (const heading of ["By tool", "By model", "Output speed", "Sessions", "Responses"]) expect(html).toContain(`>${heading}<`);
     expect(html).toContain('class="lm-tick is-new"');
   });
@@ -49,16 +49,16 @@ describe("Live mode", () => {
     expect(html).toContain('lm-hero-figure">405</span>');
     expect(html).toContain(">Cache re-reads<");
     expect(html).toContain("120.0<small>K</small>");
-    expect(html).toContain("New tokens per minute, cache re-reads left out");
+    expect(html).toContain("New tokens / min<");
     expect(html).toContain('<span class="lm-label">Burn rate</span>');
   });
 
   test("shows the largest active context and how many agents are working", () => {
     const html = render(<LiveBoard feed={feed([event({}), event({ id: "e2", session: "s2", project: "other", at: NOW - 5 * 60_000, cacheReadTokens: 900_000 })])} />);
     expect(html).toContain(">Context<");
-    expect(html).toContain("other, the largest active session");
+    expect(html).toContain('<span class="lm-note">other</span>');
     expect(html).toContain(">Agents working<");
-    expect(html).toContain("2 active in the last 15 min");
+    expect(html).toContain("2 in 15 min");
   });
 
   test("keeps the oldest time label inside the chart", () => {
@@ -77,12 +77,10 @@ describe("Live mode", () => {
     expect(two).toContain('aria-label="Tool"');
   });
 
-  test("says which tools in use aren't followed live, and how to leave", () => {
+  test("says which tools in use aren't followed live", () => {
     const data = { ...fakeDashboard().data, harnesses: [harness("antigravity", "Antigravity"), harness("opencode", "OpenCode")] };
     const html = render(<LiveBoard feed={feed([])} />, { data });
-    expect(html).toContain("OpenCode isn&#x27;t followed live");
     expect(html).toContain("Of the tools you use, OpenCode isn&#x27;t followed");
-    expect(html).toContain("Press Esc to leave Live mode");
     expect(html).toContain("Each response lands here as it finishes");
   });
 
