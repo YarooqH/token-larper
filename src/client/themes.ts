@@ -196,13 +196,13 @@ function luminance(hex: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function contrast(a: string, b: string): number {
+export function contrast(a: string, b: string): number {
   const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p) as [number, number];
   return (x + 0.05) / (y + 0.05);
 }
 
 /** Whichever of white or near-black reads better on the accent (buttons, badges). */
-function inkFor(accent: string): string {
+export function inkFor(accent: string): string {
   return contrast("#ffffff", accent) >= contrast("#101010", accent) ? "#ffffff" : "#101010";
 }
 
