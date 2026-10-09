@@ -1484,7 +1484,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-speed-dot { fill-opacity: 0.85; stroke: var(--surface); stroke-width: 1.5; }
 .lm-median { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; opacity: 0.7; }
 
-.lm-session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; max-height: 420px; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.lm-session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }
 .lm-session { display: grid; gap: 10px; min-width: 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
 .lm-session header { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .lm-session header strong { min-width: 0; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
@@ -1497,18 +1497,31 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-pulse { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--text-3); }
 .lm-pulse.is-on { background: var(--accent); animation: live-pulse 1.6s ease-out infinite; }
 
-.lm-feed ol {
-  display: grid;
-  list-style: none;
+.lm-feed ol { display: grid; list-style: none; }
+/*
+ * Capped lists scroll inside their panel. The scrollbar sits out in the panel's side padding,
+ * clear of the numbers, while the rows stay lined up with the heading; its space is kept
+ * reserved so rows don't shift when it appears.
+ */
+.lm-feed ol, .lm-session-grid {
   max-height: 420px;
   min-height: 0;
+  margin-right: -14px;
+  padding-right: 14px;
   overflow-y: auto;
-  /* The fade covers this padding, so the last row is clear once the list is scrolled to the end. */
-  padding-bottom: 24px;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
-  mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
+}
+/* A fade pinned to the bottom of the list hints at more rows without fading the scrollbar.
+   At the end of the list it sits below the last row, so that row is never dimmed. */
+.lm-feed ol::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  height: 28px;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
 }
 .lm-feed-row {
   display: grid;
