@@ -33,13 +33,36 @@ const feed = (events: LiveEvent[], over: Partial<LiveFeed> = {}): LiveFeed => ({
 const harness = (id: HarnessSummary["meta"]["id"], name: string) => ({ meta: { id, name, hasUsage: true } }) as HarnessSummary;
 
 describe("Live mode", () => {
-  test("leads with tokens per minute and shows the tape, tools, models, speed, sessions and feed", () => {
-    const html = render(<LiveBoard feed={feed([event({})])} />);
-    expect(html).toContain("Tokens per minute");
-    expect(html).toContain('lm-hero-figure">120.4<small>K</small>');
+  test("leads with the burn rate by default, with the panels below", () => {
+    const html = render(<LiveBoard feed={feed([event({})])} initialLead="cost" />);
+    expect(html).toContain('aria-label="Burn rate"');
+    expect(html).toContain('lm-hero-figure">$0.48<small>/hr</small>');
+    expect(html).toContain("$0.04 per response");
+    expect(html).toContain("Tokens per minute, cache re-reads included");
     for (const heading of ["By tool", "By model", "Output speed", "Sessions", "Responses"]) expect(html).toContain(`>${heading}<`);
-    expect(html).toContain("token-larper");
     expect(html).toContain('class="lm-tick is-new"');
+  });
+
+  test("can lead with new tokens instead, with cache re-reads beside them and the burn rate in the readouts", () => {
+    const html = render(<LiveBoard feed={feed([event({})])} initialLead="tokens" />);
+    expect(html).toContain("New tokens per minute");
+    expect(html).toContain('lm-hero-figure">405</span>');
+    expect(html).toContain(">Cache re-reads<");
+    expect(html).toContain("120.0<small>K</small>");
+    expect(html).toContain("New tokens per minute, cache re-reads left out");
+    expect(html).toContain('<span class="lm-label">Burn rate</span>');
+  });
+
+  test("shows the largest active context and how many agents are working", () => {
+    const html = render(<LiveBoard feed={feed([event({}), event({ id: "e2", session: "s2", project: "other", at: NOW - 5 * 60_000, cacheReadTokens: 900_000 })])} />);
+    expect(html).toContain(">Context<");
+    expect(html).toContain("other, the largest active session");
+    expect(html).toContain(">Agents working<");
+    expect(html).toContain("2 active in the last 15 min");
+  });
+
+  test("keeps the oldest time label inside the chart", () => {
+    expect(render(<LiveBoard feed={feed([event({})])} />)).toContain('class="is-start"');
   });
 
   test("shows a session's context size from its latest prompt", () => {

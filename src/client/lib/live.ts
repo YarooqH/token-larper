@@ -161,6 +161,10 @@ export function liveSessions(events: LiveEvent[], now: number, withinMs: number)
   return out.sort((a, b) => b.lastAt - a.lastAt);
 }
 
+/** What is new in a response: input, cache writes and output, without re-reading the cached prompt. */
+export const newTokens = (t: { inputTokens: number; cacheCreationTokens: number; outputTokens: number }) =>
+  t.inputTokens + t.cacheCreationTokens + t.outputTokens;
+
 /** Everything the model wrote, thinking included, for speed. */
 const generated = (e: LiveEvent) => e.outputTokens + (e.reasoningTokens ?? 0);
 
@@ -183,7 +187,14 @@ export interface RollingSeries {
  * for each key. The last sample equals the "last minute" figure, so the trace and the headline
  * number always agree.
  */
-export function rollingSeries(events: LiveEvent[], now: number, spanMs: number, stepMs: number, keyOf: (e: LiveEvent) => string): RollingSeries {
+export function rollingSeries(
+  events: LiveEvent[],
+  now: number,
+  spanMs: number,
+  stepMs: number,
+  keyOf: (e: LiveEvent) => string,
+  valueOf: (e: LiveEvent) => number = eventTokens,
+): RollingSeries {
   const count = Math.floor(spanMs / stepMs) + 1;
   const times = Array.from({ length: count }, (_, i) => now - (count - 1 - i) * stepMs);
   const byKey = new Map<string, number[]>();
@@ -193,7 +204,7 @@ export function rollingSeries(events: LiveEvent[], now: number, spanMs: number, 
     const key = keyOf(e);
     let values = byKey.get(key);
     if (!values) byKey.set(key, (values = new Array<number>(count).fill(0)));
-    const tokens = eventTokens(e);
+    const tokens = valueOf(e);
     // The event counts toward every sample in (at, at + 1 min].
     const from = Math.max(0, Math.ceil((e.at - times[0]!) / stepMs));
     for (let i = from; i < count && times[i]! - e.at < MINUTE; i++) if (times[i]! >= e.at) values[i]! += tokens;

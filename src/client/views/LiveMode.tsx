@@ -6,9 +6,11 @@ import { formatRate } from "../lib/throughput.ts";
 import {
   MINUTE,
   ago,
+  eventTokens,
   forTool,
   liveSessions,
   liveSpeed,
+  newTokens,
   rankBy,
   responseSpeed,
   rollingSeries,
@@ -28,6 +30,22 @@ const SPANS: Span[] = [15, 60];
 const SESSION_WINDOW_MS = 15 * MINUTE;
 const FEED_LENGTH = 14;
 const LIMITS_ID = "live-limitations";
+
+/** What the big number leads with: the dollars per hour, or the tokens that are new each minute. */
+export type Lead = "cost" | "tokens";
+const LEADS: { id: Lead; label: string }[] = [
+  { id: "cost", label: "Burn rate" },
+  { id: "tokens", label: "New tokens" },
+];
+const LEAD_KEY = "token-larper-live-lead";
+
+function loadLead(): Lead {
+  try {
+    return localStorage.getItem(LEAD_KEY) === "tokens" ? "tokens" : "cost";
+  } catch {
+    return "cost";
+  }
+}
 const MAX_MODELS = 6;
 
 const listFormat = new Intl.ListFormat("en-US", { type: "conjunction" });
@@ -70,13 +88,15 @@ function niceMax(max: number): number {
 
 // ---------------------------------------------------------------------------
 
-function Header({ feed, tool, setTool, span, setSpan, tools }: {
+function Header({ feed, tool, setTool, span, setSpan, tools, lead, setLead }: {
   feed: LiveFeed;
   tool: HarnessFilter;
   setTool: (t: HarnessFilter) => void;
   span: Span;
   setSpan: (s: Span) => void;
   tools: HarnessId[];
+  lead: Lead;
+  setLead: (l: Lead) => void;
 }) {
   const { seriesOf, nameOf } = useDashboard();
   const [fullscreen, setFullscreen] = useState(() => typeof document !== "undefined" && !!document.fullscreenElement);
@@ -106,6 +126,14 @@ function Header({ feed, tool, setTool, span, setSpan, tools }: {
         <span className="lm-clock">{clock(feed.now)}</span>
       </div>
       <div className="lm-controls">
+        <div className="lm-lead">
+          <span className="lm-lead-label" id="lm-lead-label">Lead with</span>
+          <div className="segmented" role="group" aria-labelledby="lm-lead-label">
+            {LEADS.map((l) => (
+              <button key={l.id} type="button" aria-pressed={lead === l.id} onClick={() => setLead(l.id)}>{l.label}</button>
+            ))}
+          </div>
+        </div>
         {tools.length > 1 && (
           <div className="segmented lm-tools" role="group" aria-label="Tool">
             <button type="button" aria-pressed={tool === "all"} onClick={() => setTool("all")}>All</button>
@@ -142,14 +170,24 @@ function Header({ feed, tool, setTool, span, setSpan, tools }: {
 
 // ---------------------------------------------------------------------------
 
-/** Rolling tokens per minute, stacked by tool, with a crosshair that reads every tool at that moment. */
-function Trace({ events, now, spanMs, order }: { events: LiveEvent[]; now: number; spanMs: number; order: string[] }) {
+/** A rolling per-minute measure, stacked by tool, with a crosshair that reads every tool at that moment. */
+function Trace({ events, now, spanMs, order, valueOf, title }: {
+  events: LiveEvent[];
+  now: number;
+  spanMs: number;
+  order: string[];
+  valueOf: (e: LiveEvent) => number;
+  title: string;
+}) {
   const { seriesOf, nameOf } = useDashboard();
   const [ref, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
   const height = 220;
   const step = spanMs <= 15 * MINUTE ? 5_000 : 20_000;
-  const { times, byKey } = useMemo(() => rollingSeries(events, now, spanMs, step, (e) => e.harness), [events, now, spanMs, step]);
+  const { times, byKey } = useMemo(
+    () => rollingSeries(events, now, spanMs, step, (e) => e.harness, valueOf),
+    [events, now, spanMs, step, valueOf],
+  );
   const keys = [...byKey.keys()].sort((a, b) => {
     const ia = order.indexOf(a);
     const ib = order.indexOf(b);
@@ -181,6 +219,7 @@ function Trace({ events, now, spanMs, order }: { events: LiveEvent[]; now: numbe
 
   return (
     <div className="lm-trace" ref={ref}>
+      <span className="lm-trace-title">{title}</span>
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
         {[0.5, 1].map((f) => (
           <g key={f}>
@@ -200,7 +239,7 @@ function Trace({ events, now, spanMs, order }: { events: LiveEvent[]; now: numbe
       <div
         className="lm-hit"
         role="img"
-        aria-label={`Tokens per minute over the last ${minutes} minutes, now ${formatExactNumber(totals[n - 1] ?? 0)}`}
+        aria-label={`${title} over the last ${minutes} minutes, now ${formatExactNumber(totals[n - 1] ?? 0)}`}
         onPointerMove={pick}
         onPointerLeave={() => setActive(null)}
       />
@@ -231,7 +270,9 @@ function Trace({ events, now, spanMs, order }: { events: LiveEvent[]; now: numbe
       )}
       <div className="lm-timeaxis" aria-hidden="true">
         {ticks.map((m) => (
-          <span key={m} style={{ left: `${(1 - m / minutes) * 100}%` }}>{m} min ago</span>
+          <span key={m} className={m === minutes ? "is-start" : undefined} style={{ left: `${(1 - m / minutes) * 100}%` }}>
+            {m} min ago
+          </span>
         ))}
         <span className="is-now">now</span>
       </div>
@@ -286,42 +327,92 @@ function Readout({ label, children, note }: { label: string; children: React.Rea
   );
 }
 
-function Instrument({ events, now, spanMs, order }: { events: LiveEvent[]; now: number; spanMs: number; order: string[] }) {
+function Instrument({ events, now, spanMs, order, lead }: {
+  events: LiveEvent[];
+  now: number;
+  spanMs: number;
+  order: string[];
+  lead: Lead;
+}) {
+  const { nameOf } = useDashboard();
   const minute = totalsBetween(events, now - MINUTE, Infinity);
   const five = totalsBetween(events, now - 5 * MINUTE, Infinity);
   const hour = totalsBetween(events, now - 60 * MINUTE, Infinity);
   const speed = liveSpeed(events.filter((e) => e.at >= now - 5 * MINUTE));
-  const promptTokens = minute.inputTokens + minute.cacheCreationTokens + minute.cacheReadTokens;
-  const cached = promptTokens > 0 ? Math.round((minute.cacheReadTokens / promptTokens) * 100) : null;
+  const sessions = liveSessions(events, now, SESSION_WINDOW_MS);
+  const working = sessions.filter((s) => now - s.lastAt < MINUTE).length;
+  const biggest = sessions.reduce<(typeof sessions)[number] | null>((top, s) => (!top || s.context > top.context ? s : top), null);
+  const perResponse = hour.responses > 0 ? hour.cost / hour.responses : null;
+
+  const burn = (
+    <Readout key="burn" label="Burn rate" note={`${formatCurrency(hour.cost)} in the last hour`}>
+      {formatCurrency(five.cost * 12)}<em>/hr</em>
+    </Readout>
+  );
+  const readouts = [
+    ...(lead === "tokens" ? [burn] : []),
+    <Readout key="output" label="Output" note={`${formatCompactNumber(five.outputTokens / 5)}/min over 5 min`}>
+      <Figure value={minute.outputTokens} />
+      <em>/min</em>
+    </Readout>,
+    <Readout key="speed" label="Speed" note="Median response, last 5 min">
+      {speed ? <>{formatRate(speed.median)}<em>tok/s</em></> : <span className="lm-dim">—</span>}
+    </Readout>,
+    <Readout key="requests" label="Requests" note={`${(five.responses / 5).toFixed(1)}/min over 5 min`}>
+      {minute.responses}<em>/min</em>
+    </Readout>,
+    <Readout
+      key="context"
+      label="Context"
+      note={biggest ? `${biggest.project || nameOf(biggest.harness)}, the largest active session` : "No session in the last 15 min"}
+    >
+      {biggest ? <Figure value={biggest.context} /> : <span className="lm-dim">—</span>}
+    </Readout>,
+    <Readout key="agents" label="Agents working" note={`${sessions.length} active in the last 15 min`}>
+      {working}<em>{working === 1 ? "session" : "sessions"}</em>
+    </Readout>,
+  ];
 
   return (
-    <section className="lm-instrument" aria-label="Tokens per minute">
+    <section className="lm-instrument" aria-label={lead === "cost" ? "Burn rate" : "New tokens per minute"}>
       <div className="lm-hero">
-        <div className="lm-hero-main">
-          <span className="lm-label">Tokens per minute</span>
-          <Figure value={minute.totalTokens} className="lm-hero-figure" />
-          <span className="lm-note">
-            {formatCompactNumber(five.totalTokens / 5)}/min over 5 min
-            {cached !== null && ` · ${cached}% of the prompt from cache`}
-          </span>
-        </div>
-        <div className="lm-readouts">
-          <Readout label="Output" note={`${formatCompactNumber(five.outputTokens / 5)}/min over 5 min`}>
-            <Figure value={minute.outputTokens} />
-            <em>/min</em>
-          </Readout>
-          <Readout label="Speed" note="Median response, last 5 min">
-            {speed ? <>{formatRate(speed.median)}<em>tok/s</em></> : <span className="lm-dim">—</span>}
-          </Readout>
-          <Readout label="Requests" note={`${(five.responses / 5).toFixed(1)}/min over 5 min`}>
-            {minute.responses}<em>/min</em>
-          </Readout>
-          <Readout label="Burn rate" note={`${formatCurrency(hour.cost)} in the last hour, list prices`}>
-            {formatCurrency(five.cost * 12)}<em>/hr</em>
-          </Readout>
-        </div>
+        {lead === "cost" ? (
+          <div className="lm-hero-main">
+            <span className="lm-label">Burn rate</span>
+            <span className="lm-figure lm-hero-figure">
+              {formatCurrency(five.cost * 12)}
+              <small>/hr</small>
+            </span>
+            <span className="lm-note">
+              {formatCurrency(hour.cost)} in the last hour
+              {perResponse !== null && ` · ${formatCurrency(perResponse)} per response`} · at API list prices, from the last 5 min
+            </span>
+          </div>
+        ) : (
+          <div className="lm-hero-main">
+            <div className="lm-hero-pair">
+              <div>
+                <span className="lm-label">New tokens per minute</span>
+                <Figure value={newTokens(minute)} className="lm-hero-figure" />
+              </div>
+              <div className="lm-hero-side">
+                <span className="lm-label">Cache re-reads</span>
+                <span className="lm-hero-side-value"><Figure value={minute.cacheReadTokens} /><em>/min</em></span>
+              </div>
+            </div>
+            <span className="lm-note">
+              Input, cache writes and output in the last minute · {formatCompactNumber(newTokens(five) / 5)}/min over 5 min. Cache
+              re-reads are the conversation sent again with each request.
+            </span>
+          </div>
+        )}
+        <div className="lm-readouts">{readouts}</div>
       </div>
-      <Trace events={events} now={now} spanMs={spanMs} order={order} />
+      {lead === "cost" ? (
+        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={eventTokens} title="Tokens per minute, cache re-reads included" />
+      ) : (
+        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={newTokens} title="New tokens per minute, cache re-reads left out" />
+      )}
       <Tape events={events} now={now} spanMs={spanMs} />
     </section>
   );
@@ -505,9 +596,18 @@ function Feed({ events }: { events: LiveEvent[] }) {
 // ---------------------------------------------------------------------------
 
 /** Live mode with a given feed; split from LiveMode so tests can pass a fixed one. */
-export function LiveBoard({ feed }: { feed: LiveFeed }) {
+export function LiveBoard({ feed, initialLead }: { feed: LiveFeed; initialLead?: Lead }) {
   const { data, series } = useDashboard();
   const [span, setSpan] = useState<Span>(15);
+  const [lead, setLeadState] = useState<Lead>(() => initialLead ?? loadLead());
+  const setLead = (next: Lead) => {
+    setLeadState(next);
+    try {
+      localStorage.setItem(LEAD_KEY, next);
+    } catch {
+      // Storage may be disabled; the choice just doesn't stick.
+    }
+  };
   const [tool, setTool] = useState<HarnessFilter>("all");
   const { now } = feed;
   const spanMs = span * MINUTE;
@@ -531,8 +631,8 @@ export function LiveBoard({ feed }: { feed: LiveFeed }) {
 
   return (
     <div className="lm">
-      <Header feed={feed} tool={tool} setTool={setTool} span={span} setSpan={setSpan} tools={tools} />
-      <Instrument events={events} now={now} spanMs={spanMs} order={order} />
+      <Header feed={feed} tool={tool} setTool={setTool} span={span} setSpan={setSpan} tools={tools} lead={lead} setLead={setLead} />
+      <Instrument events={events} now={now} spanMs={spanMs} order={order} lead={lead} />
       <div className="lm-grid-3">
         <RankList title="By tool" rows={byTool} by="tool" spanMinutes={span} />
         <RankList title="By model" rows={byModel} by="model" spanMinutes={span} />
