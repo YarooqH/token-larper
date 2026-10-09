@@ -469,20 +469,23 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
   const { seriesOf, nameOf } = useDashboard();
   const [ref, width] = useWidth<HTMLDivElement>();
   const height = 180;
-  const points = events
-    .filter((e) => now - e.at <= spanMs)
+  const inSpan = events.filter((e) => now - e.at <= spanMs);
+  const points = inSpan
     .map((e) => ({ e, v: responseSpeed(e) }))
     .filter((p): p is { e: LiveEvent; v: number } => p.v !== null);
-  const yMax = niceMax(Math.max(10, ...points.map((p) => p.v)) * 1.05);
-  const x = (t: number) => width - ((now - t) / spanMs) * width;
-  const y = (v: number) => height - (v / yMax) * (height - 6) - 3;
 
+  // The median only uses responses inside the span, so the line never runs where no dots are.
   const step = spanMs / 60;
-  const median: string[] = [];
+  const medians: { t: number; v: number }[] = [];
   for (let t = now - spanMs; t <= now + 1; t += step) {
-    const s = liveSpeed(events.filter((e) => e.at > t - 5 * MINUTE && e.at <= t));
-    if (s) median.push(`${median.length ? "L" : "M"}${x(t).toFixed(1)},${y(s.median).toFixed(1)}`);
+    const s = liveSpeed(inSpan.filter((e) => e.at > t - 5 * MINUTE && e.at <= t));
+    if (s) medians.push({ t, v: s.median });
   }
+  // Scale to everything drawn, the line included, so nothing lands outside the chart.
+  const yMax = niceMax(Math.max(10, ...points.map((p) => p.v), ...medians.map((m) => m.v)) * 1.05);
+  const x = (t: number) => width - ((now - t) / spanMs) * width;
+  const y = (v: number) => height - (Math.min(v, yMax) / yMax) * (height - 6) - 3;
+  const median = medians.map((m, i) => `${i ? "L" : "M"}${x(m.t).toFixed(1)},${y(m.v).toFixed(1)}`);
   const current = liveSpeed(events.filter((e) => e.at >= now - 5 * MINUTE));
 
   return (

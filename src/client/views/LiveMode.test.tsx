@@ -99,4 +99,20 @@ describe("Live mode", () => {
     expect(html).toContain('aria-controls="live-limitations"');
     expect(html).not.toContain("plan meter");
   });
+
+  test("draws no speed line from responses before the time span, and keeps it inside the chart", () => {
+    // Fast responses just before the 15-minute span used to send the median line far off the top.
+    const before = [0, 1, 2].map((i) => event({ id: `b${i}`, at: NOW - 17 * 60_000 + i * 1000, start: NOW - 17 * 60_000 + i * 1000 - 3_000, outputTokens: 3_000 }));
+    const empty = render(<LiveBoard feed={feed(before)} />);
+    expect(empty).not.toContain('class="lm-median"');
+
+    const inside = [0, 1, 2].map((i) => event({ id: `i${i}`, at: NOW - 60_000 * (i + 1), start: NOW - 60_000 * (i + 1) - 4_000 }));
+    const html = render(<LiveBoard feed={feed([...before, ...inside])} />);
+    const path = /class="lm-median" d="([^"]+)"/.exec(html)?.[1] ?? "";
+    expect(path).not.toBe("");
+    for (const [, y] of path.matchAll(/,(-?[\d.]+)/g)) {
+      expect(Number(y)).toBeGreaterThanOrEqual(0);
+      expect(Number(y)).toBeLessThanOrEqual(180);
+    }
+  });
 });
