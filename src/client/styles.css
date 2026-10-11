@@ -809,14 +809,19 @@ img { display: block; }
 }
 
 .sheet-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 20px; align-items: center; }
-.sheet-level { display: grid; justify-items: center; min-width: 56px; font-family: var(--sheet-serif); }
-.sheet-level span { color: var(--text-3); font-size: 14px; font-variant: small-caps; line-height: 1; }
-.sheet-level strong { font-size: 52px; font-weight: 700; line-height: 1; }
+.sheet-flame { width: 44px; height: 44px; color: var(--text-3); }
+.sheet-flame.is-lit { color: var(--gold); }
 .sheet-identity { display: grid; min-width: 0; }
 .sheet-identity h2 { font-family: var(--sheet-serif); font-size: clamp(24px, 3.2vw, 32px); font-weight: 700; line-height: 1.15; }
-.xp-bar { display: block; max-width: 460px; height: 8px; margin-top: 10px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
-.xp-bar span { display: block; height: 100%; background: var(--gold); }
-.xp-label { margin-top: 6px; color: var(--text-3); font-size: 12.5px; }
+.xp-label { margin-top: 12px; color: var(--text-3); font-size: 12.5px; }
+.week { display: flex; gap: 12px; margin-top: 14px; list-style: none; }
+.week-day { display: grid; justify-items: center; gap: 5px; }
+.week-dot { width: 16px; height: 16px; border: 2px solid var(--border-strong); border-radius: 50%; }
+.week-day.is-used .week-dot { border-color: var(--gold); background: var(--gold); }
+.week-day.is-today .week-dot { border-color: var(--text-2); }
+.week-day.is-used.is-today .week-dot { border-color: var(--gold); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--gold); }
+.week-name { color: var(--text-3); font-size: 11px; font-weight: 600; line-height: 1; }
+.week-day.is-today .week-name { color: var(--text); }
 .sheet-share { align-self: start; border-color: transparent; background: transparent; }
 .sheet-share:hover { background: var(--surface-2); }
 
@@ -833,6 +838,8 @@ img { display: block; }
 .sheet-rival strong { display: block; overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .rival-bar { display: block; height: 4px; margin-top: 8px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
 .rival-bar span { display: block; height: 100%; background: var(--text-2); }
+.rank-bar span { background: var(--gold); }
+.rank-level { margin-left: 6px; color: var(--text-3); font-size: 12.5px; font-weight: 500; }
 
 .sheet-badges { grid-template-columns: 110px minmax(0, 1fr); align-items: start; }
 .sheet-badges .sheet-row-label { padding-top: 9px; }
@@ -1776,8 +1783,8 @@ html[data-vt="from-live"]::view-transition-new(lt-dash) { animation: 620ms var(-
   .table-compact .bar-col { display: none; }
   .sheet { margin-top: 24px; }
   .sheet-head { gap: 14px; }
-  .sheet-level { min-width: 44px; }
-  .sheet-level strong { font-size: 40px; }
+  .sheet-flame { width: 34px; height: 34px; }
+  .week { gap: 9px; }
   .sheet-numbers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sheet-row, .sheet-badges { grid-template-columns: 1fr; gap: 8px; }
   .sheet-badges .sheet-row-label { padding-top: 0; }

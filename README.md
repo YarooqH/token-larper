@@ -395,8 +395,8 @@ NO_TRAY=1 bun start
 
 ## Hall of Larp (Rank & Gamification)
 
-Token Larper includes a dedicated **Stats** tab designed to celebrate your token burn. Your current day streak sits in the header next to the tab, and in the tray popup:
-* **11 Lifetime Tiers**: Progress from *Script Larper* (0 tokens) to *Deity of the Infinite Context Window* (1B+ tokens).
+Token Larper includes a dedicated **Stats** tab designed to celebrate your token burn. It opens on your day streak, with the last seven days, and the same streak sits in the header and in the tray popup:
+* **11 Lifetime Tiers**: Progress from *Newcomer* (0 tokens) to *Legend* (100B tokens), shown as a single rank row with your progress to the next tier.
 * **Rival Leaderboards**: Compete against quirky procedural AI rivals as your token count climbs.
 * **14 Achievements**: Unlock badges for late-night hacking sessions, burning $100+ in a single day, or harnessing 5+ different agents.
 * **Shareable Rank Card**: Generate and export a 1200×630 PNG badge to share on X/Twitter or Discord. Project paths and names are strictly sanitized and never included.

@@ -12,24 +12,24 @@ export interface Tier {
   level: number;
   min: number;
   title: string;
-  quip: string;
 }
 
-const TIER_LIST: [number, string, string][] = [
-  [0, "Free-Tier Tourist", "Barely warming up the GPU rack."],
-  [1e6, "Prompt Apprentice", "Still reads stack traces by hand."],
-  [10e6, "Context Goblin", "Stuffs whole files into the prompt like a raccoon at a buffet."],
-  [50e6, "Prompt Warlock", "Why write a five-line script when 40M tokens can do it?"],
-  [250e6, "Context Window Whale", "Their ~/.claude folder has its own gravitational field."],
-  [1e9, "Arch-Duke of Token Burn", "A billion tokens incinerated for one quick refactor."],
-  [2.5e9, "Giga-Token Sovereign", "Keeps an H100 warm at all times."],
-  [5e9, "Cache Lich", "No longer writes code. Summons it."],
-  [10e9, "Datacenter Warlord", "The utility company knows them by name."],
-  [25e9, "GPU Emperor", "Export controls were written with them in mind."],
-  [100e9, "The Final Boss of Inference", "There is nothing left to rank. Go outside."],
+// Lifetime tokens needed for each level. The names are plain on purpose.
+const TIER_LIST: [number, string][] = [
+  [0, "Newcomer"],
+  [1e6, "Explorer"],
+  [10e6, "Regular"],
+  [50e6, "Builder"],
+  [250e6, "Power User"],
+  [1e9, "Heavy User"],
+  [2.5e9, "Expert"],
+  [5e9, "Veteran"],
+  [10e9, "Master"],
+  [25e9, "Grandmaster"],
+  [100e9, "Legend"],
 ];
 
-export const TIERS: Tier[] = TIER_LIST.map(([min, title, quip], i) => ({ level: i + 1, min, title, quip }));
+export const TIERS: Tier[] = TIER_LIST.map(([min, title], i) => ({ level: i + 1, min, title }));
 
 export interface RankState {
   tier: Tier;
