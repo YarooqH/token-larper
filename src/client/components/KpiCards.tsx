@@ -5,7 +5,7 @@ import { daysInRange, sparkline, summarize, type RangeTotals } from "../lib/aggr
 import { daysInRange as spanDays, formatDay, previousRange } from "../lib/range.ts";
 import { formatCompactNumber, formatCurrency, formatExactNumber } from "../utils.ts";
 
-function Sparkline({ values }: { values: number[] }) {
+export function Sparkline({ values }: { values: number[] }) {
   if (values.length < 2 || values.every((v) => v === 0)) return <div className="spark spark-empty" aria-hidden="true" />;
   const max = Math.max(...values);
   const w = 100;
