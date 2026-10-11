@@ -13,6 +13,10 @@ export interface RangeThroughput {
   /** Keyed by SessionEntry.id. */
   bySession: Map<string, SpeedSummary>;
   timedByTool: Set<HarnessId>;
+  /** The per-day rows in the range, for speed over time. */
+  rows: ThroughputRow[];
+  /** modelKey()s with the selected tool's models first by all-time responses, so chart colors don't change with the range. */
+  modelOrder: string[];
 }
 
 export const modelKey = (harness: HarnessId, model: string) => `${harness}::${model}`;
@@ -34,8 +38,15 @@ export function throughputInRange(
     if (list) list.push(r);
     else map.set(key, [r]);
   };
+  const rows: ThroughputRow[] = [];
+  const allTime = new Map<string, number>();
   for (const r of payload.rows) {
+    if (harness === "all" || r.harness === harness) {
+      const key = modelKey(r.harness, r.model);
+      allTime.set(key, (allTime.get(key) ?? 0) + r.responses);
+    }
     if (!keep(r)) continue;
+    rows.push(r);
     add(toolRows, r.harness, r);
     add(modelRows, modelKey(r.harness, r.model), r);
   }
@@ -63,6 +74,8 @@ export function throughputInRange(
     activeMs,
     bySession,
     timedByTool: new Set(payload.timedByTool),
+    rows,
+    modelOrder: [...allTime].sort((a, b) => b[1] - a[1]).map(([key]) => key),
   };
 }
 

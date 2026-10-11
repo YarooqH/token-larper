@@ -4,6 +4,7 @@ import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";
 import { modelTotals } from "../lib/aggregate.ts";
 import { modelKey } from "../lib/throughput.ts";
 import { SpeedCell } from "../components/SpeedCell.tsx";
+import { SpeedTrend } from "../components/SpeedTrend.tsx";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 
 export function Models() {
@@ -102,6 +103,8 @@ export function Models() {
           {models.length === 0 && <p className="muted table-empty">No models match.</p>}
         </div>
       </section>
+
+      <SpeedTrend group="model" />
 
       {estimated && <ModelPrices models={models} priceOf={priceOf} status={data.pricing?.status} />}
     </>

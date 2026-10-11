@@ -130,7 +130,7 @@ export function summarize(days: TimePeriodRow[]): RangeTotals {
   return { ...totals, activeDays: days.length, cacheHitRate: cacheReadRate(totals), busiestDay: busiest };
 }
 
-function bucketKey(day: string, bucket: Bucket): { key: string; label: string } {
+export function bucketKey(day: string, bucket: Bucket): { key: string; label: string } {
   if (bucket === "daily") return { key: day, label: day };
   if (bucket === "monthly") {
     const d = parseDay(day);

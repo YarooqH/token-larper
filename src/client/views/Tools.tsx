@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";
 import { SpeedCell } from "../components/SpeedCell.tsx";
+import { SpeedTrend } from "../components/SpeedTrend.tsx";
 import { harnessTotals, summarize } from "../lib/aggregate.ts";
 import { formatDay } from "../lib/range.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
@@ -83,6 +84,8 @@ export function Tools() {
           </div>
         )}
       </section>
+
+      <SpeedTrend group="tool" />
 
       <section className="panel">
         <header className="panel-head">

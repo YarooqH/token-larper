@@ -57,6 +57,7 @@ Dashboard URL: http://localhost:4269
 ## Local API Endpoints
 - `GET /api/usage`: Full dashboard telemetry payload (totals, daily breakdown, models, sessions, projects).
 - `GET /api/throughput`: Output speed per day, tool, and model (with a tok/s histogram) and working time per day, read from session files. `?wait=1` waits up to 15 s for a rescan in progress.
+- `GET /api/live`: Server-Sent Events. A `snapshot` event with every response from the last hour, read from the session files of Claude Code, Codex, Pi, Gemini CLI, and Copilot CLI, then an `update` event with each batch of new or grown responses (tokens by type and list-price cost per response).
 - `GET /api/tray-status`: Summary text, tooltip, and boot configuration for system tray hosts.
 - `GET /api/startup`: Windows registry auto-boot status.
 - `POST /api/startup`: Toggle auto-start on boot (`{ "enabled": boolean, "openBrowserOnBoot": boolean }`).
