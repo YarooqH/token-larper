@@ -86,6 +86,8 @@ describe("Speed column", () => {
     activeMs: new Map(),
     bySession: new Map(),
     timedByTool: new Set<HarnessId>(["pi"]),
+    rows: [],
+    modelOrder: [],
   });
 
   test("marks speeds approximate, explains the first-token wait on hover, and dashes the rest", () => {
