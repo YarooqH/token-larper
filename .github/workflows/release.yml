@@ -1,5 +1,11 @@
-# Publishes to npm and creates a GitHub Release whenever main has a version that
-# npm doesn't. Every PR bumps package.json, so each merge becomes one release.
+# Publishes to npm and creates a GitHub Release whenever a branch below has a version
+# that npm doesn't. Every PR bumps package.json, so each merge becomes one release.
+#
+# - main publishes final versions (1.18.0) under the `latest` tag, which is what
+#   `bunx token-larper` and the in-app updater use.
+# - beta/* branches publish prereleases (1.18.0-beta.0) under the `beta` tag, for
+#   testing with `bunx token-larper@beta`. They never move `latest`. A final version
+#   pushed to a beta/* branch is skipped; it goes out when the branch merges to main.
 #
 # npm trusts this workflow directly (trusted publishing), so there is no npm token
 # to store. One-time setup on npmjs.com: token-larper > Settings > Trusted Publisher >
@@ -9,7 +15,7 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [main, "beta/**"]
   workflow_dispatch:
 
 permissions:
@@ -31,6 +37,15 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_REF_NAME" = main ]; then
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$version is not a prerelease, so $GITHUB_REF_NAME doesn't publish it. It goes out from main."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if npm view "token-larper@$version" version >/dev/null 2>&1; then
             echo "token-larper@$version is already on npm; nothing to release."
             echo "publish=false" >> "$GITHUB_OUTPUT"
@@ -57,19 +72,24 @@ jobs:
 
       - name: Publish to npm
         if: steps.version.outputs.publish == 'true'
+        env:
+          NPM_TAG: ${{ steps.version.outputs.tag }}
         run: |
           # Trusted publishing needs npm 11.5.1 or later.
           npm install -g npm@latest
-          npm publish --access public
+          npm publish --access public --tag "$NPM_TAG"
 
       - name: Create GitHub Release
         if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: v${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.tag == 'beta' }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "$TAG already exists."
+          elif [ "$PRERELEASE" = true ]; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes --prerelease
           else
             gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
           fi
