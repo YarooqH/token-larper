@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { HarnessId, LiveEvent } from "../../types.ts";
-import { useDashboard } from "../context.tsx";
+import { HarnessMark, useDashboard } from "../context.tsx";
 import { Info, Maximize2, Minimize2 } from "../components/Icons.tsx";
-import { ToolMark } from "../components/ToolMark.tsx";
+import { SeriesKey, ToolMark } from "../components/ToolMark.tsx";
 import { formatRate } from "../lib/throughput.ts";
 import {
   MINUTE,
@@ -140,7 +140,7 @@ function Header({ feed, tool, setTool, span, setSpan, tools, lead, setLead }: {
             <button type="button" aria-pressed={tool === "all"} onClick={() => setTool("all")}>All</button>
             {tools.map((h) => (
               <button key={h} type="button" aria-pressed={tool === h} onClick={() => setTool(tool === h ? "all" : h)}>
-                <i className="lm-dot" style={{ background: seriesOf(h).color }} aria-hidden="true" />
+                <ToolMark harness={h} name={nameOf(h)} color={seriesOf(h).color} decorative />
                 {nameOf(h)}
               </button>
             ))}
@@ -258,7 +258,7 @@ function Trace({ events, now, spanMs, order, valueOf, title }: {
                 .sort((a, b) => b.v - a.v)
                 .map(({ k, v }) => (
                   <li key={k}>
-                    <i style={{ background: seriesOf(k as HarnessId).color }} />
+                    <SeriesKey seriesKey={k} color={seriesOf(k as HarnessId).color} name={nameOf(k as HarnessId)} />
                     <span>{nameOf(k as HarnessId)}</span>
                     <b>{formatCompactNumber(v)}</b>
                   </li>
@@ -297,7 +297,7 @@ export function ResponseTip({ e, at }: { e: LiveEvent; at: TipAt }) {
   return (
     <div className={`lm-tip side-${at.side}`} style={{ left: at.left, top: at.top }} role="status">
       <div className="lm-tip-head">
-        <ToolMark harness={e.harness} name={nameOf(e.harness)} />
+        <HarnessMark id={e.harness} />
         <code>{e.model}</code>
         <time>{clock(e.at)}</time>
       </div>
@@ -524,14 +524,16 @@ function RankList({ title, rows, by, spanMinutes }: { title: string; rows: Ranke
           {shown.map((r) => (
             <li key={r.key}>
               <div className="lm-rank-name">
-                <i className="lm-dot" style={{ background: seriesOf(r.harness).color }} aria-hidden="true" />
                 {by === "model" ? (
                   <>
+                    <HarnessMark id={r.harness} size={15} />
                     <code>{r.model}</code>
-                    <span className="lm-note">{nameOf(r.harness)}</span>
                   </>
                 ) : (
-                  <strong>{nameOf(r.harness)}</strong>
+                  <>
+                    <ToolMark harness={r.harness} name={nameOf(r.harness)} color={seriesOf(r.harness).color} size={15} decorative />
+                    <strong>{nameOf(r.harness)}</strong>
+                  </>
                 )}
                 <Figure value={r.totals.totalTokens} className="lm-rank-value" />
               </div>
@@ -641,7 +643,7 @@ function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
                 <span className={now - s.lastAt < MINUTE ? "lm-note is-recent" : "lm-note"}>{ago(now - s.lastAt)}</span>
               </header>
               <div className="lm-session-tool">
-                <ToolMark harness={s.harness} name={nameOf(s.harness)} />
+                <HarnessMark id={s.harness} />
                 <code>{s.models[0]}</code>
               </div>
               <dl>
@@ -687,7 +689,7 @@ function Feed({ events }: { events: LiveEvent[] }) {
             return (
               <li key={e.id} className="lm-feed-row">
                 <time>{clock(e.at)}</time>
-                <i className="lm-dot" style={{ background: seriesOf(e.harness).color }} title={nameOf(e.harness)} />
+                <HarnessMark id={e.harness} />
                 <code>{e.model}</code>
                 <span className="lm-feed-num">{formatCompactNumber(e.outputTokens)} out</span>
                 <span className="lm-feed-num lm-dim">{speed ? `${formatRate(speed)} tok/s` : ""}</span>

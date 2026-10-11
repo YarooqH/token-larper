@@ -7,6 +7,7 @@ import { daysInRange, parseDay } from "../lib/range.ts";
 import { defaultSpeedBucket, metricValue, speedTrend, type SpeedMetric, type SpeedPeriod } from "../lib/speedTrend.ts";
 import { FEW_RESPONSES, formatRate, modelKey } from "../lib/throughput.ts";
 import { Segmented } from "../views/Overview.tsx";
+import { SeriesKey } from "./ToolMark.tsx";
 
 const BUCKETS: { id: Bucket; label: string }[] = [
   { id: "daily", label: "Daily" },
@@ -128,7 +129,7 @@ export function SpeedTrend({ group }: { group: "tool" | "model" }) {
           <div className="legend">
             {series.map((s) => (
               <span key={s.key} className="legend-item">
-                <i style={{ background: s.color }} aria-hidden="true" /> {s.name}
+                <SeriesKey seriesKey={s.key} color={s.color} name={s.name} /> {s.name}
               </span>
             ))}
           </div>
@@ -155,7 +156,7 @@ function SpeedTable({ series, periods }: { series: Series[]; periods: string[] }
             {series.map((s) => (
               <th key={s.key} className="num">
                 <span className="tool-tag speed-head">
-                  <i style={{ background: s.color }} aria-hidden="true" />
+                  <SeriesKey seriesKey={s.key} color={s.color} name={s.name} />
                   {s.name}
                 </span>
               </th>

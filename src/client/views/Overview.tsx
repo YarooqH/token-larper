@@ -4,6 +4,7 @@ import type { TimePeriodRow } from "../../types.ts";
 import { ActivityCalendar, TOKEN_TYPE_SERIES, UsageBarChart, formatPeriodLabel, type ChartMode } from "../charts.tsx";
 import { ShareBar, ToolTag, pct, useDashboard } from "../context.tsx";
 import { KpiCards } from "../components/KpiCards.tsx";
+import { SeriesKey } from "../components/ToolMark.tsx";
 import { bucketize, daysInRange, harnessTotals, summarize, type Bucket } from "../lib/aggregate.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 
@@ -101,7 +102,7 @@ export function Overview({ bucket, setBucket }: { bucket: Bucket; setBucket: (b:
         <div className="legend">
           {legend.map((s) => (
             <span key={s.key} className="legend-item">
-              <i style={{ background: s.color }} aria-hidden="true" /> {s.name}
+              <SeriesKey seriesKey={s.key} color={s.color} name={s.name} /> {s.name}
             </span>
           ))}
         </div>

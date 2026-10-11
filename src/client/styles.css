@@ -927,7 +927,6 @@ img { display: block; }
 .detail-card li span { color: var(--text-2); text-align: right; }
 
 .tool-tag { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
-.tool-tag i { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 2px; }
 .tag-row { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .model-name { color: var(--text); font-size: 12px; }
 .tag-row .model-name { padding: 1px 6px; border-radius: 4px; background: var(--surface-2); }
@@ -1481,7 +1480,6 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-label { color: var(--text-3); font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .lm-note { color: var(--text-3); font-size: 12.5px; }
 .lm-dim { color: var(--text-3); }
-.lm-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; }
 .lm-figure { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
 .lm-figure small { margin-left: 0.22em; color: var(--text-3); font-size: 0.5em; letter-spacing: 0; }
 /* "5.5 K/min": a unit that follows K, M or B joins it rather than standing apart. */
@@ -1598,11 +1596,13 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
   display: inline-grid;
   place-items: center;
   border-radius: 4px;
-  background: var(--surface-3);
+  background: color-mix(in srgb, currentColor 18%, transparent);
   font-family: var(--font);
   font-weight: 750;
   line-height: 1;
 }
+/* A color swatch for chart series that aren't a tool (token types, "Other"). */
+.series-swatch { display: inline-block; width: 10px; height: 10px; flex: 0 0 10px; border-radius: 3px; }
 .lm-median { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; opacity: 0.7; }
 
 .lm-session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }

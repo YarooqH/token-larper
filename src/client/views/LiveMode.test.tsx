@@ -116,12 +116,13 @@ describe("Live mode", () => {
     }
   });
 
-  test("session cards show the tool's mark and the model id, without dots", () => {
+  test("session cards show the tool's mark in its color and the model id, without dots", () => {
     const names = (id: string) => ({ claude: "Claude Code", codex: "Codex CLI" })[id] ?? id;
     const html = render(<LiveBoard feed={feed([event({}), event({ id: "e2", session: "s2", harness: "codex", model: "gpt-5.5", at: NOW - 3 * 60_000 })])} />, { nameOf: names as never });
     const cards = html.slice(html.indexOf('class="lm-session-grid"'), html.indexOf('class="lm-panel lm-feed"'));
-    expect(cards).toContain('<svg class="tool-mark" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="Claude Code">');
-    expect(cards).toContain('aria-label="Codex CLI">C</span>');
+    expect(cards).toContain('role="img" aria-label="Claude Code"');
+    expect(cards).toContain('role="img" aria-label="Codex CLI"');
+    expect(cards).toContain('style="color:#888888"');
     expect(cards).toContain("<code>claude-opus-5-5</code>");
     expect(cards).toContain("<code>gpt-5.5</code>");
     expect(cards).not.toContain("lm-dot");
@@ -142,7 +143,7 @@ describe("Live mode", () => {
 
   test("dots and ticks no longer carry the browser's own tooltip", () => {
     const html = render(<LiveBoard feed={feed([event({})])} />);
-    const charts = html.slice(html.indexOf('class="lm-tape"'), html.indexOf('class="lm-grid-2"'));
-    expect(charts).not.toContain("<title>");
+    // Marks in the panels keep their accessible <title>; the dots and ticks themselves carry none.
+    expect(html).not.toMatch(/<\/title><\/(rect|circle)>/);
   });
 });
