@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { HarnessId, LiveEvent } from "../../types.ts";
 import { useDashboard } from "../context.tsx";
 import { Info, Maximize2, Minimize2 } from "../components/Icons.tsx";
+import { ToolMark } from "../components/ToolMark.tsx";
 import { formatRate } from "../lib/throughput.ts";
 import {
   MINUTE,
@@ -280,39 +281,127 @@ function Trace({ events, now, spanMs, order, valueOf, title }: {
   );
 }
 
+/** Where a hover card sits: beside its point, on whichever side has room. */
+interface TipAt {
+  left: number;
+  top: number;
+  side: "left" | "right";
+}
+
+/** A hover card for one response: what answered, how fast, how much, and what it cost. */
+export function ResponseTip({ e, at }: { e: LiveEvent; at: TipAt }) {
+  const { nameOf } = useDashboard();
+  const speed = responseSpeed(e);
+  const secs = e.start !== undefined ? (e.at - e.start) / 1000 : null;
+  const prompt = e.inputTokens + e.cacheCreationTokens + e.cacheReadTokens;
+  return (
+    <div className={`lm-tip side-${at.side}`} style={{ left: at.left, top: at.top }} role="status">
+      <div className="lm-tip-head">
+        <ToolMark harness={e.harness} name={nameOf(e.harness)} />
+        <code>{e.model}</code>
+        <time>{clock(e.at)}</time>
+      </div>
+      {speed !== null && (
+        <div className="lm-tip-value">
+          {formatRate(speed)}
+          <em>tok/s</em>
+        </div>
+      )}
+      <dl>
+        <div>
+          <dt>Output</dt>
+          <dd>{formatExactNumber(e.outputTokens)}</dd>
+        </div>
+        {secs !== null && (
+          <div>
+            <dt>Took</dt>
+            <dd>{secs < 10 ? secs.toFixed(1) : Math.round(secs)} s</dd>
+          </div>
+        )}
+        <div>
+          <dt>Prompt</dt>
+          <dd>{formatCompactNumber(prompt)}</dd>
+        </div>
+        <div>
+          <dt>Cost</dt>
+          <dd>{formatCurrency(e.cost)}</dd>
+        </div>
+      </dl>
+      {e.project && <div className="lm-tip-foot">{e.project}</div>}
+    </div>
+  );
+}
+
+/** Which side of a point a card fits on, judged by room in the window rather than in the chart. */
+function sideFor(box: HTMLElement | null, x: number, drawnWidth: number): TipAt["side"] {
+  if (!box || drawnWidth <= 0) return "right";
+  const rect = box.getBoundingClientRect();
+  const atX = rect.left + (x / drawnWidth) * rect.width;
+  return window.innerWidth - atX < 320 ? "left" : "right";
+}
+
+/** The point nearest the pointer within `radius` px, in the drawing's own units. */
+function nearest<T>(
+  event: React.PointerEvent<HTMLElement>,
+  size: { width: number; height: number },
+  points: { item: T; x: number; y: number }[],
+  radius: number,
+  xOnly = false,
+): T | null {
+  const box = event.currentTarget.getBoundingClientRect();
+  const px = ((event.clientX - box.left) / box.width) * size.width;
+  const py = ((event.clientY - box.top) / box.height) * size.height;
+  let best: T | null = null;
+  let bestDistance = radius * radius;
+  for (const p of points) {
+    const d = (p.x - px) ** 2 + (xOnly ? 0 : (p.y - py) ** 2);
+    if (d <= bestDistance) {
+      bestDistance = d;
+      best = p.item;
+    }
+  }
+  return best;
+}
+
 /** Every response as a tick at the moment its last token landed; taller ticks wrote more output. */
 function Tape({ events, now, spanMs }: { events: LiveEvent[]; now: number; spanMs: number }) {
-  const { seriesOf, nameOf } = useDashboard();
+  const { seriesOf } = useDashboard();
   const [ref, width] = useWidth<HTMLDivElement>();
+  const [hover, setHover] = useState<string | null>(null);
   const height = 48;
   const shown = events.filter((e) => now - e.at <= spanMs);
   const maxOut = Math.max(1, ...shown.map((e) => e.outputTokens));
+  const ticks = shown.map((e) => ({
+    item: e,
+    x: width - ((now - e.at) / spanMs) * width,
+    h: Math.max(5, Math.sqrt(e.outputTokens / maxOut) * (height - 4)),
+  }));
+  const hovered = ticks.find((t) => t.item.id === hover);
   return (
-    <div className="lm-tape" ref={ref}>
+    <div
+      className="lm-tape"
+      ref={ref}
+      onPointerMove={(ev) => setHover(nearest(ev, { width, height }, ticks.map((t) => ({ ...t, y: 0 })), 10, true)?.id ?? null)}
+      onPointerLeave={() => setHover(null)}
+    >
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${shown.length} responses in the last ${spanMs / MINUTE} minutes`}>
-        {shown.map((e) => {
-          const h = Math.max(5, Math.sqrt(e.outputTokens / maxOut) * (height - 4));
-          const speed = responseSpeed(e);
-          return (
-            <rect
-              key={e.id}
-              className={now - e.at < 4_000 ? "lm-tick is-new" : "lm-tick"}
-              x={width - ((now - e.at) / spanMs) * width - 1}
-              y={height - h}
-              width={2.5}
-              height={h}
-              rx={1.25}
-              style={{ fill: seriesOf(e.harness).color }}
-            >
-              <title>
-                {`${clock(e.at)} · ${nameOf(e.harness)} · ${e.model}\n${formatExactNumber(e.outputTokens)} output tokens` +
-                  (speed ? ` · ≈${formatRate(speed)} tok/s` : "")}
-              </title>
-            </rect>
-          );
-        })}
+        {ticks.map(({ item: e, x, h }) => (
+          <rect
+            key={e.id}
+            className={`lm-tick${now - e.at < 4_000 ? " is-new" : ""}${e.id === hover ? " is-hover" : ""}`}
+            x={x - 1}
+            y={height - h}
+            width={2.5}
+            height={h}
+            rx={1.25}
+            style={{ fill: seriesOf(e.harness).color }}
+          />
+        ))}
       </svg>
       {shown.length === 0 && <p className="lm-tape-empty">Each response lands here as it finishes.</p>}
+      {hovered && (
+        <ResponseTip e={hovered.item} at={{ left: hovered.x, top: height - hovered.h / 2, side: sideFor(ref.current, hovered.x, width) }} />
+      )}
     </div>
   );
 }
@@ -466,8 +555,9 @@ function RankList({ title, rows, by, spanMinutes }: { title: string; rows: Ranke
 
 /** Each response's output speed as a dot, with the 5-minute median as a line. */
 function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number; spanMs: number }) {
-  const { seriesOf, nameOf } = useDashboard();
+  const { seriesOf } = useDashboard();
   const [ref, width] = useWidth<HTMLDivElement>();
+  const [hover, setHover] = useState<string | null>(null);
   const height = 180;
   const inSpan = events.filter((e) => now - e.at <= spanMs);
   const points = inSpan
@@ -494,6 +584,8 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
   });
   // What the heading reports matches what the chart draws: the whole span.
   const current = liveSpeed(inSpan);
+  const dots = points.map((p) => ({ item: p.e, x: x(p.e.at), y: y(p.v) }));
+  const hovered = dots.find((d) => d.item.id === hover);
 
   return (
     <section className="lm-panel">
@@ -501,25 +593,36 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
         <h2 title="Each dot is one response, timed from the request to its last token. The line is the median of the 5 minutes before it.">Output speed</h2>
         <span className="lm-note">{current ? `median ${formatRate(current.median)} tok/s` : `None in the last ${spanMs / MINUTE} min`}</span>
       </header>
-      <div className="lm-speed" ref={ref}>
+      <div
+        className="lm-speed"
+        ref={ref}
+        onPointerMove={(ev) => setHover(nearest(ev, { width, height }, dots, 16)?.id ?? null)}
+        onPointerLeave={() => setHover(null)}
+      >
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Output speed of ${points.length} responses`}>
           <line className="lm-grid" x1={0} x2={width} y1={y(yMax / 2)} y2={y(yMax / 2)} />
           <text className="lm-axis" x={4} y={y(yMax / 2) - 5}>{formatRate(yMax / 2)} tok/s</text>
           <line className="lm-grid is-base" x1={0} x2={width} y1={height} y2={height} />
-          {points.map(({ e, v }) => (
-            <circle key={e.id} className="lm-speed-dot" cx={x(e.at)} cy={y(v)} r={4} style={{ fill: seriesOf(e.harness).color }}>
-              <title>{`${clock(e.at)} · ${nameOf(e.harness)} · ${e.model}\n≈${formatRate(v)} tok/s · ${formatExactNumber(e.outputTokens)} output tokens`}</title>
-            </circle>
-          ))}
           {median.length > 1 && <path className="lm-median" d={median.join(" ")} />}
+          {dots.map(({ item: e, x: cx, y: cy }) => (
+            <circle
+              key={e.id}
+              className={e.id === hover ? "lm-speed-dot is-hover" : "lm-speed-dot"}
+              cx={cx}
+              cy={cy}
+              r={e.id === hover ? 6 : 4}
+              style={{ fill: seriesOf(e.harness).color }}
+            />
+          ))}
         </svg>
+        {hovered && <ResponseTip e={hovered.item} at={{ left: hovered.x, top: hovered.y, side: sideFor(ref.current, hovered.x, width) }} />}
       </div>
     </section>
   );
 }
 
 function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
-  const { seriesOf, nameOf } = useDashboard();
+  const { nameOf } = useDashboard();
   const sessions = useMemo(() => liveSessions(events, now, SESSION_WINDOW_MS), [events, now]);
   return (
     <section className="lm-panel lm-sessions">
@@ -534,13 +637,12 @@ function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
           {sessions.map((s) => (
             <article key={s.key} className="lm-session">
               <header>
-                <span className={`lm-pulse ${now - s.lastAt < MINUTE ? "is-on" : ""}`} aria-hidden="true" />
                 <strong>{s.project ?? "Unknown folder"}</strong>
-                <span className="lm-note">{ago(now - s.lastAt)}</span>
+                <span className={now - s.lastAt < MINUTE ? "lm-note is-recent" : "lm-note"}>{ago(now - s.lastAt)}</span>
               </header>
               <div className="lm-session-tool">
-                <i className="lm-dot" style={{ background: seriesOf(s.harness).color }} aria-hidden="true" />
-                {nameOf(s.harness)} · <code>{s.models[0]}</code>
+                <ToolMark harness={s.harness} name={nameOf(s.harness)} />
+                <code>{s.models[0]}</code>
               </div>
               <dl>
                 <div>

@@ -47,3 +47,5 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+The coding tools' marks in `src/client/components/ToolMark.tsx` (Claude, Gemini, GitHub Copilot and OpenCode) are copied from [Simple Icons](https://simpleicons.org) 16.30.0, which releases them under CC0 1.0 Universal (public domain dedication). The marks remain the trademarks of their owners and are used only to identify each tool.
