@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { HarnessSummary, LiveEvent } from "../../types.ts";
 import type { LiveFeed } from "../lib/live.ts";
-import { LiveBoard } from "./LiveMode.tsx";
+import { LiveBoard, ResponseTip } from "./LiveMode.tsx";
 import { fakeDashboard, render } from "../testing/dashboard.tsx";
 
 const NOW = Date.parse("2026-10-08T10:30:20.000Z");
@@ -38,18 +38,20 @@ describe("Live mode", () => {
     expect(html).toContain('aria-label="Burn rate"');
     expect(html).toContain('lm-hero-figure">$0.48<small>/hr</small>');
     expect(html).toContain("$0.04 per response");
-    expect(html).toContain("Tokens / min, incl. cache re-reads");
+    expect(html).toContain("Tokens / min, incl. cache reads");
     for (const heading of ["By tool", "By model", "Output speed", "Sessions", "Responses"]) expect(html).toContain(`>${heading}<`);
     expect(html).toContain('class="lm-tick is-new"');
   });
 
-  test("can lead with new tokens instead, with cache re-reads beside them and the burn rate in the readouts", () => {
+  test("can lead with uncached tokens instead, with cache reads beside them and the burn rate in the readouts", () => {
     const html = render(<LiveBoard feed={feed([event({})])} initialLead="tokens" />);
-    expect(html).toContain("New tokens per minute");
+    expect(html).toContain(">Uncached tokens per minute<");
+    expect(html).toContain("input + cache writes + output");
     expect(html).toContain('lm-hero-figure">405</span>');
-    expect(html).toContain(">Cache re-reads<");
+    expect(html).toContain(">Cache reads<");
     expect(html).toContain("120.0<small>K</small>");
-    expect(html).toContain("New tokens / min<");
+    expect(html).toContain("Uncached tokens / min<");
+    expect(html).not.toMatch(/new tokens|re-read/i);
     expect(html).toContain('<span class="lm-label">Burn rate</span>');
   });
 
@@ -114,5 +116,36 @@ describe("Live mode", () => {
       expect(Number(y)).toBeGreaterThanOrEqual(0);
       expect(Number(y)).toBeLessThanOrEqual(180);
     }
+  });
+
+  test("session cards show the tool's mark in its color and the model id, without dots", () => {
+    const names = (id: string) => ({ claude: "Claude Code", codex: "Codex CLI" })[id] ?? id;
+    const html = render(<LiveBoard feed={feed([event({}), event({ id: "e2", session: "s2", harness: "codex", model: "gpt-5.5", at: NOW - 3 * 60_000 })])} />, { nameOf: names as never });
+    const cards = html.slice(html.indexOf('class="lm-session-grid"'), html.indexOf('class="lm-panel lm-feed"'));
+    expect(cards).toContain('role="img" aria-label="Claude Code"');
+    expect(cards).toContain('role="img" aria-label="Codex CLI"');
+    expect(cards).toContain('style="color:#888888"');
+    expect(cards).toContain("<code>claude-opus-5-5</code>");
+    expect(cards).toContain("<code>gpt-5.5</code>");
+    expect(cards).not.toContain("lm-dot");
+    expect(cards).not.toContain("lm-pulse");
+    expect(cards).toContain('class="lm-note is-recent"');
+  });
+
+  test("the response card shows the model, speed, output, time taken, prompt and cost", () => {
+    const html = render(<ResponseTip e={event({})} at={{ left: 10, top: 20, side: "right" }} />);
+    expect(html).toContain("<code>claude-opus-5-5</code>");
+    expect(html).toContain('lm-tip-value">100<em>tok/s</em>');
+    expect(html).toContain(">400<");
+    expect(html).toContain(">4.0 s<");
+    expect(html).toContain("120.0K");
+    expect(html).toContain("$0.04");
+    expect(html).toContain("token-larper");
+  });
+
+  test("dots and ticks no longer carry the browser's own tooltip", () => {
+    const html = render(<LiveBoard feed={feed([event({})])} />);
+    // Marks in the panels keep their accessible <title>; the dots and ticks themselves carry none.
+    expect(html).not.toMatch(/<\/title><\/(rect|circle)>/);
   });
 });

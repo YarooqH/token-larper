@@ -161,8 +161,8 @@ export function liveSessions(events: LiveEvent[], now: number, withinMs: number)
   return out.sort((a, b) => b.lastAt - a.lastAt);
 }
 
-/** What is new in a response: input, cache writes and output, without re-reading the cached prompt. */
-export const newTokens = (t: { inputTokens: number; cacheCreationTokens: number; outputTokens: number }) =>
+/** Tokens not read back from the prompt cache: input, cache writes and output. */
+export const uncachedTokens = (t: { inputTokens: number; cacheCreationTokens: number; outputTokens: number }) =>
   t.inputTokens + t.cacheCreationTokens + t.outputTokens;
 
 /** Everything the model wrote, thinking included, for speed. */
