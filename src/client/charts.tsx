@@ -72,10 +72,13 @@ interface UsageBarChartProps {
   costOf: Cost;
   series: SeriesInfo[];
   seriesOf: (harness: HarnessId) => SeriesInfo;
-  onSelect: (row: TimePeriodRow) => void;
+  /** Clicking or pressing Enter on a bar; without it the bars only show their tooltip. */
+  onSelect?: (row: TimePeriodRow) => void;
+  /** Labels bars that aren't dates, such as the Live tab's minutes. */
+  formatLabel?: (row: TimePeriodRow, short: boolean) => string;
 }
 
-export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesOf, onSelect }: UsageBarChartProps) {
+export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesOf, onSelect, formatLabel }: UsageBarChartProps) {
   const [active, setActive] = useState<number | null>(null);
   const plotRef = useRef<HTMLDivElement>(null);
   const [plotWidth, setPlotWidth] = useState(800);
@@ -112,6 +115,7 @@ export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesO
   // Roughly one date label per 64px, so labels never collide on narrow screens.
   const labelEvery = Math.max(1, Math.ceil(rows.length / Math.max(2, Math.floor(plotWidth / 64))));
   const current = active !== null ? stacks[active] : undefined;
+  const labelOf = (row: TimePeriodRow, short = false) => formatLabel?.(row, short) ?? formatPeriodLabel(row, granularity, short);
 
   function indexFromPointer(event: React.MouseEvent<HTMLDivElement>): number {
     const box = event.currentTarget.getBoundingClientRect();
@@ -128,7 +132,7 @@ export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesO
     else if (event.key === "ArrowRight") next = Math.min(last, i + 1);
     else if (event.key === "Home") next = 0;
     else if (event.key === "End") next = last;
-    else if ((event.key === "Enter" || event.key === " ") && active !== null) {
+    else if ((event.key === "Enter" || event.key === " ") && active !== null && onSelect) {
       event.preventDefault();
       onSelect(rows[active]!);
       return;
@@ -165,10 +169,10 @@ export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesO
           className="uchart-bars"
           role="group"
           tabIndex={0}
-          aria-label="Usage chart. Use left and right arrow keys to move between periods, Enter to open details."
+          aria-label={`Usage chart. Use left and right arrow keys to move between periods${onSelect ? ", Enter to open details" : ""}.`}
           onMouseMove={(e) => setActive(indexFromPointer(e))}
           onMouseLeave={() => setActive(null)}
-          onClick={(e) => onSelect(rows[indexFromPointer(e)]!)}
+          onClick={(e) => onSelect?.(rows[indexFromPointer(e)]!)}
           onKeyDown={handleKey}
           onBlur={() => setActive(null)}
         >
@@ -197,7 +201,7 @@ export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesO
             role="status"
           >
             <div className="uchart-tip-head">
-              <strong>{formatPeriodLabel(current.row, granularity)}</strong>
+              <strong>{labelOf(current.row)}</strong>
               {current.total > 0 && (
                 <span>{isCost ? formatCurrency(current.total) : `${formatCompactNumber(current.total)} tokens`}</span>
               )}
@@ -216,7 +220,7 @@ export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesO
               </ul>
             )}
             {!isCost && current.total > 0 && (
-              <div className="uchart-tip-foot">{formatCurrency(costOf(current.row))} · click for models</div>
+              <div className="uchart-tip-foot">{formatCurrency(costOf(current.row))}{onSelect ? " · click for models" : ""}</div>
             )}
           </div>
         )}
@@ -225,7 +229,7 @@ export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesO
       <div className="uchart-xaxis" aria-hidden="true">
         {rows.map((row, i) => (
           <span key={row.period}>
-            {i % labelEvery === (rows.length - 1) % labelEvery && <em>{formatPeriodLabel(row, granularity, true)}</em>}
+            {i % labelEvery === (rows.length - 1) % labelEvery && <em>{labelOf(row, true)}</em>}
           </span>
         ))}
       </div>
