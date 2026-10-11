@@ -4,6 +4,7 @@ import type { HarnessFilter } from "./lib/aggregate.ts";
 import type { DateRange } from "./lib/range.ts";
 import type { RangeThroughput } from "./lib/throughput.ts";
 import type { SeriesInfo } from "./charts.tsx";
+import { ToolMark } from "./components/ToolMark.tsx";
 
 export interface Dashboard {
   data: DashboardPayload;
@@ -40,10 +41,16 @@ export function ToolTag({ id }: { id: HarnessId }) {
   const { seriesOf, nameOf } = useDashboard();
   return (
     <span className="tool-tag">
-      <i style={{ background: seriesOf(id).color }} aria-hidden="true" />
+      <ToolMark harness={id} name={nameOf(id)} color={seriesOf(id).color} decorative />
       {nameOf(id)}
     </span>
   );
+}
+
+/** A tool's mark in its chart color, named for screen readers; for spots without room for the name. */
+export function HarnessMark({ id, size }: { id: HarnessId; size?: number }) {
+  const { seriesOf, nameOf } = useDashboard();
+  return <ToolMark harness={id} name={nameOf(id)} color={seriesOf(id).color} size={size} />;
 }
 
 /** A thin inline bar for a row's share of the largest row in the table. */

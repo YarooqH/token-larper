@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { HarnessId, TimePeriodRow } from "../types.ts";
 import { formatCompactNumber, formatCurrency } from "./utils.ts";
+import { SeriesKey } from "./components/ToolMark.tsx";
 
 export type ChartMode = "tokens-by-harness" | "cost-by-harness" | "token-types";
 export type Granularity = "daily" | "weekly" | "monthly" | "yearly";
@@ -212,7 +213,7 @@ export function UsageBarChart({ rows, mode, granularity, costOf, series, seriesO
               <ul>
                 {tipSeries.map((s) => (
                   <li key={s.key}>
-                    <i style={{ background: s.color }} />
+                    <SeriesKey seriesKey={s.key} color={s.color} name={s.name} />
                     <span>{s.name}</span>
                     <b>{isCost ? formatCurrency(s.value) : formatCompactNumber(s.value)}</b>
                   </li>
@@ -479,7 +480,7 @@ export function LineChart({ labels, shortLabels, series, formatValue, dimNote, a
               <ul>
                 {tip.map((s) => (
                   <li key={s.key}>
-                    <i style={{ background: s.color }} />
+                    <SeriesKey seriesKey={s.key} color={s.color} name={s.name} />
                     <span>{s.name}</span>
                     <b className={s.isDim ? "muted" : undefined}>{formatValue(s.value)}</b>
                   </li>

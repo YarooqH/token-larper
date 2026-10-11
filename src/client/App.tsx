@@ -18,6 +18,7 @@ import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type Ra
 import { throughputInRange } from "./lib/throughput.ts";
 import { liveFeedReady, prepareLiveFeed } from "./lib/live.ts";
 import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
+import { ToolMark } from "./components/ToolMark.tsx";
 import { LiveMode } from "./views/LiveMode.tsx";
 import { Models } from "./views/Models.tsx";
 import { Overview } from "./views/Overview.tsx";
@@ -521,7 +522,7 @@ export function App() {
     ...toolsWithUsage.map((h) => ({
       value: h.meta.id,
       label: h.meta.name,
-      visual: <span className="tool-filter-dot" aria-hidden="true" style={{ background: seriesOf(h.meta.id).color }} />,
+      visual: <ToolMark harness={h.meta.id} name={h.meta.name} color={seriesOf(h.meta.id).color} size={15} decorative />,
     })),
   ];
 
