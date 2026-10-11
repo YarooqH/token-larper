@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Check, ChevronDown, Pipette } from "./Icons.tsx";
+import { ColorPicker } from "./ColorPicker.tsx";
+import { ColorPopover } from "./ColorPopover.tsx";
+import { normalizeHex } from "../lib/color.ts";
 import {
   ACCENT_PRESETS,
   BASE_PRESETS,
@@ -123,6 +126,7 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
         id="theme-accent"
         label="Accent"
         hint="Buttons, links and highlights"
+        showContrast
         choice={appearance.accent}
         presets={ACCENT_PRESETS.map((preset) => ({ ...preset, color: mode === "dark" ? preset.dark : preset.light }))}
         fallbackCustom="#6d5bd0"
@@ -191,17 +195,25 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
 type ColorChoice<Id extends string> = { kind: "style" } | { kind: "preset"; id: Id } | { kind: "custom"; color: string };
 
 /** "Style default", a row of preset swatches, and a picker for any color. */
-function ColorChoices<Id extends string>({ id, label, hint, disabled = false, choice, presets, fallbackCustom, onChange }: {
+function ColorChoices<Id extends string>({ id, label, hint, disabled = false, showContrast = false, choice, presets, fallbackCustom, onChange }: {
   id: string;
   label: string;
   hint: string;
   disabled?: boolean;
+  showContrast?: boolean;
   choice: ColorChoice<Id>;
   presets: { id: Id; name: string; color: string }[];
   fallbackCustom: string;
   onChange: (choice: ColorChoice<Id>) => void;
 }) {
   const labelId = `${id}-label`;
+  const panelId = `${id}-picker`;
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Start from whatever is active, so the picker opens on the current color.
+  const activeColor =
+    choice.kind === "custom" ? choice.color : choice.kind === "preset" ? presets.find((p) => p.id === choice.id)?.color : undefined;
+  const customColor = normalizeHex(activeColor ?? "") ?? fallbackCustom;
   return (
     <div className="theme-block">
       <div className="theme-block-heading">
@@ -233,21 +245,27 @@ function ColorChoices<Id extends string>({ id, label, hint, disabled = false, ch
             onClick={() => onChange({ kind: "preset", id: preset.id })}
           />
         ))}
-        <label
+        <button
+          ref={triggerRef}
+          type="button"
           className={`accent-custom ${choice.kind === "custom" ? "is-selected" : ""}`}
           style={choice.kind === "custom" ? { background: choice.color } : undefined}
           title="Pick any color"
+          aria-label={`Custom ${label.toLowerCase()} color`}
+          aria-haspopup="dialog"
+          aria-expanded={open && !disabled}
+          aria-controls={open && !disabled ? panelId : undefined}
+          disabled={disabled}
+          onClick={() => setOpen((o) => !o)}
         >
           <Pipette size={14} aria-hidden="true" />
-          <span className="sr-only">Custom {label.toLowerCase()} color</span>
-          <input
-            type="color"
-            disabled={disabled}
-            value={choice.kind === "custom" ? choice.color : fallbackCustom}
-            onChange={(event) => onChange({ kind: "custom", color: event.target.value })}
-          />
-        </label>
+        </button>
       </div>
+      {open && !disabled && (
+        <ColorPopover anchor={triggerRef} id={panelId} label={label} onClose={() => setOpen(false)}>
+          <ColorPicker value={customColor} label={label} showContrast={showContrast} onChange={(color) => onChange({ kind: "custom", color })} />
+        </ColorPopover>
+      )}
     </div>
   );
 }
