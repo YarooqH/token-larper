@@ -27,6 +27,8 @@ const throughput = {
   activeMs: new Map(),
   bySession: new Map([["opencode-ses_1", { responses: 3, tokensPerSecond: 84.8, median: 80, p90: 120, medianWaitMs: 900 }]]),
   timedByTool: new Set<HarnessId>(["opencode"]),
+  rows: [],
+  modelOrder: [],
 };
 
 test("shows each session's speed with the first-output wait, and a dash when unknown", () => {
