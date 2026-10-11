@@ -22,7 +22,8 @@ import {
   type Icon,
 } from "../components/Icons.tsx";
 import { useDashboard } from "../context.tsx";
-import { achievements, lastDefeated, lifetimeStats, nextRival, rankFor, TIERS } from "../lib/rank.ts";
+import { achievements, dayStreak, lastDefeated, lifetimeStats, nextRival, rankFor, TIERS } from "../lib/rank.ts";
+import { addDays, parseDay, todayKey } from "../lib/range.ts";
 import { cardPng, shareCardSvg, svgDataUrl, themeCardColors } from "../lib/shareCard.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
 
@@ -139,6 +140,29 @@ export function Rank() {
   const floor = lastDefeated(stats.tokens)?.tokens ?? 0;
   const rivalPct = rival ? Math.min(100, ((stats.tokens - floor) / (rival.tokens - floor)) * 100) : 100;
 
+  const streak = dayStreak(data);
+  const best = stats.longestStreak?.days ?? 0;
+  const lit = streak.days > 0 && streak.doneToday;
+  const today = todayKey();
+  const activeDays = useMemo(() => new Set(stats.days.map((d) => d.period)), [stats.days]);
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const key = addDays(today, i - 6);
+    const date = parseDay(key);
+    return {
+      key,
+      used: activeDays.has(key),
+      isToday: key === today,
+      letter: date.toLocaleDateString("en-US", { weekday: "narrow" }),
+      name: date.toLocaleDateString("en-US", { weekday: "long" }),
+    };
+  });
+  const status =
+    streak.days === 0
+      ? "Use a coding tool today to start a streak."
+      : streak.doneToday
+        ? "You're covered for today."
+        : "Use a coding tool today to keep it going.";
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [showCost, setShowCost] = useState(false);
@@ -165,7 +189,7 @@ export function Rank() {
 
   const numbers = [
     { label: "Tokens", value: formatCompactNumber(stats.tokens) },
-    { label: "Best streak", value: `${stats.longestStreak?.days ?? 0} days` },
+    { label: "Active days", value: String(stats.activeDays) },
     { label: "Tools", value: String(stats.toolCount) },
     { label: "Spent", value: formatCurrency(stats.verifiedCost, 0) },
   ];
@@ -173,24 +197,24 @@ export function Rank() {
   return (
     <article className="sheet" aria-labelledby="sheet-title">
       <header className="sheet-head">
-        <div className="sheet-level" aria-label={`Level ${rank.tier.level} of ${TIERS.length}`}>
-          <span aria-hidden="true">Lv</span>
-          <strong aria-hidden="true">{rank.tier.level}</strong>
-        </div>
+        <Flame className={`sheet-flame ${lit ? "is-lit" : ""}`} size={44} fill={lit ? "currentColor" : "none"} aria-hidden="true" />
         <div className="sheet-identity">
-          <h2 id="sheet-title">{rank.tier.title}</h2>
-          <span
-            className="xp-bar"
-            role="meter"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(rank.progress)}
-            aria-label={rank.next ? `Progress to ${rank.next.title}` : "Maximum level"}
-          >
-            <span style={{ width: `${rank.progress}%` }} />
-          </span>
+          <h2 id="sheet-title">{streak.days > 0 ? `${streak.days} day streak` : "No streak yet"}</h2>
+          <ol className="week" aria-label="Last 7 days">
+            {week.map((d) => (
+              <li
+                key={d.key}
+                className={`week-day ${d.used ? "is-used" : ""} ${d.isToday ? "is-today" : ""}`}
+                aria-label={`${d.name}${d.isToday ? ", today" : ""}: ${d.used ? "used a coding tool" : "no usage"}`}
+              >
+                <span className="week-dot" aria-hidden="true" />
+                <span className="week-name" aria-hidden="true">{d.letter}</span>
+              </li>
+            ))}
+          </ol>
           <span className="xp-label">
-            {rank.next ? `${formatCompactNumber(rank.toNext)} to ${rank.next.title}` : "Maximum level"}
+            {status}
+            {best > 0 && (best > streak.days ? ` Best: ${best} days.` : " Your longest yet.")}
           </span>
         </div>
         <button className="icon-btn sheet-share" onClick={() => setSharing(true)} aria-label="Share your rank" title="Share">
@@ -206,6 +230,26 @@ export function Rank() {
           </div>
         ))}
       </dl>
+
+      <section className="sheet-row" aria-label="Rank">
+        <span className="sheet-row-label">Rank</span>
+        <div className="sheet-rival">
+          <strong>
+            {rank.tier.title} <span className="rank-level">Level {rank.tier.level} of {TIERS.length}</span>
+          </strong>
+          <span
+            className="rival-bar rank-bar"
+            role="meter"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(rank.progress)}
+            aria-label={rank.next ? `Progress to ${rank.next.title}` : "Top rank"}
+          >
+            <span style={{ width: `${rank.progress}%` }} />
+          </span>
+        </div>
+        <span className="sheet-row-value">{rank.next ? `${formatCompactNumber(rank.toNext)} to ${rank.next.title}` : "Top rank"}</span>
+      </section>
 
       {rival && (
         <section className="sheet-row" aria-label="Next rival">

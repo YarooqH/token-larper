@@ -91,6 +91,9 @@ export function shareCardSvg(stats: LifetimeStats, opts: CardOptions, c: CardCol
       ? `Passed every rival, last one: ${clip(passed.name, 48)}`
       : "";
 
+  const current = stats.currentStreak?.days ?? 0;
+  const streakLine = current > 0 ? `Current streak: ${current} ${current === 1 ? "day" : "days"}` : "";
+
   const since = stats.days[0] ? `Since ${formatSpan(stats.days[0].period, stats.days[stats.days.length - 1]!.period)}` : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}" viewBox="0 0 ${CARD_W} ${CARD_H}" font-family="${FONT}">
@@ -105,7 +108,7 @@ export function shareCardSvg(stats: LifetimeStats, opts: CardOptions, c: CardCol
 <text x="${80 + barW + 24}" y="318" font-size="22" fill="${c.text2}">${esc(
     rank.next ? `${formatCompactNumber(rank.toNext)} to ${rank.next.title}` : "Top tier reached"
   )}</text>
-<text x="80" y="370" font-size="24" font-style="italic" fill="${c.text2}">${esc(`“${rank.tier.quip}”`)}</text>
+<text x="80" y="370" font-size="24" fill="${c.text2}">${esc(streakLine)}</text>
 ${statBlocks}
 <line x1="80" y1="506" x2="${CARD_W - 80}" y2="506" stroke="${c.line}" stroke-width="2"/>
 <text x="80" y="550" font-size="21" fill="${c.text2}">${esc(favorites)}</text>
