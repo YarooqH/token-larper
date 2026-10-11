@@ -11,7 +11,7 @@ import {
   forTool,
   liveSessions,
   liveSpeed,
-  newTokens,
+  uncachedTokens,
   rankBy,
   responseSpeed,
   rollingSeries,
@@ -36,7 +36,7 @@ const LIMITS_ID = "live-limitations";
 export type Lead = "cost" | "tokens";
 const LEADS: { id: Lead; label: string }[] = [
   { id: "cost", label: "Burn rate" },
-  { id: "tokens", label: "New tokens" },
+  { id: "tokens", label: "Uncached" },
 ];
 const LEAD_KEY = "token-larper-live-lead";
 
@@ -464,7 +464,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
   ];
 
   return (
-    <section className="lm-instrument" aria-label={lead === "cost" ? "Burn rate" : "New tokens per minute"}>
+    <section className="lm-instrument" aria-label={lead === "cost" ? "Burn rate" : "Uncached tokens per minute"}>
       <div className="lm-hero">
         {lead === "cost" ? (
           <div className="lm-hero-main">
@@ -482,23 +482,23 @@ function Instrument({ events, now, spanMs, order, lead }: {
           <div className="lm-hero-main">
             <div className="lm-hero-pair">
               <div>
-                <span className="lm-label" title="Input, cache writes and output in the last minute">New tokens per minute</span>
-                <Figure value={newTokens(minute)} className="lm-hero-figure" />
+                <span className="lm-label" title="Input, cache writes and output in the last minute: everything not read back from the prompt cache">Uncached tokens per minute</span>
+                <Figure value={uncachedTokens(minute)} className="lm-hero-figure" />
               </div>
               <div className="lm-hero-side">
-                <span className="lm-label" title="The conversation sent again from cache with each request">Cache re-reads</span>
+                <span className="lm-label" title="The conversation read back from the prompt cache with each request">Cache reads</span>
                 <span className="lm-hero-side-value"><Figure value={minute.cacheReadTokens} /><em>/min</em></span>
               </div>
             </div>
-            <span className="lm-note">5-min avg {formatCompactNumber(newTokens(five) / 5)}</span>
+            <span className="lm-note">input + cache writes + output · 5-min avg {formatCompactNumber(uncachedTokens(five) / 5)}</span>
           </div>
         )}
         <div className="lm-readouts">{readouts}</div>
       </div>
       {lead === "cost" ? (
-        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={eventTokens} title="Tokens / min, incl. cache re-reads" />
+        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={eventTokens} title="Tokens / min, incl. cache reads" />
       ) : (
-        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={newTokens} title="New tokens / min" />
+        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={uncachedTokens} title="Uncached tokens / min" />
       )}
       <Tape events={events} now={now} spanMs={spanMs} />
     </section>

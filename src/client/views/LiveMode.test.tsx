@@ -38,18 +38,20 @@ describe("Live mode", () => {
     expect(html).toContain('aria-label="Burn rate"');
     expect(html).toContain('lm-hero-figure">$0.48<small>/hr</small>');
     expect(html).toContain("$0.04 per response");
-    expect(html).toContain("Tokens / min, incl. cache re-reads");
+    expect(html).toContain("Tokens / min, incl. cache reads");
     for (const heading of ["By tool", "By model", "Output speed", "Sessions", "Responses"]) expect(html).toContain(`>${heading}<`);
     expect(html).toContain('class="lm-tick is-new"');
   });
 
-  test("can lead with new tokens instead, with cache re-reads beside them and the burn rate in the readouts", () => {
+  test("can lead with uncached tokens instead, with cache reads beside them and the burn rate in the readouts", () => {
     const html = render(<LiveBoard feed={feed([event({})])} initialLead="tokens" />);
-    expect(html).toContain("New tokens per minute");
+    expect(html).toContain(">Uncached tokens per minute<");
+    expect(html).toContain("input + cache writes + output");
     expect(html).toContain('lm-hero-figure">405</span>');
-    expect(html).toContain(">Cache re-reads<");
+    expect(html).toContain(">Cache reads<");
     expect(html).toContain("120.0<small>K</small>");
-    expect(html).toContain("New tokens / min<");
+    expect(html).toContain("Uncached tokens / min<");
+    expect(html).not.toMatch(/new tokens|re-read/i);
     expect(html).toContain('<span class="lm-label">Burn rate</span>');
   });
 
