@@ -366,6 +366,8 @@ img { display: block; }
   font-weight: 600;
 }
 .pill-warning { background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+.pill-button { border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-2); cursor: pointer; }
+.pill-button:hover { color: var(--text); border-color: var(--text-3); }
 
 .btn {
   display: inline-flex;
@@ -1257,6 +1259,8 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .sp-content .settings-section + .settings-section { margin-top: 6px; }
 .sp-content .settings-details { border-top: 1px solid var(--border); }
 .sp-content .inline-error { margin-top: 14px; }
+.setting-copy .setting-meta { margin-top: 5px; color: var(--text-3); font-size: 12px; }
+.setting-error { color: var(--error-text); }
 
 @media (max-width: 900px) {
   .settings-scrim { pointer-events: auto; background: rgb(15 25 19 / 45%); }

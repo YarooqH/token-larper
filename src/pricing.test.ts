@@ -191,6 +191,26 @@ describe("createPricing", () => {
     expect(attempts).toBe(2);
   });
 
+  test("offline mode downloads nothing, still serves the saved prices, and says so", async () => {
+    const cacheFile = cachePath();
+    let now = START;
+    await createPricing({ cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
+
+    now += 25 * HOUR;
+    const calls = { count: 0 };
+    let offline = true;
+    const pricing = createPricing({ cacheFile, fetchImpl: okFetch(calls), now: () => now, offline: () => offline });
+    await pricing.ensure();
+    expect(calls.count).toBe(0);
+    expect(pricing.status().offline).toBe(true);
+    expect(pricing.lookup("minimax-m3")).toEqual([0.3, 1.2, 0.3, 0.06]);
+
+    offline = false;
+    await pricing.ensure();
+    expect(calls.count).toBe(1);
+    expect(pricing.status().offline).toBe(false);
+  });
+
   test("ignores an empty or failed response instead of wiping the table", async () => {
     const cacheFile = cachePath();
     let now = START;

@@ -1,7 +1,7 @@
 // What the settings panel lists and how its search finds it. Each entry is one thing a
 // person might look for; the panel renders the real control for every entry that matches.
 
-export type SettingsSectionId = "appearance" | "general" | "about";
+export type SettingsSectionId = "appearance" | "general" | "privacy" | "about";
 
 export type SettingId =
   | "mode"
@@ -12,8 +12,11 @@ export type SettingId =
   | "stats"
   | "autostart"
   | "browser"
-  | "updates"
+  | "screenshot"
+  | "offline"
   | "auto-check"
+  | "price-list"
+  | "updates"
   | "details";
 
 export interface SettingsSection {
@@ -33,6 +36,7 @@ export interface SettingEntry {
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "appearance", label: "Appearance", blurb: "Color mode, style, and colors." },
   { id: "general", label: "General", blurb: "What the dashboard shows and how the app starts." },
+  { id: "privacy", label: "Privacy", blurb: "What you share and what this app can reach." },
   { id: "about", label: "About", blurb: "Version, updates, and where this copy runs." },
 ];
 
@@ -45,8 +49,11 @@ export const SETTING_ENTRIES: readonly SettingEntry[] = [
   { id: "stats", section: "general", label: "Show stats", keywords: "rank streak hall of larp badges header tab" },
   { id: "autostart", section: "general", label: "Start with Windows", keywords: "startup boot login sign in launch autostart registry" },
   { id: "browser", section: "general", label: "Open dashboard at sign-in", keywords: "startup boot login browser launch" },
+  { id: "screenshot", section: "privacy", label: "Screenshot mode", keywords: "hide names projects folders paths redact blur private share streaming demo recording" },
+  { id: "offline", section: "privacy", label: "Offline mode", keywords: "network internet connection requests price list updates npm openrouter download airplane" },
+  { id: "auto-check", section: "privacy", label: "Check for updates automatically", keywords: "update npm registry version network request" },
+  { id: "price-list", section: "privacy", label: "Price list download", keywords: "openrouter prices models network request estimate cost daily" },
   { id: "updates", section: "about", label: "Check for updates", keywords: "version upgrade update now release npm latest" },
-  { id: "auto-check", section: "about", label: "Check automatically", keywords: "updates npm network privacy offline" },
   { id: "details", section: "about", label: "Technical details", keywords: "port address launcher path registry dashboard url" },
 ];
 

@@ -23,6 +23,11 @@ const props: Omit<ContentProps, "query" | "section"> = {
   updates,
   checkUpdates: true,
   onCheckUpdatesChange: noop,
+  screenshot: false,
+  onScreenshotChange: noop,
+  privacy: { status: { offline: false, locked: false }, saving: false, error: null },
+  onOfflineChange: noop,
+  priceStatus: undefined,
   onThemeModeChange: noop,
   onAppearanceChange: noop,
   onImportTheme: noop,
@@ -31,7 +36,7 @@ const props: Omit<ContentProps, "query" | "section"> = {
   onRetry: noop,
 };
 
-const content = (query: string, section: "appearance" | "general" | "about" = "appearance", over: Partial<typeof props> = {}) =>
+const content = (query: string, section: "appearance" | "general" | "privacy" | "about" = "appearance", over: Partial<typeof props> = {}) =>
   renderToStaticMarkup(<SettingsContent query={query} section={section} {...props} {...over} />);
 
 describe("settings panel", () => {
@@ -68,9 +73,18 @@ describe("settings content", () => {
 
   test("the About section lists updates and technical details", () => {
     const about = content("", "about");
-    expect(about).toContain("Check automatically");
+    expect(about).toContain("Check for updates");
     expect(about).toContain("Technical details");
     expect(about).toContain("http://127.0.0.1:4269");
+    expect(about).not.toContain("Screenshot mode");
+  });
+
+  test("the Privacy section lists screenshot mode and every request the app can make", () => {
+    const privacy = content("", "privacy");
+    for (const text of ["Screenshot mode", "Offline mode", "Check for updates automatically", "Price list download", "registry.npmjs.org", "openrouter.ai"]) {
+      expect(privacy).toContain(text);
+    }
+    expect(privacy).not.toContain("Start with Windows");
   });
 
   test("a search shows only the matching controls, across sections, under section names", () => {
@@ -96,6 +110,13 @@ describe("settings content", () => {
     expect(html).toContain("No settings match");
     expect(html).toContain("zzz");
     expect(html).toContain("Try");
+  });
+
+  test("a search for a network word finds the switches that stop requests", () => {
+    const html = content("network", "appearance");
+    expect(html).toContain("Offline mode");
+    expect(html).toContain("Price list download");
+    expect(html).not.toContain("Screenshot mode");
   });
 
   test("startup settings that can't load show a retry, not empty rows", () => {

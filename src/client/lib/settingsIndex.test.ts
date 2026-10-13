@@ -15,6 +15,8 @@ describe("settings search", () => {
     expect(ids("streak")).toEqual(["stats"]);
     expect(ids("tweakcn")).toEqual(["import"]);
     expect(ids("port")).toEqual(["details"]);
+    expect(ids("redact")).toEqual(["screenshot"]);
+    expect(ids("airplane")).toEqual(["offline"]);
   });
 
   test("matches word prefixes, ignoring case", () => {
@@ -28,7 +30,12 @@ describe("settings search", () => {
   });
 
   test("the section name finds everything in that section", () => {
-    expect(ids("about")).toEqual(["updates", "auto-check", "details"]);
+    expect(ids("about")).toEqual(["updates", "details"]);
+    expect(ids("privacy")).toEqual(["screenshot", "offline", "auto-check", "price-list"]);
+  });
+
+  test("a network search finds every setting that makes a request", () => {
+    expect(ids("network")).toEqual(["offline", "auto-check", "price-list"]);
   });
 
   test("gives nothing for text that matches no setting", () => {

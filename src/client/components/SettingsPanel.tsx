@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronDown, Info, Power, Search, Settings, Sparkles, X } from "./Icons.tsx";
+import { ChevronDown, Info, Power, Search, Settings, Shield, Sparkles, X } from "./Icons.tsx";
 import type { Icon } from "./Icons.tsx";
-import type { StartupConfig } from "../../types.ts";
+import type { PricingStatus, StartupConfig } from "../../types.ts";
 import { GeneralSettings } from "./GeneralSettings.tsx";
+import { PrivacySettings } from "./PrivacySettings.tsx";
 import { ThemeSettings } from "./ThemeSettings.tsx";
 import { UpdateSettings } from "./UpdateSettings.tsx";
+import type { Privacy } from "../lib/privacy.ts";
 import { isEditable } from "../lib/shortcuts.ts";
 import {
   groupBySection,
@@ -28,6 +30,11 @@ interface ContentProps {
   updates: Updates;
   checkUpdates: boolean;
   onCheckUpdatesChange: (checkUpdates: boolean) => void;
+  screenshot: boolean;
+  onScreenshotChange: (screenshot: boolean) => void;
+  privacy: Pick<Privacy, "status" | "saving" | "error">;
+  onOfflineChange: (offline: boolean) => void;
+  priceStatus: PricingStatus | undefined;
   onThemeModeChange: (mode: ThemeMode | "system") => void;
   onAppearanceChange: (appearance: Appearance) => void;
   onImportTheme: (theme: ImportedTheme) => void;
@@ -47,6 +54,7 @@ interface Props extends ContentProps {
 const SECTION_ICONS: Record<SettingsSectionId, Icon> = {
   appearance: Sparkles,
   general: Settings,
+  privacy: Shield,
   about: Info,
 };
 
@@ -128,11 +136,22 @@ export function SettingsContent({ query, section, ...p }: ContentProps & { query
                 show={show}
               />
             )}
+            {s.id === "privacy" && (
+              <PrivacySettings
+                screenshot={p.screenshot}
+                onScreenshotChange={p.onScreenshotChange}
+                privacy={p.privacy}
+                onOfflineChange={p.onOfflineChange}
+                autoCheck={p.checkUpdates}
+                onAutoCheckChange={p.onCheckUpdatesChange}
+                checkedAt={p.updates.status?.checkedAt}
+                priceStatus={p.priceStatus}
+                show={show}
+              />
+            )}
             {s.id === "about" && (
               <>
-                {(show("updates") || show("auto-check")) && (
-                  <UpdateSettings updates={p.updates} autoCheck={p.checkUpdates} onAutoCheckChange={p.onCheckUpdatesChange} show={show} />
-                )}
+                {show("updates") && <UpdateSettings updates={p.updates} offline={p.privacy.status?.offline ?? false} />}
                 {show("details") && p.startup && <TechnicalDetails startup={p.startup} />}
               </>
             )}

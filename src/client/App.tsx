@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { AlertTriangle, Moon, Power, Radio, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
+import { AlertTriangle, EyeOff, Moon, Power, Radio, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
 import type { DashboardPayload, HarnessId, StartupConfig, ThroughputPayload } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";
@@ -12,6 +12,8 @@ import { SettingsPanel } from "./components/SettingsPanel.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
 import { UpdateBanner } from "./components/UpdateBanner.tsx";
 import { useUpdates } from "./lib/updates.ts";
+import { usePrivacy } from "./lib/privacy.ts";
+import { redactPayload } from "./lib/screenshot.ts";
 import { dayStreak } from "./lib/rank.ts";
 import { isEditable } from "./lib/shortcuts.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
@@ -63,6 +65,8 @@ interface Prefs {
   bucket: Bucket;
   estimated: boolean;
   checkUpdates: boolean;
+  /** Screenshot mode: project names and folders are replaced with generic labels. */
+  screenshot: boolean;
   /** Live mode replaces the dashboard with one live-updating page; #live links to it. */
   live: boolean;
   /** The version whose banner was closed; a later version shows it again. */
@@ -70,7 +74,7 @@ interface Prefs {
 }
 
 function loadPrefs(): Prefs {
-  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false, checkUpdates: true, live: false };
+  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false, checkUpdates: true, screenshot: false, live: false };
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     const saved: Partial<Prefs> = raw && typeof raw === "object" ? raw : {};
@@ -91,6 +95,7 @@ function loadPrefs(): Prefs {
       preset: preset === "custom" && !customDatesValid ? defaults.preset : preset,
       estimated: saved.estimated === true,
       checkUpdates: saved.checkUpdates !== false,
+      screenshot: saved.screenshot === true,
       live: location.hash === "#live" || (location.hash === "" && saved.live === true),
       ...(typeof saved.dismissedUpdate === "string" ? { dismissedUpdate: saved.dismissedUpdate } : {}),
       ...(customDatesValid ? { customStart: saved.customStart, customEnd: saved.customEnd } : {}),
@@ -113,7 +118,7 @@ function viewFromHash(): View | null {
 }
 
 export function App() {
-  const [data, setData] = useState<DashboardPayload | null>(null);
+  const [fetched, setData] = useState<DashboardPayload | null>(null);
   const [throughputData, setThroughputData] = useState<ThroughputPayload | null>(null);
   const [startup, setStartup] = useState<StartupConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,6 +136,9 @@ export function App() {
   const startupMutationInFlight = useRef(false);
 
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
+  // Everything below reads `data`, so screenshot mode only has to change it here.
+  const redacted = useMemo(() => (fetched && prefs.screenshot ? redactPayload(fetched) : null), [fetched, prefs.screenshot]);
+  const data = redacted?.data ?? fetched;
   const [harness, setHarness] = useState<HarnessFilter>("all");
   const [search, setSearch] = useState("");
   const [theme, setTheme] = useState<ThemeMode>(() =>
@@ -200,8 +208,14 @@ export function App() {
     }
   }
   const updates = useUpdates(prefs.checkUpdates);
-  const showUpdateBanner = updates.phase !== "idle" || (prefs.checkUpdates && !!updates.status?.updateAvailable
+  const privacy = usePrivacy();
+  const showUpdateBanner = updates.phase !== "idle" || (prefs.checkUpdates && !privacy.status?.offline && !!updates.status?.updateAvailable
     && updates.status.latest !== prefs.dismissedUpdate);
+
+  async function changeOffline(offline: boolean) {
+    // The price list status in the payload says whether downloads are off, so reload it.
+    if (await privacy.setOffline(offline)) void fetchDashboard();
+  }
 
   function setShowRanks(showRanks: boolean) {
     setPrefs((p) => ({ ...p, showRanks, view: !showRanks && p.view === "rank" ? "overview" : p.view }));
@@ -579,6 +593,7 @@ export function App() {
     nameOf,
     search: searchable ? search : "",
     openModelPrices,
+    projectLabel: redacted?.labelOf,
   };
 
   return (
@@ -593,6 +608,17 @@ export function App() {
                 <RefreshCw size={12} className="spin" aria-hidden="true" />
                 Syncing {data.syncingHarnesses.map(nameOf).join(", ")}
               </span>
+            )}
+            {prefs.screenshot && (
+              <button
+                type="button"
+                className="pill pill-button"
+                title="Project names and folders are hidden. Click to show them again."
+                onClick={() => updatePrefs({ screenshot: false })}
+              >
+                <EyeOff size={12} aria-hidden="true" />
+                Names hidden
+              </button>
             )}
             {failed.length > 0 && (
               <span className="pill pill-warning" title="ccusage failed or timed out for these tools. Showing their last good data.">
@@ -733,6 +759,11 @@ export function App() {
             updates={updates}
             checkUpdates={prefs.checkUpdates}
             onCheckUpdatesChange={(checkUpdates) => updatePrefs({ checkUpdates })}
+            screenshot={prefs.screenshot}
+            onScreenshotChange={(screenshot) => updatePrefs({ screenshot })}
+            privacy={privacy}
+            onOfflineChange={(offline) => void changeOffline(offline)}
+            priceStatus={data.pricing?.status}
             onClose={closeSettings}
             onThemeModeChange={changeThemeMode}
             onAppearanceChange={changeAppearance}
