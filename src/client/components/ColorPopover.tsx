@@ -15,7 +15,7 @@ interface Props {
 
 /**
  * Floats beside its anchor, below it when there is room and above it otherwise. It is
- * rendered inside the open dialog, so the dialog's scrolling never clips it and keyboard
+ * rendered inside the open dialog or panel, so the dialog's scrolling never clips it and keyboard
  * focus stays in the dialog, and it follows the anchor while the dialog scrolls.
  */
 export function ColorPopover({ anchor, id, label, onClose, children }: Props) {
@@ -30,7 +30,7 @@ export function ColorPopover({ anchor, id, label, onClose, children }: Props) {
       const box = ref.current;
       if (!button || !box) return;
       const a = button.getBoundingClientRect();
-      const scroller = button.closest(".modal")?.getBoundingClientRect();
+      const scroller = button.closest(".sp-content, .modal")?.getBoundingClientRect();
       // The button scrolled out of sight, so the popover has nothing to point at.
       if (scroller && (a.bottom < scroller.top || a.top > scroller.bottom)) {
         close.current();
@@ -81,7 +81,7 @@ export function ColorPopover({ anchor, id, label, onClose, children }: Props) {
     };
   }, [anchor]);
 
-  const host = anchor.current?.closest<HTMLElement>(".modal") ?? document.body;
+  const host = anchor.current?.closest<HTMLElement>(".settings-panel, .modal") ?? document.body;
   return createPortal(
     <div
       ref={ref}

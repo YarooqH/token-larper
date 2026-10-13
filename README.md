@@ -73,7 +73,7 @@ The screens below use sample data. No local sessions or project names are includ
 
 ## Features
 
-* **Private and offline**: No API keys and no proxy to set up. Two optional requests leave your machine, and neither sends anything about your usage: an update check that asks npm for the latest version number (turn it off in **Settings → Updates**), and a once-a-day download of OpenRouter's public model price list (set `TOKEN_LARPER_OFFLINE=1` to skip it).
+* **Private and offline**: No API keys and no proxy to set up. Two optional requests leave your machine, and neither sends anything about your usage: an update check that asks npm for the latest version number (turn it off in **Settings → About**), and a once-a-day download of OpenRouter's public model price list (set `TOKEN_LARPER_OFFLINE=1` to skip it).
 * **18 agents, one total**: Every supported harness is detected automatically and counted together, with filters per tool, model, session, and project.
 * **Subscription-aware**: Verified API costs are kept apart from the estimated **"LARP Value"**, the API price of tokens you used through a flat-rate plan like Claude Pro/Max, Copilot, or Antigravity. Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
 * **Model speed**: Approximate output tokens per second for each tool and model, and tokens per minute while a tool is working, read from the session files of Claude Code, Codex, OpenCode, Pi, Antigravity, Gemini CLI, and Copilot CLI. See [Speed and Tokens per Minute](#speed-and-tokens-per-minute).
@@ -322,7 +322,7 @@ Caches and settings live outside the app folder, so updates keep them:
 Set `TOKEN_LARPER_DATA_DIR` to use another folder. Versions before 1.5.0 kept this data in `.cache` inside the app; it is copied over on first run.
 
 ### Updates
-When a new version is on npm, the dashboard shows a banner. **Update now** starts `bunx token-larper@latest` in the background; the new version replaces the running one on the same port and the dashboard reloads. You can also check from **Settings → Updates**, or turn automatic checks off there. A copy cloned from git updates with `git pull`.
+When a new version is on npm, the dashboard shows a banner. **Update now** starts `bunx token-larper@latest` in the background; the new version replaces the running one on the same port and the dashboard reloads. You can also check from **Settings → About**, or turn automatic checks off there. A copy cloned from git updates with `git pull`.
 
 ### Estimated Prices
 When ccusage has no price for a model (a brand-new one, or usage through a flat-rate subscription), Token Larper estimates the cost from list prices. It downloads OpenRouter's public model price list once a day, keeps it in the data folder as `openrouter-pricing.json`, and prices any model on that list from it. Claude models it doesn't list use Anthropic's rates, built into the app. A model with neither has no price and is left out of estimates; nothing is guessed from its name. Only the price list is downloaded; nothing about your usage is sent, and if the download fails the last saved list is used.
