@@ -11,7 +11,6 @@ import {
   forTool,
   liveSessions,
   liveSpeed,
-  uncachedTokens,
   rankBy,
   responseSpeed,
   rollingSeries,
@@ -36,7 +35,7 @@ const LIMITS_ID = "live-limitations";
 export type Lead = "cost" | "tokens";
 const LEADS: { id: Lead; label: string }[] = [
   { id: "cost", label: "Burn rate" },
-  { id: "tokens", label: "Uncached" },
+  { id: "tokens", label: "Output" },
 ];
 const LEAD_KEY = "token-larper-live-lead";
 
@@ -67,11 +66,19 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] 
 }
 
 /** "1.55M" as a number and a smaller unit. */
-function Figure({ value, className = "" }: { value: number; className?: string }) {
+/**
+ * How wide a hero figure is, in characters, so CSS can size it to fit its column. A small unit
+ * ("K", "/hr") is half size and counts for less.
+ */
+function fitStyle(text: string, smallChars: number): React.CSSProperties {
+  return { "--fig-chars": text.length + smallChars * 0.6 } as React.CSSProperties;
+}
+
+function Figure({ value, className = "", fit = false }: { value: number; className?: string; fit?: boolean }) {
   const text = formatCompactNumber(value);
   const unit = /[KMB]$/.test(text) ? text.slice(-1) : "";
   return (
-    <span className={`lm-figure ${className}`}>
+    <span className={`lm-figure ${className}`} style={fit ? fitStyle(text, 0) : undefined}>
       {unit ? text.slice(0, -1) : text}
       {unit && <small>{unit}</small>}
     </span>
@@ -416,6 +423,8 @@ function Readout({ label, children, note, hint }: { label: string; children: Rea
   );
 }
 
+const outputOf = (e: LiveEvent) => e.outputTokens;
+
 function Instrument({ events, now, spanMs, order, lead }: {
   events: LiveEvent[];
   now: number;
@@ -438,15 +447,20 @@ function Instrument({ events, now, spanMs, order, lead }: {
       {formatCurrency(five.cost * 12)}<em>/hr</em>
     </Readout>
   );
-  const readouts = [
-    ...(lead === "tokens" ? [burn] : []),
+  const output = (
     <Readout key="output" label="Output" note={`5-min avg ${formatCompactNumber(five.outputTokens / 5)}`} hint="Tokens the models wrote in the last minute">
       <Figure value={minute.outputTokens} />
       <em>/min</em>
-    </Readout>,
+    </Readout>
+  );
+  const speedReadout = (
     <Readout key="speed" label="Speed" hint="The median response's output tokens per second over the last 5 minutes, including the wait for the first token">
       {speed ? <>{formatRate(speed.median)}<em>tok/s</em></> : <span className="lm-dim">—</span>}
-    </Readout>,
+    </Readout>
+  );
+  // Whatever leads isn't repeated in the readouts.
+  const readouts = [
+    ...(lead === "tokens" ? [burn] : [output, speedReadout]),
     <Readout key="requests" label="Requests" note={`5-min avg ${(five.responses / 5).toFixed(1)}`} hint="Responses that finished in the last minute">
       {minute.responses}<em>/min</em>
     </Readout>,
@@ -464,12 +478,12 @@ function Instrument({ events, now, spanMs, order, lead }: {
   ];
 
   return (
-    <section className="lm-instrument" aria-label={lead === "cost" ? "Burn rate" : "Uncached tokens per minute"}>
+    <section className="lm-instrument" aria-label={lead === "cost" ? "Burn rate" : "Output tokens per minute"}>
       <div className="lm-hero">
         {lead === "cost" ? (
           <div className="lm-hero-main">
             <span className="lm-label">Burn rate</span>
-            <span className="lm-figure lm-hero-figure">
+            <span className="lm-figure lm-hero-figure" style={fitStyle(formatCurrency(five.cost * 12), 3)}>
               {formatCurrency(five.cost * 12)}
               <small>/hr</small>
             </span>
@@ -482,15 +496,15 @@ function Instrument({ events, now, spanMs, order, lead }: {
           <div className="lm-hero-main">
             <div className="lm-hero-pair">
               <div>
-                <span className="lm-label" title="Input, cache writes and output in the last minute: everything not read back from the prompt cache">Uncached tokens per minute</span>
-                <Figure value={uncachedTokens(minute)} className="lm-hero-figure" />
+                <span className="lm-label" title="Tokens the models wrote in the last minute">Output tokens per minute</span>
+                <Figure value={minute.outputTokens} className="lm-hero-figure" fit />
               </div>
               <div className="lm-hero-side">
-                <span className="lm-label" title="The conversation read back from the prompt cache with each request">Cache reads</span>
-                <span className="lm-hero-side-value"><Figure value={minute.cacheReadTokens} /><em>/min</em></span>
+                <span className="lm-label" title="The median response's output tokens per second over the last 5 minutes, including the wait for the first token">Speed</span>
+                <span className="lm-hero-side-value">{speed ? <>{formatRate(speed.median)}<em>tok/s</em></> : <span className="lm-dim">—</span>}</span>
               </div>
             </div>
-            <span className="lm-note">input + cache writes + output · 5-min avg {formatCompactNumber(uncachedTokens(five) / 5)}</span>
+            <span className="lm-note">5-min avg {formatCompactNumber(five.outputTokens / 5)}</span>
           </div>
         )}
         <div className="lm-readouts">{readouts}</div>
@@ -498,7 +512,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
       {lead === "cost" ? (
         <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={eventTokens} title="Tokens / min, incl. cache reads" />
       ) : (
-        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={uncachedTokens} title="Uncached tokens / min" />
+        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={outputOf} title="Output tokens / min" />
       )}
       <Tape events={events} now={now} spanMs={spanMs} />
     </section>
