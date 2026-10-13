@@ -12,6 +12,7 @@ import {
   type ImportedTheme,
   type ThemeMode,
 } from "../themes.ts";
+import type { SettingId } from "../lib/settingsIndex.ts";
 
 interface Props {
   mode: ThemeMode;
@@ -21,6 +22,8 @@ interface Props {
   onModeChange: (mode: ThemeMode | "system") => void;
   onAppearanceChange: (appearance: Appearance) => void;
   onImportTheme: (theme: ImportedTheme) => void;
+  /** Which of these settings to render; the panel passes the search matches. Defaults to all. */
+  show?: (id: SettingId) => boolean;
 }
 
 const SAMPLE_THEME = `:root {
@@ -39,7 +42,7 @@ const SAMPLE_THEME = `:root {
   --accent-ink: #11261a;
 }`;
 
-export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, onModeChange, onAppearanceChange, onImportTheme }: Props) {
+export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, onModeChange, onAppearanceChange, onImportTheme, show = () => true }: Props) {
   const [css, setCss] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -58,12 +61,8 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
   const modeValue = followsSystem ? "system" : mode;
 
   return (
-    <section className="settings-section theme-settings" aria-labelledby="settings-appearance-heading">
-      <div className="settings-section-heading">
-        <h4 id="settings-appearance-heading">Appearance</h4>
-      </div>
-
-      <div className="theme-row">
+    <section className="settings-section theme-settings" aria-label="Appearance">
+      {show("mode") && <div className="theme-row">
         <span className="theme-row-label" id="theme-mode-label">Mode</span>
         <div className="segmented" role="group" aria-labelledby="theme-mode-label">
           {(["system", "light", "dark"] as const).map((option) => (
@@ -72,9 +71,9 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
-      <div className="theme-block">
+      {show("style") && <div className="theme-block">
         <span className="theme-row-label" id="theme-style-label">Style</span>
         <div className="style-grid" role="radiogroup" aria-labelledby="theme-style-label">
           {STYLE_PRESETS.map((style) => {
@@ -109,9 +108,9 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
             );
           })}
         </div>
-      </div>
+      </div>}
 
-      <ColorChoices
+      {show("base") && <ColorChoices
         id="theme-base"
         label="Base"
         hint={appearance.imported ? "Set by your imported colors" : "Backgrounds, borders and text"}
@@ -120,9 +119,9 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
         presets={BASE_PRESETS}
         fallbackCustom="#5f7390"
         onChange={(base) => onAppearanceChange({ ...appearance, base })}
-      />
+      />}
 
-      <ColorChoices
+      {show("accent") && <ColorChoices
         id="theme-accent"
         label="Accent"
         hint="Buttons, links and highlights"
@@ -131,9 +130,9 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
         presets={ACCENT_PRESETS.map((preset) => ({ ...preset, color: mode === "dark" ? preset.dark : preset.light }))}
         fallbackCustom="#6d5bd0"
         onChange={(accent) => onAppearanceChange({ ...appearance, accent })}
-      />
+      />}
 
-      {importedTheme && (
+      {show("import") && importedTheme && (
         <div className="theme-row">
           <span className="theme-row-label" id="theme-imported-label">Imported colors</span>
           <button
@@ -149,7 +148,7 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
         </div>
       )}
 
-      <details className="theme-import">
+      {show("import") && <details className="theme-import">
         <summary>
           <span>Import a CSS theme</span>
           <ChevronDown size={14} aria-hidden="true" />
@@ -187,7 +186,7 @@ export function ThemeSettings({ mode, followsSystem, appearance, importedTheme, 
             </button>
           </div>
         </div>
-      </details>
+      </details>}
     </section>
   );
 }

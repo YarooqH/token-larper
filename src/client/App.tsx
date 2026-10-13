@@ -8,11 +8,12 @@ import { DateRangePicker } from "./components/DateRangePicker.tsx";
 import { AppFooter } from "./components/AppFooter.tsx";
 import { Logo } from "./components/Logo.tsx";
 import { StreakChip } from "./components/StreakChip.tsx";
-import { SettingsDialog } from "./components/SettingsDialog.tsx";
+import { SettingsPanel } from "./components/SettingsPanel.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
 import { UpdateBanner } from "./components/UpdateBanner.tsx";
 import { useUpdates } from "./lib/updates.ts";
 import { dayStreak } from "./lib/rank.ts";
+import { isEditable } from "./lib/shortcuts.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
 import { throughputInRange } from "./lib/throughput.ts";
@@ -120,6 +121,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [stopped, setStopped] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // Opening settings with the keyboard puts the cursor in the panel's search box.
+  const [settingsFromKeyboard, setSettingsFromKeyboard] = useState(false);
   const [savingStartup, setSavingStartup] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
   const dashboardRequestId = useRef(0);
@@ -227,6 +230,18 @@ export function App() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, [prefs.showRanks]);
+
+  useEffect(() => {
+    if (showSettings) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "," || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
+      if (isEditable(event.target)) return;
+      event.preventDefault();
+      openSettings(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showSettings]);
 
   useEffect(() => {
     if (!prefs.live || showSettings) return;
@@ -413,6 +428,12 @@ export function App() {
       setShowSettings(false);
       setStopped(true);
     }
+  }
+
+  function openSettings(fromKeyboard: boolean) {
+    setSettingsFromKeyboard(fromKeyboard);
+    setShowSettings(true);
+    void fetchStartup();
   }
 
   const closeSettings = useCallback(() => setShowSettings(false), []);
@@ -610,12 +631,10 @@ export function App() {
             </button>
             <button
               className="icon-btn settings-btn"
-              onClick={() => {
-                setShowSettings(true);
-                void fetchStartup();
-              }}
-              title="Settings"
+              onClick={() => openSettings(false)}
+              title="Settings (,)"
               aria-label="Settings"
+              aria-keyshortcuts=","
             >
               <Settings size={16} />
             </button>
@@ -701,7 +720,8 @@ export function App() {
         )}
 
         {showSettings && (
-          <SettingsDialog
+          <SettingsPanel
+            initialFocus={settingsFromKeyboard ? "search" : undefined}
             startup={startup}
             startupError={startupError}
             saving={savingStartup}
