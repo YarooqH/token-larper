@@ -401,6 +401,46 @@ describe("Limits view", () => {
   });
 });
 
+describe("local session block", () => {
+  const blockCard = card({
+    id: "claude",
+    harness: "claude",
+    name: "Claude Code",
+    source: "local",
+    windows: [],
+    note: "Claude sign-in expired. Open Claude Code once to refresh it. Session estimated from local logs.",
+    block: { startsAt: "2026-10-14T01:30:00Z", endsAt: "2026-10-14T06:30:00Z", messages: 127, tokens: 867_389 },
+  });
+
+  test("a card shows the session reset and activity, with no percentage and no empty-state text", () => {
+    const html = view(<Limits limits={payload([blockCard])} now={NOW} />);
+    expect(html).toContain("5-hour session");
+    expect(html).toContain("Resets in 3h 30m");
+    expect(html).toContain("127 messages");
+    expect(html).toContain("867.4K tokens");
+    expect(html).toContain("Local");
+    expect(html).toContain("Claude sign-in expired.");
+    expect(html).not.toContain("% left");
+    expect(html).not.toContain("No quota data yet");
+    expect(html).not.toContain("Unavailable");
+  });
+
+  test("the strip tile shows the reset and activity instead of dropping the plan", () => {
+    const html = view(<LimitsSummaryStrip limits={payload([blockCard])} onOpenLimits={() => {}} now={NOW} />);
+    expect(html).toContain("Claude Code");
+    expect(html).toContain("Resets in 3h 30m");
+    expect(html).toContain("127 messages");
+    expect(html).not.toContain("No data");
+  });
+
+  test("a single message and a bad token count do not break the line", () => {
+    const odd = { ...blockCard, block: { ...blockCard.block!, messages: 1, tokens: Number.NaN } };
+    const html = view(<Limits limits={payload([odd])} now={NOW} />);
+    expect(html).toContain("1 message ·");
+    expect(html).not.toContain("NaN");
+  });
+});
+
 describe("Limits worst-case data", () => {
   const longName = "Anthropic Claude Code for Teams Enterprise Premium (Northwind Industries Holdings, EMEA region)";
   const worst = payload([

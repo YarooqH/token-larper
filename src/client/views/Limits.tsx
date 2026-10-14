@@ -3,6 +3,7 @@ import type { HarnessLimitCard, LimitsPayload, QuotaWindow } from "../../types.t
 import { AlertTriangle, RefreshCw } from "../components/Icons.tsx";
 import { ToolMark } from "../components/ToolMark.tsx";
 import { useDashboard } from "../context.tsx";
+import { formatCompactNumber } from "../utils.ts";
 
 /** A payload older than this means polling is failing or paused, so the header says how old it is. */
 const PAYLOAD_OLD_MS = 3 * 60_000;
@@ -150,6 +151,13 @@ export function windowStatusText(win: Pick<QuotaWindow, "status" | "remainingPer
   return null;
 }
 
+/** "127 messages · 867K tokens" for a locally estimated session. */
+function describeBlockActivity(block: NonNullable<HarnessLimitCard["block"]>): string {
+  const messages = finite(block.messages) ? block.messages : 0;
+  const tokens = finite(block.tokens) ? block.tokens : 0;
+  return `${messages.toLocaleString()} ${messages === 1 ? "message" : "messages"} · ${formatCompactNumber(tokens)} tokens`;
+}
+
 function windowTone(win: Pick<QuotaWindow, "status">): "ok" | "warning" | "critical" {
   return win.status === "critical" || win.status === "warning" ? win.status : "ok";
 }
@@ -247,6 +255,19 @@ function MiniCard({ card, nowMs, onOpen }: { card: HarnessLimitCard; nowMs: numb
       <strong>{card.name}</strong>
     </span>
   );
+
+  if (!primary && card.block) {
+    const countdown = formatResetCountdown(card.block.endsAt, nowMs);
+    return (
+      <button type="button" className="limits-mini-card is-empty" onClick={onOpen}>
+        <div className="limits-mini-top">
+          {tool}
+          <span className="limits-mini-pct">{countdown ? describeReset(countdown) : "5-hour session"}</span>
+        </div>
+        <p className="limits-mini-line">{describeBlockActivity(card.block)}</p>
+      </button>
+    );
+  }
 
   if (!primary) {
     const failed = !!card.error;
@@ -445,6 +466,8 @@ function LimitCard({ card, nowMs }: { card: HarnessLimitCard; nowMs: number }) {
 
       {unavailable ? (
         <p className="limit-error-line">{card.error}</p>
+      ) : windows.length === 0 && card.block ? (
+        <BlockRow block={card.block} nowMs={nowMs} />
       ) : windows.length === 0 ? (
         <p className="limit-none">No quota data yet.</p>
       ) : (
@@ -482,6 +505,21 @@ function LimitCard({ card, nowMs }: { card: HarnessLimitCard; nowMs: number }) {
         </footer>
       )}
     </article>
+  );
+}
+
+function BlockRow({ block, nowMs }: { block: NonNullable<HarnessLimitCard["block"]>; nowMs: number }) {
+  const countdown = formatResetCountdown(block.endsAt, nowMs);
+  return (
+    <div className="limit-window is-ok">
+      <div className="limit-window-top">
+        <span className="limit-window-label">5-hour session</span>
+        <span className="limit-window-num">
+          <span className="limit-window-pct is-ok">{countdown ? describeReset(countdown) : "Session ended"}</span>
+        </span>
+      </div>
+      <p className="limit-window-foot">{describeBlockActivity(block)}</p>
+    </div>
   );
 }
 

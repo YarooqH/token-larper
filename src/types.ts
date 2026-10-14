@@ -288,6 +288,14 @@ export interface QuotaWindow {
   status: QuotaWindowStatus;
 }
 
+/** Local estimate of the current 5-hour session, for when a tool's live quota can not be read. */
+export interface ClaudeBlock {
+  startsAt: string;
+  endsAt: string;
+  messages: number;
+  tokens: number;
+}
+
 export interface HarnessLimitCard {
   /** Unique card ID (usually matches harness, or e.g. "opencode-go"). */
   id: string;
@@ -315,6 +323,8 @@ export interface HarnessLimitCard {
   };
   note?: string;
   error?: string;
+  /** Present instead of quota windows when only local logs could be read. No percentage is known. */
+  block?: ClaudeBlock;
   /** True when this card is a carried-over snapshot because the provider could not be reached this time. */
   stale?: boolean;
   /** ISO timestamp of the last successful fetch for a stale card. */

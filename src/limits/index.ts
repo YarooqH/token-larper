@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { dataPath } from "../paths.ts";
+import { findCurrentClaudeBlock } from "./claudeBlock.ts";
 import type { HarnessLimitCard, LimitsPayload, QuotaWindow, QuotaWindowStatus } from "../types.ts";
 
 const CACHE_FILE = dataPath("limits-cache.json");
@@ -1524,8 +1525,32 @@ async function writeDiskCache(payload: LimitsPayload): Promise<void> {
   }
 }
 
+// When Anthropic's quota can not be read (expired sign-in, rate limit), fall back to the current
+// 5-hour session rebuilt from local logs: a reset time and activity, but no percentage.
+async function fetchClaudeWithLocalFallback(): Promise<HarnessLimitCard | null> {
+  const live = await fetchClaudeLimits();
+  if (live && live.windows.length > 0) return live;
+  const block = await findCurrentClaudeBlock();
+  if (!block) return live;
+  const oauth = await readClaudeOAuthCredentials();
+  const reason = live?.error ?? failureReasons.get("claude") ?? "Live quota unavailable";
+  return {
+    id: "claude",
+    harness: "claude",
+    name: "Claude Code",
+    vendor: "Anthropic",
+    planName: live?.planName ?? formatClaudePlanName(oauth?.subscriptionType, oauth?.rateLimitTier),
+    source: "local",
+    sourceLabel: "Local logs",
+    updatedAt: new Date().toISOString(),
+    windows: [],
+    block,
+    note: `${reason}. Session estimated from local logs.`,
+  };
+}
+
 const PROVIDERS: { id: string; run: () => Promise<HarnessLimitCard | null> }[] = [
-  { id: "claude", run: fetchClaudeLimits },
+  { id: "claude", run: fetchClaudeWithLocalFallback },
   { id: "antigravity", run: fetchAntigravityLimits },
   { id: "codex", run: fetchCodexLimits },
   {
@@ -1540,7 +1565,7 @@ const PROVIDERS: { id: string; run: () => Promise<HarnessLimitCard | null> }[] =
 
 // A card is worth showing when it has quota windows, or an error the UI should surface (e.g. expired sign-in).
 function isShowable(card: HarnessLimitCard | null | undefined): card is HarnessLimitCard {
-  return !!card && (card.windows.length > 0 || !!card.error);
+  return !!card && (card.windows.length > 0 || !!card.error || !!card.block);
 }
 
 // Combines this round's results with the previous payload. A provider that failed (null/empty)
