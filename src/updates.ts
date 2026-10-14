@@ -1,12 +1,14 @@
 import { spawn } from "node:child_process";
 import { APP_VERSION, RUNNING_FROM_SOURCE } from "./paths.ts";
 import { compareVersions } from "./semver.ts";
+import { settings } from "./settings.ts";
 import type { UpdateStatus } from "./types.ts";
 
 export { compareVersions };
 
 // Token Larper's own update check. It runs only when the dashboard asks (on open, if
 // automatic checks are on, or from Settings) and sends nothing but the package name.
+// Offline mode never asks.
 
 const PACKAGE = "token-larper";
 const REGISTRY_URL = `https://registry.npmjs.org/${PACKAGE}/latest`;
@@ -34,8 +36,9 @@ export function localStatus(): UpdateStatus {
   };
 }
 
-/** Check npm (at most every few hours unless forced) and report. */
-export async function checkForUpdates(force = false): Promise<UpdateStatus> {
+/** Check npm (at most every few hours unless forced) and report. Offline mode reports only what is known. */
+export async function checkForUpdates(force = false, offline = settings.isOffline()): Promise<UpdateStatus> {
+  if (offline) return localStatus();
   if (force || !lastCheck || Date.now() - lastCheck.at > RECHECK_MS) {
     inFlight ??= fetchLatest().finally(() => (inFlight = null));
     try {

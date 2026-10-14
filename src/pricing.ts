@@ -1,13 +1,15 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { dataPath } from "./paths.ts";
+import { settings } from "./settings.ts";
 import type { PricingStatus } from "./types.ts";
 
 // Model prices for the estimated cost. OpenRouter publishes a public price list that
 // tracks new models faster than a table kept in this repo. The one request goes to its
 // models endpoint (no key, no usage data sent) at most once a day; the result is cached
 // in the data folder and the built-in rates in ccusage.ts cover whatever it does not list.
-// Set TOKEN_LARPER_OFFLINE=1 to skip the request and use only the cache and built-in rates.
+// Offline mode (Settings → Privacy, or TOKEN_LARPER_OFFLINE=1) skips the request and uses only
+// the cache and built-in rates.
 
 /** USD per 1M tokens: input, output, cache write, cache read. */
 export type Rates = [input: number, output: number, cacheWrite: number, cacheRead: number];
@@ -127,12 +129,15 @@ export interface PricingOptions {
   cacheFile?: string;
   fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>;
   now?: () => number;
+  /** Whether downloads are off; defaults to the offline setting. */
+  offline?: () => boolean;
 }
 
 export function createPricing(options: PricingOptions = {}) {
   const cacheFile = options.cacheFile ?? dataPath("openrouter-pricing.json");
   const doFetch = options.fetchImpl ?? fetch;
   const now = options.now ?? Date.now;
+  const isOffline = options.offline ?? settings.isOffline;
 
   let table: PriceTable = new Map();
   // The same few model names repeat across every daily row, and an unlisted name scans
@@ -211,7 +216,7 @@ export function createPricing(options: PricingOptions = {}) {
         fetchedAt: fetchedAt > 0 ? new Date(fetchedAt).toISOString() : null,
         models: table.size,
         lastDownloadFailed,
-        offline: process.env.TOKEN_LARPER_OFFLINE === "1",
+        offline: isOffline(),
       };
     },
 
@@ -224,7 +229,7 @@ export function createPricing(options: PricingOptions = {}) {
         cacheRead = true;
         readCache();
       }
-      if (process.env.TOKEN_LARPER_OFFLINE === "1") return;
+      if (isOffline()) return;
       if (now() - fetchedAt < REFRESH_MS || now() < nextAttempt) return;
       inFlight ??= download().finally(() => (inFlight = null));
       await inFlight;

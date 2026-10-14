@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { HarnessId, LiveEvent } from "../../types.ts";
-import { HarnessMark, useDashboard } from "../context.tsx";
+import { HarnessMark, useDashboard, useProjectLabel } from "../context.tsx";
 import { Info, Maximize2, Minimize2 } from "../components/Icons.tsx";
 import { SeriesKey, ToolMark } from "../components/ToolMark.tsx";
 import { formatRate } from "../lib/throughput.ts";
@@ -291,6 +291,7 @@ interface TipAt {
 /** A hover card for one response: what answered, how fast, how much, and what it cost. */
 export function ResponseTip({ e, at }: { e: LiveEvent; at: TipAt }) {
   const { nameOf } = useDashboard();
+  const projectLabel = useProjectLabel();
   const speed = responseSpeed(e);
   const secs = e.start !== undefined ? (e.at - e.start) / 1000 : null;
   const prompt = e.inputTokens + e.cacheCreationTokens + e.cacheReadTokens;
@@ -327,7 +328,7 @@ export function ResponseTip({ e, at }: { e: LiveEvent; at: TipAt }) {
           <dd>{formatCurrency(e.cost)}</dd>
         </div>
       </dl>
-      {e.project && <div className="lm-tip-foot">{e.project}</div>}
+      {e.project && <div className="lm-tip-foot">{projectLabel(e.project)}</div>}
     </div>
   );
 }
@@ -424,6 +425,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
   lead: Lead;
 }) {
   const { nameOf } = useDashboard();
+  const projectLabel = useProjectLabel();
   const minute = totalsBetween(events, now - MINUTE, Infinity);
   const five = totalsBetween(events, now - 5 * MINUTE, Infinity);
   const hour = totalsBetween(events, now - 60 * MINUTE, Infinity);
@@ -453,7 +455,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
     <Readout
       key="context"
       label="Context"
-      note={biggest ? biggest.project || nameOf(biggest.harness) : undefined}
+      note={biggest ? (biggest.project ? projectLabel(biggest.project) : nameOf(biggest.harness)) : undefined}
       hint="The largest latest prompt among sessions active in the last 15 minutes, cache included"
     >
       {biggest ? <Figure value={biggest.context} /> : <span className="lm-dim">—</span>}
@@ -625,6 +627,7 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
 
 function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
   const { nameOf } = useDashboard();
+  const projectLabel = useProjectLabel();
   const sessions = useMemo(() => liveSessions(events, now, SESSION_WINDOW_MS), [events, now]);
   return (
     <section className="lm-panel lm-sessions">
@@ -639,7 +642,7 @@ function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
           {sessions.map((s) => (
             <article key={s.key} className="lm-session">
               <header>
-                <strong>{s.project ?? "Unknown folder"}</strong>
+                <strong>{s.project ? projectLabel(s.project) : "Unknown folder"}</strong>
                 <span className={now - s.lastAt < MINUTE ? "lm-note is-recent" : "lm-note"}>{ago(now - s.lastAt)}</span>
               </header>
               <div className="lm-session-tool">
