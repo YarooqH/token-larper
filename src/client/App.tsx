@@ -18,9 +18,10 @@ import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from ".
 import { RANGE_PRESETS, parseDay, presetRange, todayKey, type DateRange, type RangePreset } from "./lib/range.ts";
 import { throughputInRange } from "./lib/throughput.ts";
 import { liveFeedReady, prepareLiveFeed } from "./lib/live.ts";
+import { playLiveSwitch } from "./lib/liveSwitch.ts";
 import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
 import { ToolMark } from "./components/ToolMark.tsx";
-import { LiveMode } from "./views/LiveMode.tsx";
+import { LiveMode, loadLead } from "./views/LiveMode.tsx";
 import { Models } from "./views/Models.tsx";
 import { Overview } from "./views/Overview.tsx";
 import { Projects } from "./views/Projects.tsx";
@@ -153,8 +154,7 @@ export function App() {
   const switching = useRef(false);
 
   /**
-   * Swaps between the dashboard and Live mode with a view transition: the outgoing screen
-   * sinks away while the incoming one rises in, and the top bar's buttons glide into place.
+   * Swaps between the dashboard and Live mode with a view transition (see lib/liveSwitch.ts).
    * Live mode waits (briefly) for its data first, so it never transitions into an empty screen.
    */
   async function switchLive(next: boolean) {
@@ -167,33 +167,10 @@ export function App() {
         await liveFeedReady(1500);
         setLiveArming(false);
       }
-      let applied = false;
-      const apply = () => {
-        if (applied) return;
-        applied = true;
+      await playLiveSwitch(next, () => {
         flushSync(() => setPrefs((p) => (p.live === next ? p : { ...p, live: next })));
         window.scrollTo(0, next ? 0 : dashboardScroll.current);
-      };
-      const root = document.documentElement;
-      const animate = typeof document.startViewTransition === "function"
-        && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (!animate) {
-        apply();
-        return;
-      }
-      root.dataset.vt = next ? "to-live" : "from-live";
-      const transition = document.startViewTransition(apply);
-      // A transition only starts on a painted frame. If the browser isn't painting (a
-      // throttled or covered window), switch anyway rather than leave the click hanging.
-      const stalled = setTimeout(() => {
-        if (applied) return;
-        transition.skipTransition();
-        apply();
-      }, 1000);
-      await Promise.race([transition.finished.catch(() => {}), new Promise((done) => setTimeout(done, 3000))]);
-      clearTimeout(stalled);
-      apply();
-      delete root.dataset.vt;
+      }, loadLead());
     } finally {
       setLiveArming(false);
       switching.current = false;
