@@ -152,6 +152,9 @@ describe("limits helpers & parsers", () => {
     expect(card.windows[0]?.remainingPercent).toBe(88.5);
     expect(card.windows[1]?.label).toBe("Claude & GPT pool");
     expect(card.windows[1]?.remainingPercent).toBe(100);
+    // An untouched pool reports now + window as its reset; that is not a real reset time.
+    expect(card.windows[1]?.resetsAt).toBeNull();
+    expect(card.windows[0]?.resetsAt).toBe("2026-10-14T05:46:01Z");
     expect(card.credits?.[0]?.remainingText).toBe("992 left");
   });
 
@@ -221,9 +224,10 @@ function makeCard(id: string, updatedAt: string, extra: Partial<HarnessLimitCard
 describe("mergeWithCache", () => {
   const now = Date.parse("2026-10-14T12:00:00Z");
   const hour = 3600_000;
+  const minute = 60_000;
 
   test("failed provider is carried over as stale with the original updatedAt as staleSince", () => {
-    const prev = makeCard("codex", new Date(now - hour).toISOString(), { note: "keep me", source: "local" });
+    const prev = makeCard("codex", new Date(now - 5 * minute).toISOString(), { note: "keep me", source: "local" });
     const items = mergeWithCache(new Map([["codex", prev]]), new Map([["codex", null]]), now);
     expect(items).toHaveLength(1);
     expect(items[0]?.stale).toBe(true);
@@ -234,23 +238,37 @@ describe("mergeWithCache", () => {
   });
 
   test("an already-stale card keeps its original staleSince", () => {
-    const lastGood = new Date(now - 2 * hour).toISOString();
-    const prev = makeCard("codex", new Date(now - hour).toISOString(), { stale: true, staleSince: lastGood });
+    const lastGood = new Date(now - 10 * minute).toISOString();
+    const prev = makeCard("codex", new Date(now - 5 * minute).toISOString(), { stale: true, staleSince: lastGood });
     const items = mergeWithCache(new Map([["codex", prev]]), new Map([["codex", null]]), now);
     expect(items[0]?.staleSince).toBe(lastGood);
   });
 
-  test("cached cards older than 6 hours are dropped", () => {
-    const old = makeCard("copilot", new Date(now - 6 * hour - 1000).toISOString());
-    expect(mergeWithCache(new Map([["copilot", old]]), new Map([["copilot", null]]), now)).toHaveLength(0);
+  test("cached cards older than 15 minutes become an unavailable card without numbers", () => {
+    const old = makeCard("copilot", new Date(now - 15 * minute - 1000).toISOString());
+    const items = mergeWithCache(new Map([["copilot", old]]), new Map([["copilot", null]]), now);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.windows).toHaveLength(0);
+    expect(items[0]?.stale).toBeUndefined();
+    expect(items[0]?.error).toBeTruthy();
 
-    const lastGood = new Date(now - 7 * hour).toISOString();
-    const alreadyStale = makeCard("copilot", new Date(now - hour).toISOString(), { stale: true, staleSince: lastGood });
-    expect(mergeWithCache(new Map([["copilot", alreadyStale]]), new Map([["copilot", null]]), now)).toHaveLength(0);
+    const lastGood = new Date(now - 20 * minute).toISOString();
+    const alreadyStale = makeCard("copilot", new Date(now - minute).toISOString(), { stale: true, staleSince: lastGood });
+    const again = mergeWithCache(new Map([["copilot", alreadyStale]]), new Map([["copilot", null]]), now);
+    expect(again[0]?.windows).toHaveLength(0);
+  });
+
+  test("a known failure reason is shown, even when nothing was cached", () => {
+    const reasons = new Map([["claude", "Anthropic is rate-limiting the usage lookup"]]);
+    const items = mergeWithCache(new Map(), new Map([["claude", null]]), now, reasons);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.name).toBe("Claude Code");
+    expect(items[0]?.windows).toHaveLength(0);
+    expect(items[0]?.error).toBe("Anthropic is rate-limiting the usage lookup");
   });
 
   test("a fresh result clears stale flags", () => {
-    const lastGood = new Date(now - hour).toISOString();
+    const lastGood = new Date(now - 5 * minute).toISOString();
     const prev = makeCard("codex", lastGood, { stale: true, staleSince: lastGood });
     const fresh = makeCard("codex", new Date(now).toISOString());
     const items = mergeWithCache(new Map([["codex", prev]]), new Map([["codex", fresh]]), now);
@@ -273,7 +291,7 @@ describe("mergeWithCache", () => {
   });
 
   test("an empty card without an error counts as a failure", () => {
-    const prev = makeCard("codex", new Date(now - hour).toISOString());
+    const prev = makeCard("codex", new Date(now - 5 * minute).toISOString());
     const empty = makeCard("codex", new Date(now).toISOString(), { windows: [] });
     const items = mergeWithCache(new Map([["codex", prev]]), new Map([["codex", empty]]), now);
     expect(items[0]?.stale).toBe(true);

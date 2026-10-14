@@ -5,7 +5,6 @@ import { render } from "../testing/dashboard.tsx";
 import {
   cardNeedsAttention,
   clampPercent,
-  computeWindowTimeRemainingPercent,
   formatAge,
   formatPercent,
   formatResetCountdown,
@@ -16,6 +15,7 @@ import {
   sortCards,
   sortWindows,
   windowPercents,
+  windowStatusText,
 } from "./Limits.tsx";
 
 const NOW = Date.parse("2026-10-14T03:00:00Z");
@@ -80,6 +80,7 @@ const sampleLimits: LimitsPayload = {
       source: "local",
       sourceLabel: "Local rolling ledger",
       updatedAt: "2026-10-14T03:00:00Z",
+      note: "Estimated from local logs against list caps",
       windows: [
         {
           id: "thirty_day",
@@ -132,12 +133,7 @@ describe("Limits helpers", () => {
     expect(formatResetCountdown("2026-10-14T06:45:00Z", NOW)).toBe("3h 45m");
     expect(formatResetCountdown("2026-10-16T08:00:00Z", NOW)).toBe("2d 5h");
     expect(formatResetCountdown("2026-10-14T02:59:00Z", NOW)).toBe("Resetting now");
-  });
-
-  test("computeWindowTimeRemainingPercent computes linear window pace", () => {
-    // 2.5 hours left out of a 5-hour (18000s) window = 50%
-    const pct = computeWindowTimeRemainingPercent({ resetsAt: "2026-10-14T05:30:00Z", windowSeconds: 18000 }, NOW);
-    expect(pct).toBe(50);
+    expect(formatResetCountdown("not a date", NOW)).toBeNull();
   });
 
   test("pickPrimaryWindow selects the tightest warning/critical window when present", () => {
@@ -165,6 +161,13 @@ describe("Limits helpers", () => {
     expect(formatPercent(96.7)).toBe("97");
     expect(windowPercents({ remainingPercent: Number.NaN, usedPercent: 30 })).toEqual({ remaining: 70, used: 30, known: true });
     expect(windowPercents({ remainingPercent: Number.NaN, usedPercent: Number.NaN }).known).toBe(false);
+  });
+
+  test("windowStatusText pairs colour with a short word", () => {
+    expect(windowStatusText(win())).toBeNull();
+    expect(windowStatusText(win({ status: "warning", remainingPercent: 15 }))).toBe("Low");
+    expect(windowStatusText(win({ status: "critical", remainingPercent: 0 }))).toBe("Limit reached");
+    expect(windowStatusText(win({ status: "critical", remainingPercent: 3 }))).toBe("Almost out");
   });
 
   test("formatAge gives short relative times and null for junk", () => {
@@ -207,31 +210,60 @@ describe("Limits helpers", () => {
   });
 
   test("pickHeadlineCredit prefers the bucket expiring soonest", () => {
-    const entries = [
-      { credit: { label: "A", remainingText: "$5", resetsAt: "2026-12-01T00:00:00Z" } },
-      { credit: { label: "B", remainingText: "$9", resetsAt: "2026-10-20T00:00:00Z" } },
-      { credit: { label: "C", remainingText: "$1", resetsAt: null } },
+    const credits = [
+      { label: "A", remainingText: "$5", resetsAt: "2026-12-01T00:00:00Z" },
+      { label: "B", remainingText: "$9", resetsAt: "2026-10-20T00:00:00Z" },
+      { label: "C", remainingText: "$1", resetsAt: null },
     ];
-    expect(pickHeadlineCredit(entries, NOW)?.credit.label).toBe("B");
-    expect(pickHeadlineCredit([entries[2]!], NOW)?.credit.label).toBe("C");
+    expect(pickHeadlineCredit(credits, NOW)?.label).toBe("B");
+    expect(pickHeadlineCredit([credits[2]!], NOW)?.label).toBe("C");
     expect(pickHeadlineCredit([], NOW)).toBeNull();
   });
 });
 
 describe("Limits view", () => {
-  test("renders KPI summary, subscription cards, windows, credits, and breakdowns", () => {
+  test("shows only the updated time and Refresh in the header, with no KPIs, filters or toggles", () => {
+    const html = view(<Limits limits={sampleLimits} now={NOW} onRefresh={() => {}} />);
+    expect(html).toContain("Updated ");
+    expect(html).toContain("<span>Refresh</span>");
+    for (const gone of ["kpi", "Connected plans", "Tightest window", "Remaining %", "Used %", "All plans", "Attention", "segmented", "limits-legend"]) {
+      expect(html).not.toContain(gone);
+    }
+  });
+
+  test("a card is title, plan, one status word, windows and a single credit line", () => {
     const html = view(<Limits limits={sampleLimits} now={NOW} />);
-    expect(html).toContain("Connected plans");
-    expect(html).toContain("1 live · 1 local");
     expect(html).toContain("Claude Pro");
     expect(html).toContain("OpenCode Go ($10/mo)");
     expect(html).toContain("5-hour session");
     expect(html).toContain("0% left");
     expect(html).toContain("44% left");
-    expect(html).toContain("97% left");
-    expect(html).toContain("$58.02 left");
-    expect(html).toContain("$100.00 left");
-    expect(html).toContain("7-day usage by surface");
+    expect(html).toContain("Promo credit $100.00 left");
+    expect(html).toContain("Live");
+    expect(html).toContain("Local");
+    for (const gone of ["Anthropic", "Anomaly", "Anthropic OAuth", "Local rolling ledger", "Rolling 5h block", "$60 rolling cap", "% of window consumed", "Running low"]) {
+      expect(html).not.toContain(gone);
+    }
+  });
+
+  test("a window is a label, a percent, a bar and one muted line with the dollar counter and reset", () => {
+    const html = view(<Limits limits={sampleLimits} now={NOW} />);
+    expect(html.indexOf("5-hour session")).toBeLessThan(html.indexOf("7-day weekly"));
+    expect(html).toContain("Resets in 4d 20h");
+    expect(html).toContain("$58.02 left of $60.00 · Resets in 2d 21h");
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain('aria-valuetext="44% left, resets in 4d 20h"');
+    expect(html).toContain("limit-bar-fill");
+    expect(html).not.toContain("limit-bar-pace");
+  });
+
+  test("critical and warning windows carry a word as well as colour, and the progressbar says it", () => {
+    const html = view(<Limits limits={sampleLimits} now={NOW} />);
+    expect(html).toContain("Limit reached");
+    expect(html).toContain('aria-valuetext="0% left, resets in 4h, limit reached"');
+    const warned = view(<Limits limits={payload([card({ windows: [win({ status: "warning", remainingPercent: 15 })] })])} now={NOW} />);
+    expect(warned).toContain("Low");
+    expect(warned).toContain("limit-card is-warning");
   });
 
   test("does not apply the global tool filter, since the picker is hidden on this view", () => {
@@ -240,16 +272,7 @@ describe("Limits view", () => {
     expect(html).toContain("OpenCode Go ($10/mo)");
   });
 
-  test("windows render shortest first and expose progressbar text with the reset time", () => {
-    const html = view(<Limits limits={sampleLimits} now={NOW} />);
-    expect(html.indexOf("5-hour session")).toBeLessThan(html.indexOf("7-day weekly"));
-    expect(html).toContain('role="progressbar"');
-    expect(html).toContain('aria-valuetext="44% left, resets in 4d 20h');
-    expect(html).toContain("Limit reached");
-    expect(html).toContain("Resets in <strong>4d 20h</strong>");
-  });
-
-  test("a stale card shows the stale badge instead of Live, keeps its countdowns, and dims via is-stale", () => {
+  test("a stale card says only Stale, keeps its countdowns, and dims via is-stale", () => {
     const stale = card({
       id: "stale",
       name: "Stale Tool",
@@ -258,53 +281,86 @@ describe("Limits view", () => {
       windows: [win({ resetsAt: "2026-10-14T05:00:00Z" })],
     });
     const html = view(<Limits limits={payload([stale])} now={NOW} />);
-    expect(html).toContain("Stale · last updated 12m ago");
+    expect(html).toContain("Stale");
+    expect(html).toContain('title="Last updated 12m ago"');
     expect(html).toContain("limit-card is-stale");
-    expect(html).not.toContain("limit-source-pill is-live");
-    expect(html).toContain("Resets in <strong>2h</strong>");
+    expect(html).not.toContain("limit-status is-live");
+    expect(html).toContain("Resets in 2h");
   });
 
-  test("a stale card without a usable staleSince still says it is stale", () => {
+  test("a stale card without a usable staleSince still says Stale", () => {
     const html = view(<Limits limits={payload([card({ stale: true, staleSince: "garbage" })])} now={NOW} />);
-    expect(html).toContain("Stale · last update time unknown");
+    expect(html).toContain("Stale");
+    expect(html).not.toContain("title=");
   });
 
-  test("an error-only card shows the message and a hint instead of an empty card", () => {
+  test("an error-only card is the title row and one error line", () => {
     const broken = card({ id: "broken", name: "Claude Code", windows: [], error: "Sign-in expired (401)" });
     const html = view(<Limits limits={payload([broken])} now={NOW} />);
-    expect(html).toContain("Couldn't read this quota");
-    expect(html).toContain("Sign-in expired (401)");
-    expect(html).toContain("Check that Claude Code is signed in on this machine, then refresh.");
     expect(html).toContain("Unavailable");
-    expect(html).toContain("1 unavailable");
-    expect(html).toContain("No quota windows reported");
-  });
-
-  test("a card with neither windows nor an error says there is nothing yet", () => {
-    const html = view(<Limits limits={payload([card({ windows: [] })])} now={NOW} />);
-    expect(html).toContain("No quota windows reported yet.");
+    expect(html).toContain('<p class="limit-error-line">Sign-in expired (401)</p>');
     expect(html).not.toContain("Couldn't read this quota");
+    expect(html).not.toContain("is signed in on this machine");
+    expect(html).not.toContain("limit-windows");
+    expect(html).not.toContain("limit-card-foot");
   });
 
-  test("a card note shows in the footer", () => {
-    const noted = card({ source: "local", note: "Estimated from local logs against list caps" });
-    const html = view(<Limits limits={payload([noted])} now={NOW} />);
-    expect(html).toContain("limit-card-foot");
-    expect(html).toContain("Estimated from local logs against list caps");
+  test("a card with neither windows nor an error says there is no data yet", () => {
+    const html = view(<Limits limits={payload([card({ windows: [] })])} now={NOW} />);
+    expect(html).toContain("No quota data yet.");
+    expect(html).not.toContain("limit-error-line");
   });
 
-  test("an error on a card that still has windows is shown as a failed refresh in the footer", () => {
+  test("the generic local-ledger note renders nothing, while a useful note stays small and muted", () => {
+    const generic = view(<Limits limits={payload([card({ source: "local", note: "Estimated from local logs against list caps" })])} now={NOW} />);
+    expect(generic).not.toContain("Estimated from local logs");
+    expect(generic).not.toContain("limit-card-foot");
+    const useful = view(<Limits limits={payload([card({ source: "local", note: "Live quota needs Windows Credential Manager" })])} now={NOW} />);
+    expect(useful).toContain('<p class="limit-line">Live quota needs Windows Credential Manager</p>');
+  });
+
+  test("an error on a card that still has windows is one line in the footer", () => {
     const html = view(<Limits limits={payload([card({ error: "timeout" })])} now={NOW} />);
     expect(html).toContain("Last refresh failed: timeout");
-    expect(html).not.toContain("Couldn't read this quota");
+    expect(html).toContain("limit-windows");
   });
 
-  test("Checked time flags an old payload and stays plain for a fresh one", () => {
-    const fresh = view(<Limits limits={payload([card()])} now={NOW} />);
-    expect(fresh).toContain("Checked");
-    expect(fresh).not.toContain("may be out of date");
+  test("the breakdown sits in a collapsed details element", () => {
+    const html = view(<Limits limits={sampleLimits} now={NOW} />);
+    expect(html).toContain('<details class="limit-breakdown"><summary>Breakdown</summary>');
+    expect(html).not.toContain("<details open");
+    expect(html).toContain("97%");
+  });
+
+  test("extra credits are one line per card: the soonest-expiring bucket with a count of the rest", () => {
+    const html = view(
+      <Limits
+        limits={payload([
+          card({
+            id: "b",
+            name: "Beta",
+            credits: [
+              { label: "Promo", remainingText: "$9.00 left", resetsAt: "2026-10-20T00:00:00Z" },
+              { label: "Flex", remainingText: "12 credits" },
+            ],
+          }),
+        ])}
+        now={NOW}
+      />,
+    );
+    expect(html).toContain("Promo $9.00 left (+1 more)");
+    expect((html.match(/limit-line/g) ?? []).length).toBe(1);
+  });
+
+  test("the header flags an old payload with a short age and nothing else", () => {
     const old = view(<Limits limits={payload([card()], "2026-10-14T02:40:00Z")} now={NOW} />);
-    expect(old).toContain("20m ago, may be out of date");
+    expect(old).toContain("Updated 20m ago");
+    expect(old).toContain("limits-updated is-old");
+    expect(old).not.toContain("out of date");
+    const fresh = view(<Limits limits={payload([card()])} now={NOW} />);
+    expect(fresh).toContain("Updated ");
+    expect(fresh).not.toContain("ago");
+    expect(fresh).not.toContain("is-old");
   });
 
   test("cards render in priority order regardless of payload order", () => {
@@ -320,69 +376,28 @@ describe("Limits view", () => {
     expect(html.indexOf("Zzz Critical")).toBeLessThan(html.indexOf("Aaa Healthy"));
   });
 
-  test("extra credits tile shows the soonest-expiring bucket with its owner, label and a count", () => {
-    const html = view(
-      <Limits
-        limits={payload([
-          card({ id: "a", name: "Alpha", credits: [{ label: "Bonus", remainingText: "$5.00 left", resetsAt: "2026-12-01T00:00:00Z" }] }),
-          card({
-            id: "b",
-            name: "Beta",
-            credits: [
-              { label: "Promo", remainingText: "$9.00 left", resetsAt: "2026-10-20T00:00:00Z" },
-              { label: "Flex", remainingText: "12 credits" },
-            ],
-          }),
-        ])}
-        now={NOW}
-      />,
-    );
-    expect(html).toContain("Extra credits");
-    expect(html).toContain('<div class="kpi-value is-compact">$9.00 left</div>');
-    expect(html).toContain("Beta · Promo · +2 more");
-  });
-
-  test("extra credits tile is empty-safe", () => {
-    const html = view(<Limits limits={payload([card()])} now={NOW} />);
-    expect(html).toContain("No promotional or bonus credit buckets");
-  });
-
-  test("KPIs stay safe when every card has zero windows", () => {
-    const html = view(<Limits limits={payload([card({ windows: [], error: "x" }), card({ id: "d", windows: [] })])} now={NOW} />);
-    expect(html).toContain("No quota windows reported");
-    expect(html).toContain("No active cooldowns");
-    expect(html).toContain("2 live · 0 local · 1 unavailable");
-  });
-
-  test("an empty payload explains what is detected and that credentials stay local", () => {
+  test("an empty payload is one sentence with no list", () => {
     const html = view(<Limits limits={payload([])} now={NOW} onRefresh={() => {}} />);
-    expect(html).toContain("No quota sources detected");
-    for (const name of ["Claude Code", "Codex", "Antigravity", "Copilot", "OpenCode Go"]) expect(html).toContain(name);
-    expect(html).toContain("Credentials are only read locally");
-    expect(html).toContain("Check again");
+    expect(html).toContain("No quota sources found. Sign in to Claude Code, Codex, Copilot or Antigravity.");
+    expect(html).not.toContain("<ul");
+    expect(html).not.toContain("<h3");
   });
 
-  test("loading shows a skeleton with an accessible status, and a failed first load shows an error with retry", () => {
+  test("loading is the skeleton alone, and a failed first load is one line with Retry", () => {
     const loading = view(<Limits limits={null} />);
     expect(loading).toContain("skel");
-    expect(loading).toContain("Checking subscription quotas");
+    expect(loading).toContain("Loading quotas");
+    expect(loading).not.toContain("kpi");
     const failed = view(<Limits limits={null} error="HTTP 500" onRefresh={() => {}} />);
-    expect(failed).toContain("Couldn't load quotas");
-    expect(failed).toContain("HTTP 500");
-    expect(failed).toContain("Try again");
+    expect(failed).toContain("Couldn't load quotas (HTTP 500).");
+    expect(failed).toContain("Retry");
+    expect(failed).not.toContain("<h3");
   });
 
   test("a failed refresh over existing data keeps the cards and says so", () => {
     const html = view(<Limits limits={sampleLimits} error="HTTP 502" now={NOW} />);
-    expect(html).toContain("Couldn't refresh quotas (HTTP 502). Showing the last result.");
+    expect(html).toContain("Couldn't refresh (HTTP 502). Showing the last result.");
     expect(html).toContain("Claude Pro");
-  });
-
-  test("the pace marker has a visible legend and is hidden from assistive tech", () => {
-    const html = view(<Limits limits={sampleLimits} now={NOW} />);
-    expect(html).toContain("The tick on a bar marks where an even pace");
-    expect(html).toContain('class="limit-bar-pace"');
-    expect(html).toContain('aria-hidden="true"');
   });
 });
 
@@ -408,6 +423,9 @@ describe("Limits worst-case data", () => {
       credits: [{ label: "A very long promotional credit bucket name", remainingText: "1,234,567.89 credits left", limitText: "2,000,000" }],
       breakdown: { label: "Usage by surface", items: [{ name: "same", percent: Number.NaN }, { name: "same", percent: 12 }] },
     }),
+    card({ id: "stale", name: "Stale Tool", stale: true, staleSince: "2026-10-14T02:00:00Z" }),
+    card({ id: "broken", name: "Broken Tool", windows: [], error: "x".repeat(200) }),
+    card({ id: "empty", name: "Empty Tool", windows: [] }),
     ...Array.from({ length: 8 }, (_, i) => card({ id: `many-${i}`, name: `Plan ${i}` })),
   ]);
 
@@ -421,9 +439,12 @@ describe("Limits worst-case data", () => {
     expect(html).toContain("Duplicate id");
     expect(html).toContain("No data");
     expect(html).toContain("&lt;1% left");
-    expect(html).toContain("Reset time not reported");
     expect(html).toContain("100% left");
     expect(html).toContain("0% left");
+    expect(html).toContain(longName);
+    expect(html).toContain("Stale Tool");
+    expect(html).toContain("Broken Tool");
+    expect(html).toContain("Empty Tool");
   });
 
   test("worst-case ids do not collide in React keys", () => {
@@ -432,30 +453,33 @@ describe("Limits worst-case data", () => {
     console.error = (...args: unknown[]) => void errors.push(args);
     try {
       view(<Limits limits={worst} now={NOW} />);
+      view(<LimitsSummaryStrip limits={worst} onOpenLimits={() => {}} now={NOW} />);
     } finally {
       console.error = original;
     }
     expect(errors).toEqual([]);
   });
 
-  test("the strip shows at most six plans and points at the rest", () => {
+  test("the strip lists every plan and prints no NaN", () => {
     const html = view(<LimitsSummaryStrip limits={worst} onOpenLimits={() => {}} now={NOW} />);
-    expect((html.match(/limits-mini-card/g) ?? []).length).toBe(7);
-    expect(html).toContain("+3 more plans");
-    expect(html).toContain("9 plans");
+    expect((html.match(/<button[^>]*limits-mini-card/g) ?? []).length).toBe(12);
+    expect(html).not.toContain("more plan");
     expect(html).not.toContain("NaN");
   });
 });
 
 describe("LimitsSummaryStrip", () => {
-  test("renders compact overview tiles for each subscription", () => {
+  test("is a Quota heading, an All limits link and one tile per plan", () => {
     const html = view(<LimitsSummaryStrip limits={sampleLimits} onOpenLimits={() => {}} now={NOW} />);
-    expect(html).toContain("Remaining quota");
+    expect(html).toContain("<strong>Quota</strong>");
+    expect(html).toContain("All limits");
     expect(html).toContain("Claude Code");
     expect(html).toContain("OpenCode Go");
-    expect(html).toContain("All limits");
     expect(html).toContain("Limit reached: </span>0% left");
     expect(html).toContain("Resets in 4h");
+    expect(html).not.toContain("Remaining quota");
+    expect(html).not.toContain("most urgent first");
+    expect(html).not.toContain("5-hour session");
   });
 
   test("lists the most urgent plan first", () => {
@@ -463,7 +487,7 @@ describe("LimitsSummaryStrip", () => {
     expect(html.indexOf("Claude Code")).toBeLessThan(html.indexOf("OpenCode Go"));
   });
 
-  test("shows a Needs attention tile for error-only cards instead of dropping them", () => {
+  test("shows an Unavailable tile for error-only cards instead of dropping them", () => {
     const html = view(
       <LimitsSummaryStrip
         limits={payload([
@@ -476,11 +500,22 @@ describe("LimitsSummaryStrip", () => {
       />,
     );
     expect(html).toContain("Expired Tool");
-    expect(html).toContain("Needs attention");
+    expect(html).toContain("Unavailable");
     expect(html).toContain("Sign-in expired. Run /login again.");
     expect(html).toContain("Silent Tool");
     expect(html).toContain("No data");
     expect(html.indexOf("Expired Tool")).toBeLessThan(html.indexOf("Healthy"));
+  });
+
+  test("a plan with no reset time falls back to the dollar remaining", () => {
+    const html = view(
+      <LimitsSummaryStrip
+        limits={payload([card({ windows: [win({ resetsAt: null, remainingValueText: "$58.02 left" })] })])}
+        onOpenLimits={() => {}}
+        now={NOW}
+      />,
+    );
+    expect(html).toContain("$58.02 left");
   });
 
   test("a stale plan says so and its tile is dimmed", () => {

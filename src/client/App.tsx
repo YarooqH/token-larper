@@ -46,7 +46,7 @@ type View = "overview" | "limits" | "tools" | "models" | "projects" | "sessions"
 
 const VIEWS: { id: View; label: string; title: string; blurb: string }[] = [
   { id: "overview", label: "Overview", title: "Usage overview", blurb: "Tokens and cost across your coding tools." },
-  { id: "limits", label: "Limits", title: "Subscription & rate limits", blurb: "Remaining quota, rolling windows, and reset timers across your connected harnesses." },
+  { id: "limits", label: "Limits", title: "Subscription & rate limits", blurb: "" },
   { id: "tools", label: "Tools", title: "Tools", blurb: "How each coding tool was used in this range." },
   { id: "models", label: "Models", title: "Models", blurb: "Token totals by model and tool." },
   { id: "projects", label: "Projects", title: "Projects", blurb: "Where your tokens went, by repository." },
@@ -733,9 +733,9 @@ export function App() {
             {view.id !== "rank" && (
               <div className="intro">
                 <div>
-                  <span className="eyebrow">{view.id === "limits" ? "Live quotas" : "Local usage"}</span>
+                  {view.id !== "limits" && <span className="eyebrow">Local usage</span>}
                   <h2>{view.title}</h2>
-                  <p>{view.blurb}</p>
+                  {view.blurb && <p>{view.blurb}</p>}
                 </div>
               </div>
             )}

@@ -15,7 +15,8 @@ const HTTP_TIMEOUT_MS = 4_500;
 // One slow provider must not delay the others; a timeout counts as a failed fetch.
 const PROVIDER_TIMEOUT_MS = 8_000;
 // A carried-over card older than this is dropped instead of shown as stale forever.
-const STALE_MAX_AGE_MS = 6 * 3600_000;
+// Quota readings go wrong quickly (a 5h window can fully roll over), so an old snapshot is worse than none.
+const STALE_MAX_AGE_MS = 15 * 60_000;
 const CREDENTIAL_TTL_MS = 10 * 60_000;
 
 // OpenCode Go list values. These are NOT read from the vendor: keep the plan price, rolling
@@ -288,7 +289,7 @@ interface ClaudeCredentialsFile {
   claudeAiOauth?: ClaudeOAuthCredentials;
 }
 
-export const CLAUDE_SIGN_IN_EXPIRED_MESSAGE = "Claude sign-in expired — open Claude Code once to refresh it";
+export const CLAUDE_SIGN_IN_EXPIRED_MESSAGE = "Claude sign-in expired. Open Claude Code once to refresh it";
 
 // Card-less state for an expired/rejected token. We never refresh it ourselves: rotating the
 // refresh token would race the running Claude Code and could sign the user out of it.
@@ -349,6 +350,11 @@ async function readClaudeOAuthCredentials(): Promise<ClaudeOAuthCredentials | nu
   return null;
 }
 
+const CLAUDE_BACKOFF_DEFAULT_MS = 5 * 60_000;
+let claudeBackoffUntilMs = 0;
+// Why a provider returned nothing this round; read once by collectAllLimits to explain an unavailable card.
+const failureReasons = new Map<string, string>();
+
 async function fetchClaudeLimits(): Promise<HarnessLimitCard | null> {
   const oauth = await readClaudeOAuthCredentials();
   if (!oauth?.accessToken) return null;
@@ -356,6 +362,10 @@ async function fetchClaudeLimits(): Promise<HarnessLimitCard | null> {
 
   if (typeof oauth.expiresAt === "number" && Date.now() >= oauth.expiresAt) {
     return buildClaudeSignInExpiredCard(meta);
+  }
+  if (Date.now() < claudeBackoffUntilMs) {
+    failureReasons.set("claude", "Anthropic is rate-limiting the usage lookup");
+    return null;
   }
 
   try {
@@ -369,7 +379,18 @@ async function fetchClaudeLimits(): Promise<HarnessLimitCard | null> {
       signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     });
     if (res.status === 401) return buildClaudeSignInExpiredCard(meta);
-    if (!res.ok) return null;
+    if (res.status === 429) {
+      // This endpoint rate-limits hard; back off instead of retrying every poll.
+      const retryAfterS = Number(res.headers.get("retry-after"));
+      const waitMs = Number.isFinite(retryAfterS) && retryAfterS > 0 ? retryAfterS * 1000 : CLAUDE_BACKOFF_DEFAULT_MS;
+      claudeBackoffUntilMs = Date.now() + Math.min(waitMs, 30 * 60_000);
+      failureReasons.set("claude", "Anthropic is rate-limiting the usage lookup");
+      return null;
+    }
+    if (!res.ok) {
+      failureReasons.set("claude", `Anthropic usage lookup failed (${res.status})`);
+      return null;
+    }
     const data = (await res.json()) as ClaudeOAuthUsageResponse;
     return parseClaudeOAuthUsage(data, meta);
   } catch {
@@ -822,7 +843,9 @@ export function buildAntigravityLimitCard(
     const expired = resetMs !== null && Number.isFinite(resetMs) && resetMs <= nowMs;
     const effectiveFraction = expired ? 1 : m.remainingFraction;
     const remainingPercent = clampPercent(effectiveFraction * 100);
-    const effectiveReset = !expired && m.resetTime ? m.resetTime : null;
+    // An untouched pool reports a reset of "now + window", which changes on every poll and is not a real reset.
+    const untouched = !expired && effectiveFraction >= 0.999;
+    const effectiveReset = !expired && !untouched && m.resetTime ? m.resetTime : null;
 
     const family: "gemini" | "claude-gpt" | "other" = lower.includes("gemini")
       ? "gemini"
@@ -1110,7 +1133,7 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard | null> {
       source: "local",
       note:
         process.platform === "win32"
-          ? "Live fetch unavailable — showing local IDE state"
+          ? "Live fetch unavailable, showing local IDE state"
           : "Live quota needs Windows Credential Manager",
     });
   }
@@ -1517,6 +1540,7 @@ export function mergeWithCache(
   prevById: ReadonlyMap<string, HarnessLimitCard>,
   fresh: ReadonlyMap<string, HarnessLimitCard | null>,
   nowMs: number = Date.now(),
+  reasons: ReadonlyMap<string, string> = new Map(),
 ): HarnessLimitCard[] {
   const items: HarnessLimitCard[] = [];
   for (const [id, card] of fresh) {
@@ -1526,15 +1550,41 @@ export function mergeWithCache(
       continue;
     }
     const cached = prevById.get(id);
-    if (!cached || cached.windows.length === 0) continue;
-    // staleSince stays the time of the last successful fetch across repeated failures.
-    const staleSince = cached.stale && cached.staleSince ? cached.staleSince : cached.updatedAt;
-    const age = nowMs - Date.parse(staleSince);
-    if (!Number.isFinite(age) || age > STALE_MAX_AGE_MS) continue;
-    items.push({ ...cached, stale: true, staleSince });
+    const reason = reasons.get(id);
+    if (cached && cached.windows.length > 0) {
+      // staleSince stays the time of the last successful fetch across repeated failures.
+      const staleSince = cached.stale && cached.staleSince ? cached.staleSince : cached.updatedAt;
+      const age = nowMs - Date.parse(staleSince);
+      if (Number.isFinite(age) && age <= STALE_MAX_AGE_MS) {
+        items.push({ ...cached, stale: true, staleSince });
+        continue;
+      }
+      // Too old to trust: keep the tool visible but without numbers that would read as current.
+      items.push({
+        id: cached.id,
+        harness: cached.harness,
+        name: cached.name,
+        vendor: cached.vendor,
+        planName: cached.planName,
+        source: cached.source,
+        updatedAt: new Date(nowMs).toISOString(),
+        windows: [],
+        error: reason ?? "Couldn't refresh this quota",
+      });
+      continue;
+    }
+    // Never had data, but we know why the lookup failed (e.g. rate limited): say so instead of hiding the tool.
+    const meta = reason ? PROVIDER_META[id] : undefined;
+    if (meta && reason) {
+      items.push({ ...meta, source: "live", updatedAt: new Date(nowMs).toISOString(), windows: [], error: reason });
+    }
   }
   return items;
 }
+
+const PROVIDER_META: Record<string, Pick<HarnessLimitCard, "id" | "harness" | "name" | "vendor">> = {
+  claude: { id: "claude", harness: "claude", name: "Claude Code", vendor: "Anthropic" },
+};
 
 // Forced refreshes use the short minimum interval; normal reads use the regular TTL.
 export function isCacheFresh(ageMs: number, refresh: boolean): boolean {
@@ -1545,6 +1595,7 @@ async function collectAllLimits(): Promise<LimitsPayload> {
   const prevCache = memoryCache?.payload ?? (await readDiskCache());
   const prevById = new Map<string, HarnessLimitCard>(prevCache?.items.map((item) => [item.id, item]) ?? []);
 
+  failureReasons.clear();
   const settled = await Promise.allSettled(PROVIDERS.map((p) => withTimeout(p.run(), PROVIDER_TIMEOUT_MS)));
   const fresh = new Map<string, HarnessLimitCard | null>();
   PROVIDERS.forEach((p, i) => {
@@ -1554,7 +1605,7 @@ async function collectAllLimits(): Promise<LimitsPayload> {
 
   const payload: LimitsPayload = {
     generatedAt: new Date().toISOString(),
-    items: mergeWithCache(prevById, fresh, Date.now()),
+    items: mergeWithCache(prevById, fresh, Date.now(), failureReasons),
   };
 
   memoryCache = { payload, fetchedAtMs: Date.now() };
