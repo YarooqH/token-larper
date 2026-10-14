@@ -245,75 +245,68 @@ export function LimitsSummaryStrip({
   );
 }
 
+/** One tile of the strip. Every tile has the same four rows (tool, value, bar, line) so they line up. */
 function MiniCard({ card, nowMs, onOpen }: { card: HarnessLimitCard; nowMs: number; onOpen: () => void }) {
   const { seriesOf } = useDashboard();
   const brandColor = seriesOf(card.harness).color;
   const primary = pickPrimaryWindow(card);
-  const tool = (
-    <span className="limits-mini-tool">
-      <ToolMark harness={card.harness} name={card.name} color={brandColor} size={15} decorative />
-      <strong>{card.name}</strong>
-    </span>
-  );
 
-  if (!primary && card.block) {
+  let tone = "";
+  let value: React.ReactNode;
+  let barPercent = 0;
+  let barColor = brandColor;
+  let line = "";
+
+  if (primary) {
+    const { remaining, known } = windowPercents(primary);
+    const statusText = windowStatusText(primary);
+    const countdown = formatResetCountdown(primary.resetsAt, nowMs);
+    const staleAge = card.stale ? formatAge(card.staleSince, nowMs) : null;
+    tone = ` is-${windowTone(primary)}${card.stale ? " is-stale" : ""}`;
+    barPercent = known ? remaining : 0;
+    barColor = windowBarColor(brandColor, primary.status);
+    value = (
+      <>
+        {statusText && (
+          <>
+            <AlertTriangle size={13} aria-hidden="true" />
+            <span className="sr-only">{statusText}: </span>
+          </>
+        )}
+        {known ? `${formatPercent(remaining)}% left` : "No data"}
+      </>
+    );
+    line = card.stale
+      ? `Stale${staleAge ? ` · ${staleAge}` : ""}`
+      : countdown
+      ? describeReset(countdown)
+      : primary.remainingValueText ?? primary.label;
+  } else if (card.block) {
+    // No quota is known, so the bar shows how much of the 5-hour session is left in a neutral colour.
     const countdown = formatResetCountdown(card.block.endsAt, nowMs);
-    return (
-      <button type="button" className="limits-mini-card is-empty" onClick={onOpen}>
-        <div className="limits-mini-top">
-          {tool}
-          <span className="limits-mini-pct">{countdown ? describeReset(countdown) : "5-hour session"}</span>
-        </div>
-        <p className="limits-mini-line">{describeBlockActivity(card.block)}</p>
-      </button>
-    );
+    const endMs = Date.parse(card.block.endsAt);
+    barPercent = Number.isFinite(endMs) ? clampPercent(((endMs - nowMs) / (5 * 3600_000)) * 100) : 0;
+    barColor = "var(--text-3)";
+    tone = " is-session";
+    value = countdown ? describeReset(countdown) : "Session ended";
+    line = describeBlockActivity(card.block);
+  } else {
+    tone = card.error ? " is-error" : " is-empty";
+    value = card.error ? "Unavailable" : "No data";
+    line = card.error ?? "";
   }
-
-  if (!primary) {
-    const failed = !!card.error;
-    return (
-      <button type="button" className={`limits-mini-card ${failed ? "is-error" : "is-empty"}`} onClick={onOpen}>
-        <div className="limits-mini-top">
-          {tool}
-          <span className="limits-mini-flag">{failed ? "Unavailable" : "No data"}</span>
-        </div>
-        {card.error && <p className="limits-mini-line">{card.error}</p>}
-      </button>
-    );
-  }
-
-  const { remaining, known } = windowPercents(primary);
-  const statusText = windowStatusText(primary);
-  const countdown = formatResetCountdown(primary.resetsAt, nowMs);
-  const staleAge = card.stale ? formatAge(card.staleSince, nowMs) : null;
-  const line = card.stale
-    ? `Stale${staleAge ? ` · ${staleAge}` : ""}`
-    : countdown
-    ? describeReset(countdown)
-    : primary.remainingValueText ?? "";
 
   return (
-    <button
-      type="button"
-      className={`limits-mini-card is-${windowTone(primary)}${card.stale ? " is-stale" : ""}`}
-      onClick={onOpen}
-    >
-      <div className="limits-mini-top">
-        {tool}
-        <span className="limits-mini-pct">
-          {statusText && (
-            <>
-              <AlertTriangle size={13} aria-hidden="true" />
-              <span className="sr-only">{statusText}: </span>
-            </>
-          )}
-          {known ? `${formatPercent(remaining)}% left` : "No data"}
-        </span>
-      </div>
+    <button type="button" className={`limits-mini-card${tone}`} onClick={onOpen}>
+      <span className="limits-mini-tool">
+        <ToolMark harness={card.harness} name={card.name} color={brandColor} size={15} decorative />
+        <strong>{card.name}</strong>
+      </span>
+      <span className="limits-mini-pct">{value}</span>
       <div className="limits-mini-bar" aria-hidden="true">
-        <span style={{ width: barWidth(remaining), background: windowBarColor(brandColor, primary.status) }} />
+        <span style={{ width: barWidth(barPercent), background: barColor }} />
       </div>
-      {line && <p className="limits-mini-line">{line}</p>}
+      <p className="limits-mini-line">{line || " "}</p>
     </button>
   );
 }

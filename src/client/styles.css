@@ -1972,16 +1972,16 @@ html[data-vt="from-live"]::view-transition-old(lt-morph):only-child { animation:
 
 .limits-strip-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr));
   gap: 10px;
 }
 
 .limits-mini-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -1996,13 +1996,6 @@ html[data-vt="from-live"]::view-transition-old(lt-morph):only-child { animation:
 .limits-mini-card.is-error { border-color: var(--error-border); }
 .limits-mini-card.is-warning { border-color: var(--warning-border); }
 
-.limits-mini-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .limits-mini-tool {
   display: inline-flex;
   align-items: center;
@@ -2014,12 +2007,9 @@ html[data-vt="from-live"]::view-transition-old(lt-morph):only-child { animation:
 .limits-mini-tool > :first-child { flex-shrink: 0; }
 .limits-mini-tool strong {
   font-weight: 600;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The percent is the first thing read in a tile, so it is the largest thing in it. */
@@ -2027,9 +2017,9 @@ html[data-vt="from-live"]::view-transition-old(lt-morph):only-child { animation:
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  flex-shrink: 0;
+  min-width: 0;
   font-family: var(--mono);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -2037,9 +2027,10 @@ html[data-vt="from-live"]::view-transition-old(lt-morph):only-child { animation:
 
 .limits-mini-card.is-warning .limits-mini-pct { color: var(--warning-text); }
 .limits-mini-card.is-critical .limits-mini-pct { color: var(--error-text); }
+.limits-mini-card.is-error .limits-mini-pct { color: var(--error-text); }
+.limits-mini-card.is-session .limits-mini-pct,
+.limits-mini-card.is-empty .limits-mini-pct { font-size: 13.5px; }
 
-.limits-mini-flag { flex-shrink: 0; font-size: 11.5px; font-weight: 650; white-space: nowrap; color: var(--text-2); }
-.limits-mini-card.is-error .limits-mini-flag { color: var(--error-text); }
 
 .limits-mini-bar { height: 5px; border-radius: var(--radius-pill); background: var(--surface-3); overflow: hidden; }
 .limits-mini-bar > span { display: block; height: 100%; border-radius: inherit; }
