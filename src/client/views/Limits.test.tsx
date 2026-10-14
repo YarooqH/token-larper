@@ -250,7 +250,9 @@ describe("Limits view", () => {
     const html = view(<Limits limits={sampleLimits} now={NOW} />);
     expect(html.indexOf("5-hour session")).toBeLessThan(html.indexOf("7-day weekly"));
     expect(html).toContain("Resets in 4d 20h");
-    expect(html).toContain("$58.02 left of $60.00 · Resets in 2d 21h");
+    expect(html).toContain("$1.98 of $60.00 used · Resets in 2d 21h");
+    // Percent-only providers still say how much is used.
+    expect(html).toContain("56% used · Resets in 4d 20h");
     expect(html).toContain('role="progressbar"');
     expect(html).toContain('aria-valuetext="44% left, resets in 4d 20h"');
     expect(html).toContain("limit-bar-fill");

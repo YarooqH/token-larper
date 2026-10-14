@@ -539,11 +539,14 @@ function WindowRow({
   const statusText = windowStatusText(win);
   const countdown = formatResetCountdown(win.resetsAt, nowMs);
   const reset = countdown ? describeReset(countdown) : null;
-  const counter = win.remainingValueText
-    ? win.limitValueText
-      ? `${win.remainingValueText} of ${win.limitValueText}`
-      : win.remainingValueText
-    : null;
+  // Amounts when the provider gives them ("$1.98 of $60.00 used"), else the used share ("44% used").
+  const { used } = windowPercents(win);
+  const counter =
+    win.usedValueText && win.limitValueText
+      ? `${win.usedValueText} of ${win.limitValueText} used`
+      : known
+      ? `${formatPercent(used)}% used`
+      : null;
   const foot = [counter, reset].filter(Boolean).join(" · ");
 
   const pctText = known ? `${formatPercent(remaining)}% left` : "No data";
