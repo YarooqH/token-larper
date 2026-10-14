@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { groupBySection, searchSettings, SETTING_ENTRIES, SETTINGS_SECTIONS } from "./settingsIndex.ts";
+import { groupBySection, searchSettings, SETTING_ENTRIES, SETTINGS_SECTIONS, settingsHash, settingsSectionFromHash } from "./settingsIndex.ts";
 import { isEditable } from "./shortcuts.ts";
 
 const ids = (query: string) => searchSettings(query).map((e) => e.id);
@@ -52,6 +52,23 @@ describe("settings search", () => {
     const sections = new Set(SETTINGS_SECTIONS.map((s) => s.id));
     expect(SETTING_ENTRIES.every((e) => sections.has(e.section))).toBe(true);
     expect(new Set(SETTING_ENTRIES.map((e) => e.id)).size).toBe(SETTING_ENTRIES.length);
+  });
+});
+
+describe("settings addresses", () => {
+  test("every section has an address that leads back to it", () => {
+    for (const section of SETTINGS_SECTIONS) expect(settingsSectionFromHash(settingsHash(section.id))).toBe(section.id);
+    expect(settingsHash("privacy")).toBe("#settings/privacy");
+  });
+
+  test("a bare or unknown settings address opens the first section", () => {
+    expect(settingsSectionFromHash("#settings")).toBe("appearance");
+    expect(settingsSectionFromHash("#settings/")).toBe("appearance");
+    expect(settingsSectionFromHash("#settings/nope")).toBe("appearance");
+  });
+
+  test("other addresses are not settings", () => {
+    for (const hash of ["", "#", "#live", "#projects", "#settingsx", "#x/settings"]) expect(settingsSectionFromHash(hash)).toBeNull();
   });
 });
 

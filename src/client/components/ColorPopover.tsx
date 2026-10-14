@@ -30,7 +30,7 @@ export function ColorPopover({ anchor, id, label, onClose, children }: Props) {
       const box = ref.current;
       if (!button || !box) return;
       const a = button.getBoundingClientRect();
-      const scroller = button.closest(".sp-content, .modal")?.getBoundingClientRect();
+      const scroller = button.closest(".modal")?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
       // The button scrolled out of sight, so the popover has nothing to point at.
       if (scroller && (a.bottom < scroller.top || a.top > scroller.bottom)) {
         close.current();
@@ -81,7 +81,7 @@ export function ColorPopover({ anchor, id, label, onClose, children }: Props) {
     };
   }, [anchor]);
 
-  const host = anchor.current?.closest<HTMLElement>(".settings-panel, .modal") ?? document.body;
+  const host = anchor.current?.closest<HTMLElement>(".settings-page, .modal") ?? document.body;
   return createPortal(
     <div
       ref={ref}

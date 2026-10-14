@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SettingsContent, SettingsPanel } from "./SettingsPanel.tsx";
+import { SettingsContent, SettingsPage } from "./SettingsPage.tsx";
 import { DEFAULT_APPEARANCE } from "../themes.ts";
 import type { Updates } from "../lib/updates.ts";
 import type { StartupConfig } from "../../types.ts";
@@ -39,13 +39,24 @@ const props: Omit<ContentProps, "query" | "section"> = {
 const content = (query: string, section: "appearance" | "general" | "privacy" | "about" = "appearance", over: Partial<typeof props> = {}) =>
   renderToStaticMarkup(<SettingsContent query={query} section={section} {...props} {...over} />);
 
-describe("settings panel", () => {
-  const html = renderToStaticMarkup(<SettingsPanel {...props} startupError={null} onClose={noop} onQuit={noop} />);
+describe("settings page", () => {
+  const page = (section: "appearance" | "general" | "privacy" | "about") =>
+    renderToStaticMarkup(<SettingsPage {...props} section={section} onSectionChange={noop} startupError={null} onClose={noop} onQuit={noop} />);
+  const html = page("appearance");
 
-  test("is a labelled panel that leaves the page behind it usable", () => {
-    expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-modal="false"');
-    expect(html).toContain('aria-labelledby="settings-title"');
+  test("is the page's main region, labelled Settings, with a way back to the dashboard", () => {
+    expect(html).toMatch(/^<main[^>]*aria-labelledby="settings-title"/);
+    expect(html).toContain('id="settings-title"');
+    expect(html).toContain('aria-label="Back to dashboard"');
+    expect(html).not.toContain('role="dialog"');
+  });
+
+  test("shows whichever section it is given", () => {
+    expect(page("privacy")).toContain("Screenshot mode");
+    expect(page("privacy")).not.toContain("theme-mode-label");
+    expect(page("about")).toContain("Technical details");
+    expect(page("general")).toContain("Show stats");
+    expect(page("privacy")).toMatch(/aria-current="true"[^>]*>(?:<svg[^>]*>.*?<\/svg>)<span>Privacy</);
   });
 
   test("has a labelled search box and a nav that marks the open section", () => {

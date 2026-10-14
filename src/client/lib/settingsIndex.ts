@@ -57,6 +57,16 @@ export const SETTING_ENTRIES: readonly SettingEntry[] = [
   { id: "details", section: "about", label: "Technical details", keywords: "port address launcher path registry dashboard url" },
 ];
 
+/** The address of a section of the settings page, e.g. "#settings/privacy". */
+export const settingsHash = (section: SettingsSectionId) => `#settings/${section}`;
+
+/** The section a "#settings" or "#settings/privacy" address points at, or null for any other address. */
+export function settingsSectionFromHash(hash: string): SettingsSectionId | null {
+  const [page, section] = hash.replace(/^#/, "").split("/");
+  if (page !== "settings") return null;
+  return SETTINGS_SECTIONS.find((s) => s.id === section)?.id ?? "appearance";
+}
+
 const sectionLabel = new Map(SETTINGS_SECTIONS.map((s) => [s.id, s.label]));
 
 const words = (text: string) => text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);

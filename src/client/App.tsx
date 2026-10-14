@@ -8,11 +8,12 @@ import { DateRangePicker } from "./components/DateRangePicker.tsx";
 import { AppFooter } from "./components/AppFooter.tsx";
 import { Logo } from "./components/Logo.tsx";
 import { StreakChip } from "./components/StreakChip.tsx";
-import { SettingsPanel } from "./components/SettingsPanel.tsx";
+import { SettingsPage } from "./components/SettingsPage.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
 import { UpdateBanner } from "./components/UpdateBanner.tsx";
 import { useUpdates } from "./lib/updates.ts";
 import { usePrivacy } from "./lib/privacy.ts";
+import { settingsHash, settingsSectionFromHash, type SettingsSectionId } from "./lib/settingsIndex.ts";
 import { redactPayload } from "./lib/screenshot.ts";
 import { dayStreak } from "./lib/rank.ts";
 import { isEditable } from "./lib/shortcuts.ts";
@@ -125,7 +126,8 @@ export function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stopped, setStopped] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  // The open section of the settings page, which is part of the address; null while on the dashboard.
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId | null>(() => settingsSectionFromHash(location.hash));
   // Opening settings with the keyboard puts the cursor in the panel's search box.
   const [settingsFromKeyboard, setSettingsFromKeyboard] = useState(false);
   const [savingStartup, setSavingStartup] = useState(false);
@@ -158,6 +160,7 @@ export function App() {
   const updatePrefs = (patch: Partial<Prefs>) => setPrefs((p) => ({ ...p, ...patch }));
   const [liveArming, setLiveArming] = useState(false);
   const dashboardScroll = useRef(0);
+  const settingsReturnScroll = useRef(0);
   const switching = useRef(false);
 
   /**
@@ -226,12 +229,17 @@ export function App() {
   }, [prefs]);
 
   useEffect(() => {
-    const hash = prefs.live ? "#live" : prefs.view === "overview" ? "" : `#${prefs.view}`;
+    const hash = settingsSection
+      ? settingsHash(settingsSection)
+      : prefs.live ? "#live" : prefs.view === "overview" ? "" : `#${prefs.view}`;
     if (location.hash !== hash) history.replaceState(null, "", `${location.pathname}${hash}`);
-  }, [prefs.view, prefs.live]);
+  }, [prefs.view, prefs.live, settingsSection]);
 
   useEffect(() => {
     const onHash = () => {
+      const section = settingsSectionFromHash(location.hash);
+      setSettingsSection(section);
+      if (section) return;
       if (location.hash === "#live") {
         setPrefs((p) => (p.live ? p : { ...p, live: true }));
         return;
@@ -246,7 +254,7 @@ export function App() {
   }, [prefs.showRanks]);
 
   useEffect(() => {
-    if (showSettings) return;
+    if (settingsSection) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "," || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
       if (isEditable(event.target)) return;
@@ -255,16 +263,16 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showSettings]);
+  }, [settingsSection]);
 
   useEffect(() => {
-    if (!prefs.live || showSettings) return;
+    if (!prefs.live || settingsSection) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !document.fullscreenElement) void switchLive(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [prefs.live, showSettings]);
+  }, [prefs.live, settingsSection]);
 
   useEffect(() => {
     applyTheme(theme, appearance, importedTheme);
@@ -439,18 +447,24 @@ export function App() {
     } catch {
       // The server may drop the connection as it exits; it is stopping either way.
     } finally {
-      setShowSettings(false);
+      setSettingsSection(null);
       setStopped(true);
     }
   }
 
   function openSettings(fromKeyboard: boolean) {
+    if (!settingsSection) settingsReturnScroll.current = window.scrollY;
     setSettingsFromKeyboard(fromKeyboard);
-    setShowSettings(true);
+    setSettingsSection((open) => open ?? "appearance");
+    window.scrollTo(0, 0);
     void fetchStartup();
   }
 
-  const closeSettings = useCallback(() => setShowSettings(false), []);
+  /** Back to wherever settings were opened from, scrolled to where it was. */
+  const closeSettings = useCallback(() => {
+    setSettingsSection(null);
+    requestAnimationFrame(() => window.scrollTo(0, settingsReturnScroll.current));
+  }, []);
 
   const estimated = prefs.estimated;
   const costOf = useCallback(
@@ -598,7 +612,7 @@ export function App() {
 
   return (
     <DashboardProvider value={ctx}>
-      <div className={prefs.live ? "app is-live" : "app"}>
+      <div className={prefs.live && !settingsSection ? "app is-live" : "app"}>
         <header className="topbar">
           <div className="brand">
             <Logo className="brand-logo" />
@@ -613,11 +627,12 @@ export function App() {
               <button
                 type="button"
                 className="pill pill-button"
+                aria-label="Names hidden. Show them again"
                 title="Project names and folders are hidden. Click to show them again."
                 onClick={() => updatePrefs({ screenshot: false })}
               >
                 <EyeOff size={12} aria-hidden="true" />
-                Names hidden
+                <span className="pill-label">Names hidden</span>
               </button>
             )}
             {failed.length > 0 && (
@@ -635,7 +650,10 @@ export function App() {
               aria-busy={liveArming || undefined}
               onPointerEnter={() => !prefs.live && prepareLiveFeed()}
               onFocus={() => !prefs.live && prepareLiveFeed()}
-              onClick={() => void switchLive(!prefs.live)}
+              onClick={() => {
+                setSettingsSection(null);
+                void switchLive(!prefs.live);
+              }}
               title={prefs.live ? "Leave Live mode (Esc)" : "Live mode: tokens per minute as they happen"}
             >
               <Radio size={15} aria-hidden="true" />
@@ -657,7 +675,8 @@ export function App() {
             </button>
             <button
               className="icon-btn settings-btn"
-              onClick={() => openSettings(false)}
+              aria-pressed={settingsSection !== null}
+              onClick={() => (settingsSection ? closeSettings() : openSettings(false))}
               title="Settings (,)"
               aria-label="Settings"
               aria-keyshortcuts=","
@@ -673,7 +692,37 @@ export function App() {
           </div>
         </header>
 
-        {prefs.live ? <LiveMode /> : (
+        {settingsSection ? (
+          <SettingsPage
+              initialFocus={settingsFromKeyboard ? "search" : undefined}
+              startup={startup}
+              startupError={startupError}
+              saving={savingStartup}
+              themeMode={theme}
+              followsSystemTheme={followsSystemTheme}
+              appearance={appearance}
+              importedTheme={importedTheme}
+              showRanks={prefs.showRanks}
+              updates={updates}
+              checkUpdates={prefs.checkUpdates}
+              onCheckUpdatesChange={(checkUpdates) => updatePrefs({ checkUpdates })}
+              screenshot={prefs.screenshot}
+              onScreenshotChange={(screenshot) => updatePrefs({ screenshot })}
+              privacy={privacy}
+              onOfflineChange={(offline) => void changeOffline(offline)}
+              priceStatus={data.pricing?.status}
+              section={settingsSection}
+              onSectionChange={setSettingsSection}
+              onClose={closeSettings}
+              onThemeModeChange={changeThemeMode}
+              onAppearanceChange={changeAppearance}
+              onImportTheme={saveImportedTheme}
+              onShowRanksChange={setShowRanks}
+              onToggleStartup={(enabled, open) => void handleToggleStartup(enabled, open)}
+              onRetry={() => void fetchStartup()}
+              onQuit={() => void handleQuit()}
+          />
+        ) : prefs.live ? <LiveMode /> : (
           <div className="dash-stage">
             {showUpdateBanner && (
               <UpdateBanner updates={updates} onDismiss={() => updatePrefs({ dismissedUpdate: updates.status?.latest ?? undefined })} />
@@ -745,35 +794,6 @@ export function App() {
           </div>
         )}
 
-        {showSettings && (
-          <SettingsPanel
-            initialFocus={settingsFromKeyboard ? "search" : undefined}
-            startup={startup}
-            startupError={startupError}
-            saving={savingStartup}
-            themeMode={theme}
-            followsSystemTheme={followsSystemTheme}
-            appearance={appearance}
-            importedTheme={importedTheme}
-            showRanks={prefs.showRanks}
-            updates={updates}
-            checkUpdates={prefs.checkUpdates}
-            onCheckUpdatesChange={(checkUpdates) => updatePrefs({ checkUpdates })}
-            screenshot={prefs.screenshot}
-            onScreenshotChange={(screenshot) => updatePrefs({ screenshot })}
-            privacy={privacy}
-            onOfflineChange={(offline) => void changeOffline(offline)}
-            priceStatus={data.pricing?.status}
-            onClose={closeSettings}
-            onThemeModeChange={changeThemeMode}
-            onAppearanceChange={changeAppearance}
-            onImportTheme={saveImportedTheme}
-            onShowRanksChange={setShowRanks}
-            onToggleStartup={(enabled, open) => void handleToggleStartup(enabled, open)}
-            onRetry={() => void fetchStartup()}
-            onQuit={() => void handleQuit()}
-          />
-        )}
       </div>
     </DashboardProvider>
   );
