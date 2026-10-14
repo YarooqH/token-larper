@@ -264,3 +264,65 @@ export interface UpdateStatus {
   source: "npm" | "source";
   error?: string;
 }
+
+export type QuotaWindowStatus = "ok" | "warning" | "critical";
+
+export interface QuotaWindow {
+  id: string;
+  label: string;
+  sublabel?: string;
+  /** Percentage of quota used (0..100). */
+  usedPercent: number;
+  /** Percentage of quota remaining (0..100). */
+  remainingPercent: number;
+  /** Formatted string for used amount, e.g. "$1.98" or "16". */
+  usedValueText?: string;
+  /** Formatted string for total limit, e.g. "$60.00" or "2,000". */
+  limitValueText?: string;
+  /** Formatted string for remaining amount, e.g. "$58.02 left" or "1,984 left". */
+  remainingValueText?: string;
+  /** ISO timestamp when this rolling/fixed window resets, or null if unknown/already reset. */
+  resetsAt: string | null;
+  /** Duration of the rolling window in seconds, when known (e.g. 18000 for 5h, 604800 for 7d). */
+  windowSeconds?: number;
+  status: QuotaWindowStatus;
+}
+
+export interface HarnessLimitCard {
+  /** Unique card ID (usually matches harness, or e.g. "opencode-go"). */
+  id: string;
+  harness: HarnessId;
+  name: string;
+  vendor: string;
+  planName?: string;
+  /** "live" when fetched from vendor quota endpoint; "local" when computed from local logs/DB. */
+  source: "live" | "local";
+  sourceLabel?: string;
+  updatedAt: string;
+  windows: QuotaWindow[];
+  /** Optional extra credit bucket or balance (e.g. Claude promo credits, Google AI credits, Codex credits). */
+  credits?: {
+    label: string;
+    remainingText: string;
+    usedText?: string;
+    limitText?: string;
+    resetsAt?: string | null;
+  }[];
+  /** Optional breakdown of usage across sub-tools or model families. */
+  breakdown?: {
+    label: string;
+    items: { name: string; percent: number }[];
+  };
+  note?: string;
+  error?: string;
+  /** True when this card is a carried-over snapshot because the provider could not be reached this time. */
+  stale?: boolean;
+  /** ISO timestamp of the last successful fetch for a stale card. */
+  staleSince?: string;
+}
+
+export interface LimitsPayload {
+  generatedAt: string;
+  items: HarnessLimitCard[];
+}
+

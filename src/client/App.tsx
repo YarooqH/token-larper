@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { AlertTriangle, Moon, Power, Radio, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
-import type { DashboardPayload, HarnessId, StartupConfig, ThroughputPayload } from "../types.ts";
+import type { DashboardPayload, HarnessId, LimitsPayload, StartupConfig, ThroughputPayload } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";
 import { DateRangePicker } from "./components/DateRangePicker.tsx";
@@ -21,6 +21,7 @@ import { liveFeedReady, prepareLiveFeed } from "./lib/live.ts";
 import { playLiveSwitch } from "./lib/liveSwitch.ts";
 import { MODEL_PRICES_ID } from "./components/ModelPrices.tsx";
 import { ToolMark } from "./components/ToolMark.tsx";
+import { Limits } from "./views/Limits.tsx";
 import { LiveMode, loadLead } from "./views/LiveMode.tsx";
 import { Models } from "./views/Models.tsx";
 import { Overview } from "./views/Overview.tsx";
@@ -41,16 +42,22 @@ import {
 } from "./themes.ts";
 import { localDateKey } from "./utils.ts";
 
-type View = "overview" | "tools" | "models" | "projects" | "sessions" | "rank";
+type View = "overview" | "limits" | "tools" | "models" | "projects" | "sessions" | "rank";
 
 const VIEWS: { id: View; label: string; title: string; blurb: string }[] = [
   { id: "overview", label: "Overview", title: "Usage overview", blurb: "Tokens and cost across your coding tools." },
+  { id: "limits", label: "Limits", title: "Subscription & rate limits", blurb: "Remaining quota, rolling windows, and reset timers across your connected harnesses." },
   { id: "tools", label: "Tools", title: "Tools", blurb: "How each coding tool was used in this range." },
   { id: "models", label: "Models", title: "Models", blurb: "Token totals by model and tool." },
   { id: "projects", label: "Projects", title: "Projects", blurb: "Where your tokens went, by repository." },
   { id: "sessions", label: "Sessions", title: "Sessions", blurb: "Individual coding sessions." },
   { id: "rank", label: "Stats", title: "Hall of Larp", blurb: "Lifetime rank, day streak, rivals, records, and badges. Date and tool filters don't apply here." },
 ];
+
+/** Views that show quota data; only these keep /api/limits warm. */
+const LIMITS_VIEWS: View[] = ["overview", "tools", "limits"];
+const LIMITS_POLL_MS = 60_000;
+const LIMITS_REFETCH_AFTER_MS = 45_000;
 
 // View and filter choices are a per-browser convenience; the dashboard works without them.
 const PREFS_KEY = "token-larper-prefs";
@@ -116,6 +123,14 @@ function viewFromHash(): View | null {
 export function App() {
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [throughputData, setThroughputData] = useState<ThroughputPayload | null>(null);
+  const [limitsData, setLimitsData] = useState<LimitsPayload | null>(null);
+  const [refreshingLimits, setRefreshingLimits] = useState(false);
+  const [limitsError, setLimitsError] = useState<string | null>(null);
+  const limitsRequestId = useRef(0);
+  const limitsAppliedId = useRef(0);
+  const limitsActive = useRef(0);
+  const limitsManualInFlight = useRef(false);
+  const limitsFetchedAt = useRef(0);
   const [startup, setStartup] = useState<StartupConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -320,10 +335,67 @@ export function App() {
     }
   }
 
+  /**
+   * Limits are supplemental, so a failure only sets `limitsError`; it never touches the
+   * whole-app error state. Background polls are dropped while any request is running, a manual
+   * refresh only waits on another manual refresh, and a response older than the one already
+   * shown is discarded.
+   */
+  async function fetchLimits(opts?: { refresh?: boolean }) {
+    const manual = opts?.refresh === true;
+    if (manual ? limitsManualInFlight.current : limitsActive.current > 0) return;
+    const requestId = ++limitsRequestId.current;
+    limitsActive.current++;
+    if (manual) {
+      limitsManualInFlight.current = true;
+      setRefreshingLimits(true);
+    }
+    try {
+      const res = await fetch(`/api/limits${manual ? "?refresh=1" : ""}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const next = (await res.json()) as LimitsPayload;
+      if (requestId > limitsAppliedId.current) {
+        limitsAppliedId.current = requestId;
+        limitsFetchedAt.current = Date.now();
+        setLimitsData(next);
+        setLimitsError(null);
+      }
+    } catch (err) {
+      if (requestId > limitsAppliedId.current) {
+        setLimitsError(err instanceof Error ? err.message : "Failed to load quotas");
+      }
+    } finally {
+      limitsActive.current--;
+      if (manual) {
+        limitsManualInFlight.current = false;
+        setRefreshingLimits(false);
+      }
+    }
+  }
+
   useEffect(() => {
     void fetchDashboard();
     void fetchStartup();
   }, []);
+
+  // Quota windows hit vendor APIs, so they are only fetched while someone can see them: the tab
+  // is visible and the view shows limits. Coming back to one of those views (or to the tab)
+  // refetches right away when the data is more than 45s old.
+  const showsLimits = !prefs.live && LIMITS_VIEWS.includes(prefs.view);
+  useEffect(() => {
+    if (!showsLimits) return;
+    const refetchIfOld = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - limitsFetchedAt.current > LIMITS_REFETCH_AFTER_MS) void fetchLimits();
+    };
+    refetchIfOld();
+    const id = setInterval(refetchIfOld, LIMITS_POLL_MS);
+    document.addEventListener("visibilitychange", refetchIfOld);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", refetchIfOld);
+    };
+  }, [showsLimits]);
 
   // Poll gently while a background deep scan (e.g. Antigravity) is running.
   useEffect(() => {
@@ -541,6 +613,10 @@ export function App() {
     requestAnimationFrame(scroll);
   }
 
+  function openLimits() {
+    updatePrefs({ view: "limits" });
+  }
+
   const ctx: Dashboard = {
     data,
     range,
@@ -551,11 +627,13 @@ export function App() {
     days,
     sessions,
     throughput,
+    limits: limitsData,
     series,
     seriesOf,
     nameOf,
     search: searchable ? search : "",
     openModelPrices,
+    openLimits,
   };
 
   return (
@@ -616,8 +694,16 @@ export function App() {
               <Settings size={16} />
             </button>
             {!prefs.live && (
-              <button className="btn" disabled={refreshing} onClick={() => void fetchDashboard({ refresh: true, forceDeepScan: true })} title="Refresh all tools; Antigravity scans in the background">
-                <RefreshCw size={15} className={refreshing ? "spin" : ""} aria-hidden="true" />
+              <button
+                className="btn"
+                disabled={refreshing || refreshingLimits}
+                onClick={() => {
+                  void fetchDashboard({ refresh: true, forceDeepScan: true });
+                  void fetchLimits({ refresh: true });
+                }}
+                title="Refresh all tools; Antigravity scans in the background"
+              >
+                <RefreshCw size={15} className={refreshing || refreshingLimits ? "spin" : ""} aria-hidden="true" />
                 <span>{refreshing ? "Scanning…" : "Sync"}</span>
               </button>
             )}
@@ -647,7 +733,7 @@ export function App() {
             {view.id !== "rank" && (
               <div className="intro">
                 <div>
-                  <span className="eyebrow">Local usage</span>
+                  <span className="eyebrow">{view.id === "limits" ? "Live quotas" : "Local usage"}</span>
                   <h2>{view.title}</h2>
                   <p>{view.blurb}</p>
                 </div>
@@ -656,7 +742,7 @@ export function App() {
 
             {error && <div className="inline-error" role="alert">Sync failed: {error}</div>}
 
-            {view.id !== "rank" && (
+            {view.id !== "rank" && view.id !== "limits" && (
             <div className="filters">
               <DateRangePicker
                 range={range}
@@ -685,6 +771,14 @@ export function App() {
 
             <main className="content">
               {view.id === "overview" && <Overview bucket={prefs.bucket} setBucket={(bucket) => updatePrefs({ bucket })} />}
+              {view.id === "limits" && (
+                <Limits
+                  limits={limitsData}
+                  refreshing={refreshingLimits}
+                  error={limitsError}
+                  onRefresh={() => void fetchLimits({ refresh: true })}
+                />
+              )}
               {view.id === "tools" && <Tools />}
               {view.id === "models" && <Models />}
               {view.id === "projects" && <Projects />}

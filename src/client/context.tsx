@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from "react";
-import type { DashboardPayload, HarnessId, SessionEntry, TimePeriodRow } from "../types.ts";
+import type { DashboardPayload, HarnessId, LimitsPayload, SessionEntry, TimePeriodRow } from "../types.ts";
 import type { HarnessFilter } from "./lib/aggregate.ts";
 import type { DateRange } from "./lib/range.ts";
 import type { RangeThroughput } from "./lib/throughput.ts";
@@ -19,12 +19,16 @@ export interface Dashboard {
   sessions: SessionEntry[];
   /** Output speed and working time in the range, narrowed to the selected tool; null until the first scan ends. */
   throughput?: RangeThroughput | null;
+  /** Subscription rate limits and remaining quota windows across harnesses. */
+  limits?: LimitsPayload | null;
   series: SeriesInfo[];
   seriesOf: (id: HarnessId) => SeriesInfo;
   nameOf: (id: HarnessId) => string;
   search: string;
   /** Switch to the Models view and scroll to its list prices. */
   openModelPrices: () => void;
+  /** Switch to the Limits view. */
+  openLimits?: () => void;
 }
 
 const DashboardContext = createContext<Dashboard | null>(null);

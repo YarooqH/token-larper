@@ -7,6 +7,7 @@ import { KpiCards } from "../components/KpiCards.tsx";
 import { SeriesKey } from "../components/ToolMark.tsx";
 import { bucketize, daysInRange, harnessTotals, summarize, type Bucket } from "../lib/aggregate.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
+import { LimitsSummaryStrip } from "./Limits.tsx";
 
 const BUCKETS: { id: Bucket; label: string }[] = [
   { id: "daily", label: "Daily" },
@@ -38,7 +39,7 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
 }
 
 export function Overview({ bucket, setBucket }: { bucket: Bucket; setBucket: (b: Bucket) => void }) {
-  const { data, days, range, harness, setHarness, costOf, estimated, series, seriesOf } = useDashboard();
+  const { data, days, range, harness, setHarness, costOf, estimated, series, seriesOf, limits, openLimits } = useDashboard();
   const [mode, setMode] = useState<ChartMode>("tokens-by-harness");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -76,6 +77,7 @@ export function Overview({ bucket, setBucket }: { bucket: Bucket; setBucket: (b:
   return (
     <>
       <KpiCards />
+      {openLimits && <LimitsSummaryStrip limits={limits} onOpenLimits={openLimits} />}
 
       <section className="panel">
         <header className="panel-head">

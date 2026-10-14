@@ -5,9 +5,10 @@ import { SpeedTrend } from "../components/SpeedTrend.tsx";
 import { harnessTotals, summarize } from "../lib/aggregate.ts";
 import { formatDay } from "../lib/range.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
+import { LimitsSummaryStrip } from "./Limits.tsx";
 
 export function Tools() {
-  const { data, days, harness, setHarness, costOf, estimated, seriesOf, throughput } = useDashboard();
+  const { data, days, harness, setHarness, costOf, estimated, seriesOf, throughput, limits, openLimits } = useDashboard();
   const [showAll, setShowAll] = useState(false);
   const tools = useMemo(() => harnessTotals(days), [days]);
   const total = useMemo(() => summarize(days).totalTokens, [days]);
@@ -17,6 +18,7 @@ export function Tools() {
 
   return (
     <>
+      {openLimits && <LimitsSummaryStrip limits={limits} onOpenLimits={openLimits} />}
       <section className="panel">
         <header className="panel-head">
           <div>
