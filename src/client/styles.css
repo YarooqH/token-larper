@@ -1581,8 +1581,10 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 }
 .lm-instrument { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: clamp(18px, 2.4vw, 34px); }
 .lm-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 24px 48px; }
-.lm-hero-main { display: grid; gap: 8px; min-width: 0; }
-.lm-hero-figure { color: var(--text); font-size: clamp(64px, 10vw, 148px); font-weight: 650; line-height: 0.88; }
+/* The hero figure sizes to its own column and its length (--fig-chars), so a long amount shrinks rather than spills. */
+.lm-hero-main { display: grid; gap: 8px; min-width: 0; container-type: inline-size; }
+/* A normal line height leaves room for glyphs that rise above the digits, like "$", in every style's font. */
+.lm-hero-figure { color: var(--text); font-size: clamp(40px, min(10vw, calc(100cqi / (var(--fig-chars, 6) * 0.66))), 148px); font-weight: 650; line-height: 1.04; white-space: nowrap; }
 .lm-readouts { display: grid; grid-template-columns: repeat(3, minmax(150px, auto)); row-gap: 22px; }
 .lm-readout { display: grid; align-content: start; gap: 4px; padding: 2px 22px; border-left: 1px solid var(--border); }
 .lm-hero-pair { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 44px; }

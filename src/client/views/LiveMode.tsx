@@ -11,7 +11,6 @@ import {
   forTool,
   liveSessions,
   liveSpeed,
-  uncachedTokens,
   rankBy,
   responseSpeed,
   rollingSeries,
@@ -36,7 +35,7 @@ const LIMITS_ID = "live-limitations";
 export type Lead = "cost" | "tokens";
 const LEADS: { id: Lead; label: string }[] = [
   { id: "cost", label: "Burn rate" },
-  { id: "tokens", label: "Uncached" },
+  { id: "tokens", label: "Output" },
 ];
 const LEAD_KEY = "token-larper-live-lead";
 
@@ -417,6 +416,8 @@ function Readout({ label, children, note, hint }: { label: string; children: Rea
   );
 }
 
+const outputOf = (e: LiveEvent) => e.outputTokens;
+
 function Instrument({ events, now, spanMs, order, lead }: {
   events: LiveEvent[];
   now: number;
@@ -440,15 +441,20 @@ function Instrument({ events, now, spanMs, order, lead }: {
       {formatCurrency(five.cost * 12)}<em>/hr</em>
     </Readout>
   );
-  const readouts = [
-    ...(lead === "tokens" ? [burn] : []),
+  const output = (
     <Readout key="output" label="Output" note={`5-min avg ${formatCompactNumber(five.outputTokens / 5)}`} hint="Tokens the models wrote in the last minute">
       <Figure value={minute.outputTokens} />
       <em>/min</em>
-    </Readout>,
+    </Readout>
+  );
+  const speedReadout = (
     <Readout key="speed" label="Speed" hint="The median response's output tokens per second over the last 5 minutes, including the wait for the first token">
       {speed ? <>{formatRate(speed.median)}<em>tok/s</em></> : <span className="lm-dim">—</span>}
-    </Readout>,
+    </Readout>
+  );
+  // Whatever leads isn't repeated in the readouts.
+  const readouts = [
+    ...(lead === "tokens" ? [burn] : [output, speedReadout]),
     <Readout key="requests" label="Requests" note={`5-min avg ${(five.responses / 5).toFixed(1)}`} hint="Responses that finished in the last minute">
       {minute.responses}<em>/min</em>
     </Readout>,
@@ -466,7 +472,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
   ];
 
   return (
-    <section className="lm-instrument" aria-label={lead === "cost" ? "Burn rate" : "Uncached tokens per minute"}>
+    <section className="lm-instrument" aria-label={lead === "cost" ? "Burn rate" : "Output tokens per minute"}>
       <div className="lm-hero">
         {lead === "cost" ? (
           <div className="lm-hero-main">
@@ -488,11 +494,11 @@ function Instrument({ events, now, spanMs, order, lead }: {
                 <Figure value={uncachedTokens(minute)} className="lm-hero-figure" morph="tokens" />
               </div>
               <div className="lm-hero-side">
-                <span className="lm-label" title="The conversation read back from the prompt cache with each request">Cache reads</span>
-                <span className="lm-hero-side-value"><Figure value={minute.cacheReadTokens} /><em>/min</em></span>
+                <span className="lm-label" title="The median response's output tokens per second over the last 5 minutes, including the wait for the first token">Speed</span>
+                <span className="lm-hero-side-value">{speed ? <>{formatRate(speed.median)}<em>tok/s</em></> : <span className="lm-dim">—</span>}</span>
               </div>
             </div>
-            <span className="lm-note">input + cache writes + output · 5-min avg {formatCompactNumber(uncachedTokens(five) / 5)}</span>
+            <span className="lm-note">5-min avg {formatCompactNumber(five.outputTokens / 5)}</span>
           </div>
         )}
         <div className="lm-readouts">{readouts}</div>
@@ -500,7 +506,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
       {lead === "cost" ? (
         <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={eventTokens} title="Tokens / min, incl. cache reads" />
       ) : (
-        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={uncachedTokens} title="Uncached tokens / min" />
+        <Trace events={events} now={now} spanMs={spanMs} order={order} valueOf={outputOf} title="Output tokens / min" />
       )}
       <Tape events={events} now={now} spanMs={spanMs} />
     </section>
