@@ -1806,20 +1806,14 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .live-toggle.is-arming svg { animation: lm-breathe 0.9s ease-in-out infinite; }
 
 /*
- * Names exist only while a switch runs, so they never create stacking contexts the rest of
- * the time. The brand and the buttons both screens share glide to their new places; each
- * screen's own blocks leave or arrive as separate layers, so nothing gets stretched.
+ * lib/liveSwitch.ts sets data-vt (the direction) and data-vt-style (pulse, or morph, which is kept
+ * for later) only while a switch runs, so these names never create stacking contexts the rest of
+ * the time. The brand and the buttons both screens share glide to their new places.
  */
 html[data-vt] .brand { view-transition-name: lt-brand; }
 html[data-vt] .live-toggle { view-transition-name: lt-toggle; }
 html[data-vt] .theme-btn { view-transition-name: lt-theme; }
 html[data-vt] .settings-btn { view-transition-name: lt-settings; }
-html[data-vt] .dash-stage { view-transition-name: lt-dash; }
-html[data-vt] .lm-header { view-transition-name: lt-live-head; }
-html[data-vt] .lm-instrument { view-transition-name: lt-live-hero; }
-html[data-vt] .lm-grid-3 { view-transition-name: lt-live-a; }
-html[data-vt] .lm-grid-2 { view-transition-name: lt-live-b; }
-html[data-vt] .lm-connecting { view-transition-name: lt-live-hero; }
 
 :root { --vt-ease: cubic-bezier(0.16, 1, 0.3, 1); --vt-ease-in: cubic-bezier(0.5, 0, 0.75, 0); }
 
@@ -1829,20 +1823,6 @@ html[data-vt] .lm-connecting { view-transition-name: lt-live-hero; }
 ::view-transition-group(lt-settings) { animation-duration: 560ms; animation-timing-function: var(--vt-ease); }
 ::view-transition-old(root) { animation: 220ms var(--vt-ease-in) both lt-fade-out; }
 ::view-transition-new(root) { animation: 420ms var(--vt-ease) 80ms both lt-fade-in; }
-
-/* Into Live: the dashboard sinks back and blurs; the live screen rises in, top to bottom. */
-html[data-vt="to-live"]::view-transition-old(lt-dash) { animation: 280ms var(--vt-ease-in) both lt-sink; }
-html[data-vt="to-live"]::view-transition-new(lt-live-head) { animation: 520ms var(--vt-ease) 90ms both lt-rise; }
-html[data-vt="to-live"]::view-transition-new(lt-live-hero) { animation: 680ms var(--vt-ease) 130ms both lt-rise-hero; }
-html[data-vt="to-live"]::view-transition-new(lt-live-a) { animation: 640ms var(--vt-ease) 210ms both lt-rise; }
-html[data-vt="to-live"]::view-transition-new(lt-live-b) { animation: 640ms var(--vt-ease) 280ms both lt-rise; }
-
-/* Out of Live: the live screen sinks back, lowest rows first; the dashboard rises in. */
-html[data-vt="from-live"]::view-transition-old(lt-live-b) { animation: 240ms var(--vt-ease-in) both lt-sink; }
-html[data-vt="from-live"]::view-transition-old(lt-live-a) { animation: 240ms var(--vt-ease-in) 30ms both lt-sink; }
-html[data-vt="from-live"]::view-transition-old(lt-live-hero) { animation: 260ms var(--vt-ease-in) 60ms both lt-sink; }
-html[data-vt="from-live"]::view-transition-old(lt-live-head) { animation: 240ms var(--vt-ease-in) 80ms both lt-sink; }
-html[data-vt="from-live"]::view-transition-new(lt-dash) { animation: 620ms var(--vt-ease) 160ms both lt-rise; }
 
 @keyframes lt-fade-out { to { opacity: 0; } }
 @keyframes lt-fade-in { from { opacity: 0; } }
@@ -1855,6 +1835,81 @@ html[data-vt="from-live"]::view-transition-new(lt-dash) { animation: 620ms var(-
 @keyframes lt-rise-hero {
   from { opacity: 0; transform: translateY(36px) scale(0.96); filter: blur(10px); }
 }
+
+/* Pulse: the new screen opens as a circle around the Live button. liveSwitch.ts animates the
+   circle and the ring on its edge, since both follow the button to its new place. */
+html[data-vt-style="pulse"]::view-transition-old(root),
+html[data-vt-style="pulse"]::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+html[data-vt="from-live"][data-vt-style="pulse"]::view-transition-old(root) { z-index: 1; }
+/* The same timing as the wave in liveSwitch.ts, so the wave stays centered on the moving button. */
+html[data-vt-style="pulse"]::view-transition-group(lt-brand),
+html[data-vt-style="pulse"]::view-transition-group(lt-toggle),
+html[data-vt-style="pulse"]::view-transition-group(lt-theme),
+html[data-vt-style="pulse"]::view-transition-group(lt-settings) { animation-duration: 720ms; animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1); }
+html[data-vt="from-live"][data-vt-style="pulse"]::view-transition-group(lt-brand),
+html[data-vt="from-live"][data-vt-style="pulse"]::view-transition-group(lt-toggle),
+html[data-vt="from-live"][data-vt-style="pulse"]::view-transition-group(lt-theme),
+html[data-vt="from-live"][data-vt-style="pulse"]::view-transition-group(lt-settings) { animation-duration: 520ms; }
+::view-transition-new(lt-ring) { animation: none; }
+.vt-ring {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  view-transition-name: lt-ring;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 80%, transparent));
+}
+.vt-ring circle { fill: none; stroke: var(--accent); vector-effect: non-scaling-stroke; transform: scale(0.001); }
+.vt-ring-edge { stroke-width: 2px; }
+.vt-ring-haze { stroke-width: 34px; stroke-opacity: 0.16; }
+
+/* Pulse: Live's chart and tape draw in from the left, up to now. */
+html[data-lm-intro] .lm-trace > svg { animation: lm-draw 1000ms cubic-bezier(0.45, 0, 0.2, 1) 340ms both; }
+html[data-lm-intro] .lm-tape > svg { animation: lm-draw 1000ms cubic-bezier(0.45, 0, 0.2, 1) 440ms both; }
+/* Both ends spelled out: clip-path can't interpolate to none. */
+@keyframes lm-draw {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+/* Morph (kept for later): each screen's blocks leave or arrive as separate layers, so nothing gets stretched. */
+html[data-vt-style="morph"] .dash-stage { view-transition-name: lt-dash; }
+html[data-vt-style="morph"] .lm-header { view-transition-name: lt-live-head; }
+html[data-vt-style="morph"] .lm-instrument { view-transition-name: lt-live-hero; }
+html[data-vt-style="morph"] .lm-grid-3 { view-transition-name: lt-live-a; }
+html[data-vt-style="morph"] .lm-grid-2 { view-transition-name: lt-live-b; }
+html[data-vt-style="morph"] .lm-connecting { view-transition-name: lt-live-hero; }
+
+/* Into Live: the dashboard sinks back and blurs; the live screen rises in, top to bottom. */
+html[data-vt="to-live"][data-vt-style="morph"]::view-transition-old(lt-dash) { animation: 280ms var(--vt-ease-in) both lt-sink; }
+html[data-vt="to-live"][data-vt-style="morph"]::view-transition-new(lt-live-head) { animation: 520ms var(--vt-ease) 90ms both lt-rise; }
+html[data-vt="to-live"][data-vt-style="morph"]::view-transition-new(lt-live-hero) { animation: 680ms var(--vt-ease) 130ms both lt-rise-hero; }
+html[data-vt="to-live"][data-vt-style="morph"]::view-transition-new(lt-live-a) { animation: 640ms var(--vt-ease) 210ms both lt-rise; }
+html[data-vt="to-live"][data-vt-style="morph"]::view-transition-new(lt-live-b) { animation: 640ms var(--vt-ease) 280ms both lt-rise; }
+
+/* Out of Live: the live screen sinks back, lowest rows first; the dashboard rises in. */
+html[data-vt="from-live"][data-vt-style="morph"]::view-transition-old(lt-live-b) { animation: 240ms var(--vt-ease-in) both lt-sink; }
+html[data-vt="from-live"][data-vt-style="morph"]::view-transition-old(lt-live-a) { animation: 240ms var(--vt-ease-in) 30ms both lt-sink; }
+html[data-vt="from-live"][data-vt-style="morph"]::view-transition-old(lt-live-hero) { animation: 260ms var(--vt-ease-in) 60ms both lt-sink; }
+html[data-vt="from-live"][data-vt-style="morph"]::view-transition-old(lt-live-head) { animation: 240ms var(--vt-ease-in) 80ms both lt-sink; }
+html[data-vt="from-live"][data-vt-style="morph"]::view-transition-new(lt-dash) { animation: 620ms var(--vt-ease) 160ms both lt-rise; }
+
+/* Morph: Overview's Tokens or Cost number (whichever Live leads with) becomes Live's big number.
+   Both shrink to their text, so the number scales by its height and stays left-aligned. */
+html[data-vt-style="morph"][data-vt-lead="cost"] [data-vt-morph="cost"],
+html[data-vt-style="morph"][data-vt-lead="tokens"] [data-vt-morph="tokens"] { width: fit-content; view-transition-name: lt-morph; }
+/* On top: blocks that exist on only one screen get layers above the shared ones, so the
+   arriving Live card would otherwise cover the number flying into it. */
+::view-transition-group(lt-morph) { z-index: 1; animation-duration: 700ms; animation-timing-function: var(--vt-ease); }
+::view-transition-old(lt-morph),
+::view-transition-new(lt-morph) { inline-size: auto; block-size: 100%; }
+::view-transition-old(lt-morph) { animation: 240ms ease-in both lt-fade-out; }
+::view-transition-new(lt-morph) { animation: 300ms ease-out 60ms both lt-fade-in; }
+/* Away from Overview there's no number to fly from, so it moves with its block instead. */
+html[data-vt="to-live"]::view-transition-new(lt-morph):only-child { animation: 680ms var(--vt-ease) 130ms both lt-rise-hero; }
+html[data-vt="from-live"]::view-transition-old(lt-morph):only-child { animation: 260ms var(--vt-ease-in) 60ms both lt-sink; }
 
 /* Browsers without view transitions still get the live screen rising in. */
 @supports not (view-transition-name: none) {
@@ -1916,7 +1971,7 @@ html[data-vt="from-live"]::view-transition-new(lt-dash) { animation: 620ms var(-
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spin, .live-toggle svg, .lm-badge i, .lm-tick, .lm-feed-row, .lm > *, .settings-panel { animation: none; }
+  .spin, .live-toggle svg, .lm-badge i, .lm-tick, .lm-feed-row, .lm > *, .settings-panel, .lm-trace > svg, .lm-tape > svg { animation: none; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   *, *::before, *::after { transition-duration: 0s !important; scroll-behavior: auto !important; }
 }
