@@ -559,6 +559,8 @@ function WindowRow({
         </span>
       </div>
 
+      {win.detail && <p className="limit-window-detail">{win.detail}</p>}
+
       <div
         className="limit-bar-track"
         role="progressbar"

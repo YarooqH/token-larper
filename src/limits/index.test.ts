@@ -14,6 +14,8 @@ import {
   latestCodexRateLimitsFromText,
   memoizeAsyncTtl,
   mergeWithCache,
+  liveMatchesLocal,
+  pickActiveAntigravityInstall,
   parseClaudeOAuthUsage,
   parseCodexRolloutRateLimits,
   parseCodexWhamUsage,
@@ -387,5 +389,35 @@ describe("log extraction helpers", () => {
     expect(card.id).toBe("claude");
     expect(card.windows).toEqual([]);
     expect(card.error).toContain("Claude Code");
+  });
+});
+
+describe("antigravity account selection", () => {
+  const q = (label: string) => ({ id: label, label, remainingFraction: 1, resetTime: null });
+
+  test("the most recently written install is the active account", () => {
+    const installs = [
+      { app: "Antigravity", dbPath: "a", mtimeMs: Date.parse("2026-05-19T00:00:00Z") },
+      { app: "Antigravity IDE", dbPath: "b", mtimeMs: Date.parse("2026-10-14T00:00:00Z") },
+    ];
+    expect(pickActiveAntigravityInstall(installs)?.app).toBe("Antigravity IDE");
+    expect(pickActiveAntigravityInstall([])).toBeNull();
+  });
+
+  test("a live answer with none of the active app's Gemini models belongs to another account", () => {
+    const ultra = [q("Gemini 3.8 Flash (High)"), q("Claude Opus 4.6 (Thinking)")];
+    const proLive = [q("Gemini 3.5 Flash"), q("Gemini 3.1 Pro"), q("Claude Opus 4.6 (Thinking)")];
+    expect(liveMatchesLocal(ultra, proLive)).toBe(false);
+  });
+
+  test("a live answer that shares a Gemini model matches, ignoring effort suffixes", () => {
+    const local = [q("Gemini 3.5 Flash (High)"), q("Gemini 3.1 Pro (Low)")];
+    const live = [q("Gemini 3.5 Flash"), q("Gemini 3.1 Pro")];
+    expect(liveMatchesLocal(local, live)).toBe(true);
+  });
+
+  test("with no Gemini models locally there is nothing to contradict, so live is accepted", () => {
+    expect(liveMatchesLocal([q("Claude Opus 4.6")], [q("Gemini 3.5 Flash")])).toBe(true);
+    expect(liveMatchesLocal([], [q("Gemini 3.5 Flash")])).toBe(true);
   });
 });

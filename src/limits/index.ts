@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -893,6 +893,7 @@ export function buildAntigravityLimitCard(
       id: `pool_${idx}`,
       label: pools.size > 2 && cleanLabels.length === 1 ? cleanLabels[0]! : familyLabel,
       sublabel: cleanLabels.slice(0, 4).join(" · "),
+      detail: cleanLabels.join(", "),
       usedPercent,
       remainingPercent: pool.remainingPercent,
       resetsAt: pool.resetsAt,
@@ -924,19 +925,59 @@ export function buildAntigravityLimitCard(
   };
 }
 
-function getAntigravityStateDbPath(): string | null {
-  const home = homedir();
-  const candidates =
-    process.platform === "win32"
-      ? [join(process.env.APPDATA || join(home, "AppData", "Roaming"), "Antigravity", "User", "globalStorage", "state.vscdb")]
-      : process.platform === "darwin"
-      ? [join(home, "Library", "Application Support", "Antigravity", "User", "globalStorage", "state.vscdb")]
-      : [join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "Antigravity", "User", "globalStorage", "state.vscdb")];
+export interface AntigravityInstall {
+  /** App folder name, e.g. "Antigravity" or "Antigravity IDE". */
+  app: string;
+  dbPath: string;
+  mtimeMs: number;
+}
 
-  for (const p of candidates) {
-    if (existsSync(p)) return p;
+// Several Antigravity apps can be installed side by side, each signed into its own Google account,
+// and an app that is no longer used keeps its old state forever. The most recently written one is the
+// account in use.
+export function pickActiveAntigravityInstall(installs: AntigravityInstall[]): AntigravityInstall | null {
+  return [...installs].sort((a, b) => b.mtimeMs - a.mtimeMs)[0] ?? null;
+}
+
+function listAntigravityInstalls(): AntigravityInstall[] {
+  const home = homedir();
+  const base =
+    process.platform === "win32"
+      ? process.env.APPDATA || join(home, "AppData", "Roaming")
+      : process.platform === "darwin"
+      ? join(home, "Library", "Application Support")
+      : process.env.XDG_CONFIG_HOME || join(home, ".config");
+
+  const installs: AntigravityInstall[] = [];
+  let names: string[] = [];
+  try {
+    names = readdirSync(base).filter((n) => n.toLowerCase().startsWith("antigravity"));
+  } catch {
+    return installs;
   }
-  return null;
+  for (const app of names) {
+    const dbPath = join(base, app, "User", "globalStorage", "state.vscdb");
+    try {
+      installs.push({ app, dbPath, mtimeMs: statSync(dbPath).mtimeMs });
+    } catch {
+      // not an editor install
+    }
+  }
+  return installs;
+}
+
+const normalizeModelName = (label: string) => label.replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
+
+// The saved login token can belong to a different Google account than the active app. Accounts on different
+// plans or rollouts expose different Gemini models, so a live answer that shares none of the active
+// app's Gemini models is treated as someone else's quota.
+export function liveMatchesLocal(local: AntigravityModelQuota[], live: AntigravityModelQuota[]): boolean {
+  const gemini = (models: AntigravityModelQuota[]) =>
+    new Set(models.map((m) => normalizeModelName(m.label)).filter((n) => n.includes("gemini")));
+  const localGemini = gemini(local);
+  if (localGemini.size === 0) return true;
+  const liveGemini = gemini(live);
+  return [...localGemini].some((n) => liveGemini.has(n));
 }
 
 // PowerShell + Add-Type costs seconds and a process spawn, so each target runs at most once per TTL.
@@ -1036,12 +1077,12 @@ Add-Type -TypeDefinition $code
 }
 
 async function fetchAntigravityLimits(): Promise<HarnessLimitCard | null> {
-  const dbPath = getAntigravityStateDbPath();
+  const active = pickActiveAntigravityInstall(listAntigravityInstalls());
   let localParsed: AntigravityParsedState = { models: [] };
 
-  if (dbPath) {
+  if (active) {
     try {
-      const db = new Database(dbPath, { readonly: true });
+      const db = new Database(active.dbPath, { readonly: true });
       const row = db
         .query("SELECT value FROM ItemTable WHERE key = 'antigravityUnifiedStateSync.userStatus'")
         .get() as { value?: string } | null;
@@ -1064,6 +1105,8 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard | null> {
       // ignore sqlite errors
     }
   }
+  const syncedAt = active ? new Date(active.mtimeMs).toISOString() : undefined;
+  let liveMismatch = false;
 
   // Try live Cloud Code fetch using Windows Credential Manager or gemini oauth token
   let accessToken: string | null = null;
@@ -1115,11 +1158,14 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard | null> {
             });
           }
           if (liveModels.length > 0) {
-            return buildAntigravityLimitCard(liveModels, {
-              tierName: localParsed.tierName,
-              availableCredits: localParsed.availableCredits,
-              source: "live",
-            });
+            if (liveMatchesLocal(localParsed.models, liveModels)) {
+              return buildAntigravityLimitCard(liveModels, {
+                tierName: localParsed.tierName,
+                availableCredits: localParsed.availableCredits,
+                source: "live",
+              });
+            }
+            liveMismatch = true;
           }
         }
       }
@@ -1129,18 +1175,30 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard | null> {
   }
 
   if (localParsed.models.length > 0) {
+    const where = active ? active.app : "Antigravity";
+    const age = active ? formatSyncAge(Date.now() - active.mtimeMs) : null;
+    const why = liveMismatch
+      ? "The saved login is for a different Google account"
+      : process.platform === "win32"
+      ? "Live fetch unavailable"
+      : "Live quota needs Windows Credential Manager";
     return buildAntigravityLimitCard(localParsed.models, {
       tierName: localParsed.tierName,
       availableCredits: localParsed.availableCredits,
       source: "local",
-      note:
-        process.platform === "win32"
-          ? "Live fetch unavailable, showing local IDE state"
-          : "Live quota needs Windows Credential Manager",
+      updatedAt: syncedAt,
+      note: `${why}. Showing ${where}${age ? `, last synced ${age}` : ""}.`,
     });
   }
 
   return null;
+}
+
+function formatSyncAge(ms: number): string {
+  const minutes = Math.max(0, Math.round(ms / 60_000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
 }
 
 // ============================================================================

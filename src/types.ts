@@ -271,6 +271,8 @@ export interface QuotaWindow {
   id: string;
   label: string;
   sublabel?: string;
+  /** Extra context worth a line under the label, e.g. which models share a pool. */
+  detail?: string;
   /** Percentage of quota used (0..100). */
   usedPercent: number;
   /** Percentage of quota remaining (0..100). */
