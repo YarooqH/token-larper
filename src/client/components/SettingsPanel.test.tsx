@@ -1,0 +1,106 @@
+import { describe, expect, test } from "bun:test";
+import type { ComponentProps } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { SettingsContent, SettingsPanel } from "./SettingsPanel.tsx";
+import { DEFAULT_APPEARANCE } from "../themes.ts";
+import type { Updates } from "../lib/updates.ts";
+import type { StartupConfig } from "../../types.ts";
+
+type ContentProps = ComponentProps<typeof SettingsContent>;
+
+const noop = () => {};
+const updates: Updates = { status: null, checking: false, phase: "idle", error: null, check: async () => {}, update: async () => {} };
+const startup: StartupConfig = { enabled: false, openBrowserOnBoot: false, port: 4269, registryValue: null, launcherPath: "C:\launch.vbs" };
+
+const props: Omit<ContentProps, "query" | "section"> = {
+  startup,
+  saving: false,
+  themeMode: "dark" as const,
+  followsSystemTheme: false,
+  appearance: DEFAULT_APPEARANCE,
+  importedTheme: null,
+  showRanks: true,
+  updates,
+  checkUpdates: true,
+  onCheckUpdatesChange: noop,
+  onThemeModeChange: noop,
+  onAppearanceChange: noop,
+  onImportTheme: noop,
+  onShowRanksChange: noop,
+  onToggleStartup: noop,
+  onRetry: noop,
+};
+
+const content = (query: string, section: "appearance" | "general" | "about" = "appearance", over: Partial<typeof props> = {}) =>
+  renderToStaticMarkup(<SettingsContent query={query} section={section} {...props} {...over} />);
+
+describe("settings panel", () => {
+  const html = renderToStaticMarkup(<SettingsPanel {...props} startupError={null} onClose={noop} onQuit={noop} />);
+
+  test("is a labelled panel that leaves the page behind it usable", () => {
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="false"');
+    expect(html).toContain('aria-labelledby="settings-title"');
+  });
+
+  test("has a labelled search box and a nav that marks the open section", () => {
+    expect(html).toContain('aria-label="Search settings"');
+    expect(html).toContain('aria-label="Settings sections"');
+    expect(html).toMatch(/aria-current="true"[^>]*>(?:<svg[^>]*>.*?<\/svg>)<span>Appearance</);
+    expect(html).toContain("Quit app");
+  });
+
+  test("opens on the Appearance section only", () => {
+    expect(html).toContain('id="theme-mode-label"');
+    expect(html).not.toContain("Start with Windows");
+    expect(html).not.toContain("Check for updates");
+  });
+});
+
+describe("settings content", () => {
+  test("browsing shows one section, with its title", () => {
+    const general = content("", "general");
+    expect(general).toContain("Show stats");
+    expect(general).toContain("Start with Windows");
+    expect(general).not.toContain("Check for updates");
+    expect(general).toContain("sp-section-head");
+  });
+
+  test("the About section lists updates and technical details", () => {
+    const about = content("", "about");
+    expect(about).toContain("Check automatically");
+    expect(about).toContain("Technical details");
+    expect(about).toContain("http://127.0.0.1:4269");
+  });
+
+  test("a search shows only the matching controls, across sections, under section names", () => {
+    const html = content("login", "appearance");
+    expect(html).toContain("Start with Windows");
+    expect(html).toContain("Open dashboard at sign-in");
+    expect(html).not.toContain("Show stats");
+    expect(html).not.toContain("theme-settings");
+    expect(html).toContain('class="sp-group-label">General<');
+    expect(html).not.toContain("sp-section-head");
+  });
+
+  test("a search can match a single control inside a section", () => {
+    const html = content("accent", "general");
+    expect(html).toContain('id="theme-accent-label"');
+    expect(html).not.toContain("theme-style-label");
+    expect(html).not.toContain("theme-mode-label");
+    expect(html).not.toContain("theme-import");
+  });
+
+  test("a search that matches nothing says so and suggests words to try", () => {
+    const html = content("zzz", "appearance");
+    expect(html).toContain("No settings match");
+    expect(html).toContain("zzz");
+    expect(html).toContain("Try");
+  });
+
+  test("startup settings that can't load show a retry, not empty rows", () => {
+    const html = content("startup", "general", { startup: null });
+    expect(html).toContain("Startup settings are unavailable.");
+    expect(html).toContain("Try again");
+  });
+});

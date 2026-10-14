@@ -1067,7 +1067,7 @@ img { display: block; }
 .cal-scale { display: inline-flex; align-items: center; gap: 3px; }
 .cal-scale .cal-cell { display: inline-block; width: 10px; height: 10px; }
 
-/* ---------- Settings dialog ---------- */
+/* ---------- Dialogs ---------- */
 
 .modal-backdrop {
   position: fixed;
@@ -1192,6 +1192,83 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .settings-quit { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 8px; border-radius: var(--radius-sm); color: var(--text-2); font-size: 13px; font-weight: 600; }
 .settings-quit:hover { background: var(--surface-2); color: var(--error-text); }
 
+/* ---------- Settings panel ---------- */
+
+/* A side panel keeps the dashboard in view while a setting changes. Wide screens leave the
+   page usable behind it; narrow ones dim it and treat a click outside as "close". */
+.settings-scrim { position: fixed; inset: 0; z-index: 99; pointer-events: none; }
+.settings-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  width: min(500px, 100%);
+  border-left: var(--border-w, 1px) solid var(--border-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  animation: sp-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sp-in { from { transform: translateX(32px); opacity: 0; } }
+.sp-head { padding: 16px 20px 14px; border-bottom: 1px solid var(--border); }
+.sp-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.sp-head h2 { font-size: 19px; letter-spacing: -0.02em; }
+.sp-search { width: 100%; min-width: 0; }
+.sp-search input::-webkit-search-cancel-button { cursor: pointer; }
+.sp-search kbd {
+  flex: 0 0 auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  color: var(--text-3);
+  font: 11px/1.5 var(--mono);
+  text-align: center;
+}
+.sp-body { display: grid; flex: 1; grid-template-columns: 128px minmax(0, 1fr); min-height: 0; }
+.sp-nav { display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; border-right: 1px solid var(--border); }
+.sp-nav button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+.sp-nav button:hover { background: var(--surface-2); color: var(--text); }
+.sp-nav button[aria-current] { background: var(--surface-2); color: var(--text); }
+.sp-nav button[aria-current] svg { color: var(--accent); }
+.sp-content { min-width: 0; padding: 4px 20px 24px; overflow-y: auto; overscroll-behavior: contain; }
+.sp-section-head { padding: 14px 0 10px; }
+.sp-section-head h3 { font-size: 15px; letter-spacing: -0.01em; }
+.sp-section-head p { margin-top: 2px; color: var(--text-2); font-size: 12.5px; }
+.sp-group + .sp-group { margin-top: 8px; border-top: 1px solid var(--border); }
+.sp-group-label { padding: 14px 0 0; color: var(--text-3); font-size: 11.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+.sp-empty { display: grid; gap: 4px; padding: 36px 8px; text-align: center; }
+.sp-empty strong { font-size: 13.5px; }
+.sp-empty p { color: var(--text-2); font-size: 12.5px; }
+.sp-content .settings-section { padding-top: 6px; }
+.sp-content .settings-section + .settings-section { margin-top: 6px; }
+.sp-content .settings-details { border-top: 1px solid var(--border); }
+.sp-content .inline-error { margin-top: 14px; }
+
+@media (max-width: 900px) {
+  .settings-scrim { pointer-events: auto; background: rgb(15 25 19 / 45%); }
+}
+@media (max-width: 560px) {
+  .sp-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .sp-nav { flex-direction: row; gap: 4px; padding: 8px 12px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+  .sp-nav button { flex: 0 0 auto; }
+  .sp-head, .sp-content { padding-right: 16px; padding-left: 16px; }
+  .settings-panel { border-left: 0; }
+}
+
 /* ---------- Credit ---------- */
 
 
@@ -1217,13 +1294,13 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
    Maps the style tokens onto components. It sits after the component rules so a style
    can change them, and before the responsive rules so small screens still win. */
 
-.brand h1, .intro h2, .panel-head h2, .kpi-value, .mix-list dd strong, .modal-header h3, .splash-card h2 {
+.brand h1, .intro h2, .panel-head h2, .kpi-value, .mix-list dd strong, .modal-header h3, .sp-head h2, .sp-section-head h3, .splash-card h2 {
   font-family: var(--font-heading);
   font-weight: var(--heading-weight);
   letter-spacing: var(--heading-tracking);
 }
 .sheet { --sheet-serif: var(--font-display); }
-.field-label, .kpi-label, .table th, .subhead, .sheet-row-label, .sheet-numbers dt, .settings-section-heading h4, .theme-row-label {
+.field-label, .kpi-label, .table th, .subhead, .sheet-row-label, .sheet-numbers dt, .settings-section-heading h4, .theme-row-label, .sp-group-label {
   text-transform: var(--label-transform);
   letter-spacing: var(--label-tracking);
 }
@@ -1841,7 +1918,7 @@ html[data-vt="from-live"]::view-transition-new(lt-dash) { animation: 620ms var(-
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spin, .live-toggle svg, .lm-badge i, .lm-tick, .lm-feed-row, .lm > * { animation: none; }
+  .spin, .live-toggle svg, .lm-badge i, .lm-tick, .lm-feed-row, .lm > *, .settings-panel { animation: none; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   *, *::before, *::after { transition-duration: 0s !important; scroll-behavior: auto !important; }
 }

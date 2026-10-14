@@ -1,11 +1,14 @@
 import React from "react";
 import { RefreshCw } from "./Icons.tsx";
 import { RELEASES_URL, UPDATE_COMMAND, type Updates } from "../lib/updates.ts";
+import type { SettingId } from "../lib/settingsIndex.ts";
 
 interface Props {
   updates: Updates;
   autoCheck: boolean;
   onAutoCheckChange: (autoCheck: boolean) => void;
+  /** Which of these settings to render; defaults to all. */
+  show?: (id: SettingId) => boolean;
 }
 
 function describe({ status, checking, phase }: Updates): string {
@@ -16,7 +19,7 @@ function describe({ status, checking, phase }: Updates): string {
   return "You're up to date";
 }
 
-export function UpdateSettings({ updates, autoCheck, onAutoCheckChange }: Props) {
+export function UpdateSettings({ updates, autoCheck, onAutoCheckChange, show = () => true }: Props) {
   const { status, checking, phase, error, check, update } = updates;
   const canUpdate = status?.updateAvailable && status.source === "npm" && phase !== "updating";
 
@@ -26,7 +29,7 @@ export function UpdateSettings({ updates, autoCheck, onAutoCheckChange }: Props)
         <h4 id="settings-updates-heading">Updates</h4>
         <span>{status ? `Version ${status.current}` : ""}</span>
       </div>
-      <div className="setting-row">
+      {show("updates") && <div className="setting-row">
         <div className="setting-copy">
           <strong>{describe(updates)}</strong>
           <p>
@@ -43,8 +46,8 @@ export function UpdateSettings({ updates, autoCheck, onAutoCheckChange }: Props)
             <span>Check for updates</span>
           </button>
         )}
-      </div>
-      <div className="setting-row">
+      </div>}
+      {show("auto-check") && <div className="setting-row">
         <div className="setting-copy">
           <strong id="setting-autoupdate-label">Check automatically</strong>
           <p>Ask npm for the latest version when the dashboard opens. Nothing else is sent.</p>
@@ -59,7 +62,7 @@ export function UpdateSettings({ updates, autoCheck, onAutoCheckChange }: Props)
         >
           <span className="toggle-knob" />
         </button>
-      </div>
+      </div>}
     </section>
   );
 }
