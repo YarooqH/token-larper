@@ -32,6 +32,29 @@ const feed = (events: LiveEvent[], over: Partial<LiveFeed> = {}): LiveFeed => ({
 
 const harness = (id: HarnessSummary["meta"]["id"], name: string) => ({ meta: { id, name, hasUsage: true } }) as HarnessSummary;
 
+describe("Live mode in screenshot mode", () => {
+  const labelOf = (name: string) => (name === "token-larper" ? "Project A" : "Project B");
+
+  test("shows project labels, never the folder names", () => {
+    const events = [event({}), event({ id: "e2", session: "s2", project: "secret-startup", at: NOW - 5 * 60_000, cacheReadTokens: 900_000 })];
+    const html = render(<LiveBoard feed={feed(events)} />, { projectLabel: labelOf });
+    expect(html).toContain("Project A");
+    expect(html).toContain("Project B");
+    expect(html).not.toContain("token-larper");
+    expect(html).not.toContain("secret-startup");
+  });
+
+  test("labels the folder in a response hover card", () => {
+    const tip = render(<ResponseTip e={event({})} at={{ left: 10, top: 20, side: "right" }} />, { projectLabel: labelOf });
+    expect(tip).toContain("Project A");
+    expect(tip).not.toContain("token-larper");
+  });
+
+  test("shows the folder names when the mode is off", () => {
+    expect(render(<LiveBoard feed={feed([event({})])} />)).toContain("token-larper");
+  });
+});
+
 describe("Live mode", () => {
   test("leads with the burn rate by default, with the panels below", () => {
     const html = render(<LiveBoard feed={feed([event({})])} initialLead="cost" />);

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SettingsContent, SettingsPanel } from "./SettingsPanel.tsx";
+import { SettingsContent, SettingsPage } from "./SettingsPage.tsx";
 import { DEFAULT_APPEARANCE } from "../themes.ts";
 import type { Updates } from "../lib/updates.ts";
 import type { StartupConfig } from "../../types.ts";
@@ -23,6 +23,11 @@ const props: Omit<ContentProps, "query" | "section"> = {
   updates,
   checkUpdates: true,
   onCheckUpdatesChange: noop,
+  screenshot: false,
+  onScreenshotChange: noop,
+  privacy: { status: { offline: false, locked: false }, saving: false, error: null },
+  onOfflineChange: noop,
+  priceStatus: undefined,
   onThemeModeChange: noop,
   onAppearanceChange: noop,
   onImportTheme: noop,
@@ -31,16 +36,27 @@ const props: Omit<ContentProps, "query" | "section"> = {
   onRetry: noop,
 };
 
-const content = (query: string, section: "appearance" | "general" | "about" = "appearance", over: Partial<typeof props> = {}) =>
+const content = (query: string, section: "appearance" | "general" | "privacy" | "about" = "appearance", over: Partial<typeof props> = {}) =>
   renderToStaticMarkup(<SettingsContent query={query} section={section} {...props} {...over} />);
 
-describe("settings panel", () => {
-  const html = renderToStaticMarkup(<SettingsPanel {...props} startupError={null} onClose={noop} onQuit={noop} />);
+describe("settings page", () => {
+  const page = (section: "appearance" | "general" | "privacy" | "about") =>
+    renderToStaticMarkup(<SettingsPage {...props} section={section} onSectionChange={noop} startupError={null} onClose={noop} onQuit={noop} />);
+  const html = page("appearance");
 
-  test("is a labelled panel that leaves the page behind it usable", () => {
-    expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-modal="false"');
-    expect(html).toContain('aria-labelledby="settings-title"');
+  test("is the page's main region, labelled Settings, with a way back to the dashboard", () => {
+    expect(html).toMatch(/^<main[^>]*aria-labelledby="settings-title"/);
+    expect(html).toContain('id="settings-title"');
+    expect(html).toContain('aria-label="Back to dashboard"');
+    expect(html).not.toContain('role="dialog"');
+  });
+
+  test("shows whichever section it is given", () => {
+    expect(page("privacy")).toContain("Screenshot mode");
+    expect(page("privacy")).not.toContain("theme-mode-label");
+    expect(page("about")).toContain("Technical details");
+    expect(page("general")).toContain("Show stats");
+    expect(page("privacy")).toMatch(/aria-current="true"[^>]*>(?:<svg[^>]*>.*?<\/svg>)<span>Privacy</);
   });
 
   test("has a labelled search box and a nav that marks the open section", () => {
@@ -68,9 +84,18 @@ describe("settings content", () => {
 
   test("the About section lists updates and technical details", () => {
     const about = content("", "about");
-    expect(about).toContain("Check automatically");
+    expect(about).toContain("Check for updates");
     expect(about).toContain("Technical details");
     expect(about).toContain("http://127.0.0.1:4269");
+    expect(about).not.toContain("Screenshot mode");
+  });
+
+  test("the Privacy section lists screenshot mode and every request the app can make", () => {
+    const privacy = content("", "privacy");
+    for (const text of ["Screenshot mode", "Offline mode", "Check for updates automatically", "Price list download", "registry.npmjs.org", "openrouter.ai"]) {
+      expect(privacy).toContain(text);
+    }
+    expect(privacy).not.toContain("Start with Windows");
   });
 
   test("a search shows only the matching controls, across sections, under section names", () => {
@@ -96,6 +121,13 @@ describe("settings content", () => {
     expect(html).toContain("No settings match");
     expect(html).toContain("zzz");
     expect(html).toContain("Try");
+  });
+
+  test("a search for a network word finds the switches that stop requests", () => {
+    const html = content("network", "appearance");
+    expect(html).toContain("Offline mode");
+    expect(html).toContain("Price list download");
+    expect(html).not.toContain("Screenshot mode");
   });
 
   test("startup settings that can't load show a retry, not empty rows", () => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { HarnessId, LiveEvent } from "../../types.ts";
-import { HarnessMark, useDashboard } from "../context.tsx";
+import { HarnessMark, useDashboard, useProjectLabel } from "../context.tsx";
 import { Info, Maximize2, Minimize2 } from "../components/Icons.tsx";
 import { SeriesKey, ToolMark } from "../components/ToolMark.tsx";
 import { formatRate } from "../lib/throughput.ts";
@@ -39,7 +39,7 @@ const LEADS: { id: Lead; label: string }[] = [
 ];
 const LEAD_KEY = "token-larper-live-lead";
 
-function loadLead(): Lead {
+export function loadLead(): Lead {
   try {
     return localStorage.getItem(LEAD_KEY) === "tokens" ? "tokens" : "cost";
   } catch {
@@ -65,20 +65,12 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] 
   return [ref, width];
 }
 
-/** "1.55M" as a number and a smaller unit. */
-/**
- * How wide a hero figure is, in characters, so CSS can size it to fit its column. A small unit
- * ("K", "/hr") is half size and counts for less.
- */
-function fitStyle(text: string, smallChars: number): React.CSSProperties {
-  return { "--fig-chars": text.length + smallChars * 0.6 } as React.CSSProperties;
-}
-
-function Figure({ value, className = "", fit = false }: { value: number; className?: string; fit?: boolean }) {
+/** "1.55M" as a number and a smaller unit. `morph` pairs it with a dashboard number (see liveSwitch.ts). */
+function Figure({ value, className = "", morph }: { value: number; className?: string; morph?: Lead }) {
   const text = formatCompactNumber(value);
   const unit = /[KMB]$/.test(text) ? text.slice(-1) : "";
   return (
-    <span className={`lm-figure ${className}`} style={fit ? fitStyle(text, 0) : undefined}>
+    <span data-vt-morph={morph} className={`lm-figure ${className}`}>
       {unit ? text.slice(0, -1) : text}
       {unit && <small>{unit}</small>}
     </span>
@@ -298,6 +290,7 @@ interface TipAt {
 /** A hover card for one response: what answered, how fast, how much, and what it cost. */
 export function ResponseTip({ e, at }: { e: LiveEvent; at: TipAt }) {
   const { nameOf } = useDashboard();
+  const projectLabel = useProjectLabel();
   const speed = responseSpeed(e);
   const secs = e.start !== undefined ? (e.at - e.start) / 1000 : null;
   const prompt = e.inputTokens + e.cacheCreationTokens + e.cacheReadTokens;
@@ -334,7 +327,7 @@ export function ResponseTip({ e, at }: { e: LiveEvent; at: TipAt }) {
           <dd>{formatCurrency(e.cost)}</dd>
         </div>
       </dl>
-      {e.project && <div className="lm-tip-foot">{e.project}</div>}
+      {e.project && <div className="lm-tip-foot">{projectLabel(e.project)}</div>}
     </div>
   );
 }
@@ -433,6 +426,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
   lead: Lead;
 }) {
   const { nameOf } = useDashboard();
+  const projectLabel = useProjectLabel();
   const minute = totalsBetween(events, now - MINUTE, Infinity);
   const five = totalsBetween(events, now - 5 * MINUTE, Infinity);
   const hour = totalsBetween(events, now - 60 * MINUTE, Infinity);
@@ -467,7 +461,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
     <Readout
       key="context"
       label="Context"
-      note={biggest ? biggest.project || nameOf(biggest.harness) : undefined}
+      note={biggest ? (biggest.project ? projectLabel(biggest.project) : nameOf(biggest.harness)) : undefined}
       hint="The largest latest prompt among sessions active in the last 15 minutes, cache included"
     >
       {biggest ? <Figure value={biggest.context} /> : <span className="lm-dim">—</span>}
@@ -483,7 +477,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
         {lead === "cost" ? (
           <div className="lm-hero-main">
             <span className="lm-label">Burn rate</span>
-            <span className="lm-figure lm-hero-figure" style={fitStyle(formatCurrency(five.cost * 12), 3)}>
+            <span data-vt-morph="cost" className="lm-figure lm-hero-figure">
               {formatCurrency(five.cost * 12)}
               <small>/hr</small>
             </span>
@@ -496,8 +490,8 @@ function Instrument({ events, now, spanMs, order, lead }: {
           <div className="lm-hero-main">
             <div className="lm-hero-pair">
               <div>
-                <span className="lm-label" title="Tokens the models wrote in the last minute">Output tokens per minute</span>
-                <Figure value={minute.outputTokens} className="lm-hero-figure" fit />
+                <span className="lm-label" title="Input, cache writes and output in the last minute: everything not read back from the prompt cache">Uncached tokens per minute</span>
+                <Figure value={uncachedTokens(minute)} className="lm-hero-figure" morph="tokens" />
               </div>
               <div className="lm-hero-side">
                 <span className="lm-label" title="The median response's output tokens per second over the last 5 minutes, including the wait for the first token">Speed</span>
@@ -639,6 +633,7 @@ function SpeedPanel({ events, now, spanMs }: { events: LiveEvent[]; now: number;
 
 function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
   const { nameOf } = useDashboard();
+  const projectLabel = useProjectLabel();
   const sessions = useMemo(() => liveSessions(events, now, SESSION_WINDOW_MS), [events, now]);
   return (
     <section className="lm-panel lm-sessions">
@@ -653,7 +648,7 @@ function Sessions({ events, now }: { events: LiveEvent[]; now: number }) {
           {sessions.map((s) => (
             <article key={s.key} className="lm-session">
               <header>
-                <strong>{s.project ?? "Unknown folder"}</strong>
+                <strong>{s.project ? projectLabel(s.project) : "Unknown folder"}</strong>
                 <span className={now - s.lastAt < MINUTE ? "lm-note is-recent" : "lm-note"}>{ago(now - s.lastAt)}</span>
               </header>
               <div className="lm-session-tool">
