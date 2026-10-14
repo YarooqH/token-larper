@@ -1,8 +1,9 @@
 import { Database } from "bun:sqlite";
-import { existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { createInterface } from "node:readline";
 import { dataPath } from "../paths.ts";
 import type { HarnessLimitCard, LimitsPayload, QuotaWindow, QuotaWindowStatus } from "../types.ts";
 
@@ -1243,10 +1244,23 @@ export function buildOpenCodeGoLimitCard(events: OpenCodeGoSpendEvent[], nowMs =
   };
 }
 
-// Pi session lines are scanned whole, so bound how many files and how big each one can be.
+// Pi sessions can be hundreds of MB, so each file is streamed line by line; only the file count is bounded.
+// Skipping big files here would silently drop their spend from the rolling caps.
 const PI_SESSION_MAX_FILES = 300;
-const PI_SESSION_MAX_BYTES = 32 * 1024 * 1024;
-const PI_SESSION_BATCH = 6;
+const PI_SESSION_BATCH = 4;
+
+async function readPiOpenCodeGoEvents(path: string, cutoffMs: number): Promise<OpenCodeGoSpendEvent[]> {
+  const events: OpenCodeGoSpendEvent[] = [];
+  try {
+    const lines = createInterface({ input: createReadStream(path, { encoding: "utf8" }), crlfDelay: Infinity });
+    for await (const line of lines) {
+      if (line.includes("opencode-go") || line.includes("oc-sdk-go")) events.push(...extractPiOpenCodeGoEvents(line, cutoffMs));
+    }
+  } catch {
+    // unreadable file: skip it
+  }
+  return events;
+}
 
 export function extractPiOpenCodeGoEvents(text: string, cutoffMs: number): OpenCodeGoSpendEvent[] {
   const events: OpenCodeGoSpendEvent[] = [];
@@ -1347,15 +1361,10 @@ async function collectOpenCodeGoEvents(nowMs = Date.now()): Promise<OpenCodeGoSp
 
   // 2. Check ~/.pi/agent/sessions/**/*.jsonl for opencode-go / oc-sdk-go usage
   const piFiles = await collectJsonlFiles(join(home, ".pi", "agent", "sessions"), { minMtimeMs: cutoff30d });
-  const recent = piFiles
-    .filter((f) => f.size <= PI_SESSION_MAX_BYTES)
-    .sort((a, b) => b.mtimeMs - a.mtimeMs)
-    .slice(0, PI_SESSION_MAX_FILES);
+  const recent = piFiles.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, PI_SESSION_MAX_FILES);
   for (let i = 0; i < recent.length; i += PI_SESSION_BATCH) {
-    const texts = await Promise.all(
-      recent.slice(i, i + PI_SESSION_BATCH).map((f) => readFile(f.path, "utf8").catch(() => "")),
-    );
-    for (const text of texts) events.push(...extractPiOpenCodeGoEvents(text, cutoff30d));
+    const batch = await Promise.all(recent.slice(i, i + PI_SESSION_BATCH).map((f) => readPiOpenCodeGoEvents(f.path, cutoff30d)));
+    for (const found of batch) events.push(...found);
   }
 
   if (!hasOpenCodeGoAuth && events.length === 0) return null;
