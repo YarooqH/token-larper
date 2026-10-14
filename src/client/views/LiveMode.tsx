@@ -40,7 +40,7 @@ const LEADS: { id: Lead; label: string }[] = [
 ];
 const LEAD_KEY = "token-larper-live-lead";
 
-function loadLead(): Lead {
+export function loadLead(): Lead {
   try {
     return localStorage.getItem(LEAD_KEY) === "tokens" ? "tokens" : "cost";
   } catch {
@@ -66,12 +66,12 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] 
   return [ref, width];
 }
 
-/** "1.55M" as a number and a smaller unit. */
-function Figure({ value, className = "" }: { value: number; className?: string }) {
+/** "1.55M" as a number and a smaller unit. `morph` pairs it with a dashboard number (see liveSwitch.ts). */
+function Figure({ value, className = "", morph }: { value: number; className?: string; morph?: Lead }) {
   const text = formatCompactNumber(value);
   const unit = /[KMB]$/.test(text) ? text.slice(-1) : "";
   return (
-    <span className={`lm-figure ${className}`}>
+    <span data-vt-morph={morph} className={`lm-figure ${className}`}>
       {unit ? text.slice(0, -1) : text}
       {unit && <small>{unit}</small>}
     </span>
@@ -471,7 +471,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
         {lead === "cost" ? (
           <div className="lm-hero-main">
             <span className="lm-label">Burn rate</span>
-            <span className="lm-figure lm-hero-figure">
+            <span data-vt-morph="cost" className="lm-figure lm-hero-figure">
               {formatCurrency(five.cost * 12)}
               <small>/hr</small>
             </span>
@@ -485,7 +485,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
             <div className="lm-hero-pair">
               <div>
                 <span className="lm-label" title="Input, cache writes and output in the last minute: everything not read back from the prompt cache">Uncached tokens per minute</span>
-                <Figure value={uncachedTokens(minute)} className="lm-hero-figure" />
+                <Figure value={uncachedTokens(minute)} className="lm-hero-figure" morph="tokens" />
               </div>
               <div className="lm-hero-side">
                 <span className="lm-label" title="The conversation read back from the prompt cache with each request">Cache reads</span>

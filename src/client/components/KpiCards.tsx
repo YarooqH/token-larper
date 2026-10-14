@@ -69,7 +69,8 @@ export function KpiCards() {
     <section className="kpi-grid" aria-label="Summary for the selected range">
       <article className="kpi">
         <h3 className="kpi-label">Tokens</h3>
-        <div className="kpi-value">{formatCompactNumber(current.totalTokens)}</div>
+        {/* data-vt-morph: Live mode's Morph switch flies this number into Live's big one. */}
+        <div className="kpi-value" data-vt-morph="tokens">{formatCompactNumber(current.totalTokens)}</div>
         <p className="kpi-sub">{formatExactNumber(current.totalTokens)} tokens</p>
         <Delta current={current.totalTokens} previous={previous?.totalTokens ?? null} unit="percent" days={prevDays} />
         <Sparkline values={spark((d) => d.totalTokens)} />
@@ -77,7 +78,7 @@ export function KpiCards() {
 
       <article className="kpi">
         <h3 className="kpi-label">{estimated ? "Estimated API value" : "Verified cost"}</h3>
-        <div className="kpi-value">{formatCurrency(cost)}</div>
+        <div className="kpi-value" data-vt-morph="cost">{formatCurrency(cost)}</div>
         <p className="kpi-sub">
           {estimated
             ? `${formatCurrency(current.verifiedCost)} verified + ${formatCurrency(unpriced)} estimated`
