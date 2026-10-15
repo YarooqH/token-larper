@@ -65,12 +65,20 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] 
   return [ref, width];
 }
 
+/**
+ * How wide a hero figure is, in characters, so CSS can size it to fit its column. A small unit
+ * ("K", "/hr") is half size and counts for less.
+ */
+function fitStyle(text: string, smallChars: number): React.CSSProperties {
+  return { "--fig-chars": text.length + smallChars * 0.6 } as React.CSSProperties;
+}
+
 /** "1.55M" as a number and a smaller unit. `morph` pairs it with a dashboard number (see liveSwitch.ts). */
-function Figure({ value, className = "", morph }: { value: number; className?: string; morph?: Lead }) {
+function Figure({ value, className = "", morph, fit = false }: { value: number; className?: string; morph?: Lead; fit?: boolean }) {
   const text = formatCompactNumber(value);
   const unit = /[KMB]$/.test(text) ? text.slice(-1) : "";
   return (
-    <span data-vt-morph={morph} className={`lm-figure ${className}`}>
+    <span data-vt-morph={morph} className={`lm-figure ${className}`} style={fit ? fitStyle(text, 0) : undefined}>
       {unit ? text.slice(0, -1) : text}
       {unit && <small>{unit}</small>}
     </span>
@@ -477,7 +485,7 @@ function Instrument({ events, now, spanMs, order, lead }: {
         {lead === "cost" ? (
           <div className="lm-hero-main">
             <span className="lm-label">Burn rate</span>
-            <span data-vt-morph="cost" className="lm-figure lm-hero-figure">
+            <span data-vt-morph="cost" className="lm-figure lm-hero-figure" style={fitStyle(formatCurrency(five.cost * 12), 3)}>
               {formatCurrency(five.cost * 12)}
               <small>/hr</small>
             </span>
@@ -490,8 +498,8 @@ function Instrument({ events, now, spanMs, order, lead }: {
           <div className="lm-hero-main">
             <div className="lm-hero-pair">
               <div>
-                <span className="lm-label" title="Input, cache writes and output in the last minute: everything not read back from the prompt cache">Uncached tokens per minute</span>
-                <Figure value={uncachedTokens(minute)} className="lm-hero-figure" morph="tokens" />
+                <span className="lm-label" title="Tokens the models wrote in the last minute">Output tokens per minute</span>
+                <Figure value={minute.outputTokens} className="lm-hero-figure" morph="tokens" fit />
               </div>
               <div className="lm-hero-side">
                 <span className="lm-label" title="The median response's output tokens per second over the last 5 minutes, including the wait for the first token">Speed</span>
