@@ -133,7 +133,7 @@ describe("createPricing", () => {
   test("downloads the price list, caches it, and answers lookups", async () => {
     const calls = { count: 0 };
     const cacheFile = cachePath();
-    const pricing = createPricing({ cacheFile, fetchImpl: okFetch(calls) });
+    const pricing = createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch(calls) });
 
     await pricing.ensure();
 
@@ -145,11 +145,11 @@ describe("createPricing", () => {
   test("starts from a fresh cache without touching the network", async () => {
     const cacheFile = cachePath();
     let now = START;
-    await createPricing({ cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
+    await createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
 
     now += 23 * HOUR;
     const calls = { count: 0 };
-    const pricing = createPricing({ cacheFile, fetchImpl: okFetch(calls), now: () => now });
+    const pricing = createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch(calls), now: () => now });
     await pricing.ensure();
 
     expect(calls.count).toBe(0);
@@ -159,11 +159,11 @@ describe("createPricing", () => {
   test("downloads again once the cache is a day old", async () => {
     const cacheFile = cachePath();
     let now = START;
-    await createPricing({ cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
+    await createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
 
     now += 25 * HOUR;
     const calls = { count: 0 };
-    await createPricing({ cacheFile, fetchImpl: okFetch(calls), now: () => now }).ensure();
+    await createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch(calls), now: () => now }).ensure();
 
     expect(calls.count).toBe(1);
   });
@@ -171,7 +171,7 @@ describe("createPricing", () => {
   test("keeps the stale prices when the download fails, and retries later rather than every call", async () => {
     const cacheFile = cachePath();
     let now = START;
-    await createPricing({ cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
+    await createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
 
     now += 25 * HOUR;
     let attempts = 0;
@@ -179,7 +179,7 @@ describe("createPricing", () => {
       attempts++;
       throw new Error("offline");
     };
-    const pricing = createPricing({ cacheFile, fetchImpl: failing, now: () => now });
+    const pricing = createPricing({ offline: () => false, cacheFile, fetchImpl: failing, now: () => now });
 
     await pricing.ensure();
     await pricing.ensure();
@@ -194,7 +194,7 @@ describe("createPricing", () => {
   test("offline mode downloads nothing, still serves the saved prices, and says so", async () => {
     const cacheFile = cachePath();
     let now = START;
-    await createPricing({ cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
+    await createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
 
     now += 25 * HOUR;
     const calls = { count: 0 };
@@ -214,11 +214,11 @@ describe("createPricing", () => {
   test("ignores an empty or failed response instead of wiping the table", async () => {
     const cacheFile = cachePath();
     let now = START;
-    await createPricing({ cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
+    await createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch({ count: 0 }), now: () => now }).ensure();
 
     now += 25 * HOUR;
     for (const body of [() => new Response(JSON.stringify({ data: [] })), () => new Response("nope", { status: 503 })]) {
-      const pricing = createPricing({ cacheFile, fetchImpl: async () => body(), now: () => now });
+      const pricing = createPricing({ offline: () => false, cacheFile, fetchImpl: async () => body(), now: () => now });
       await pricing.ensure();
       expect(pricing.lookup("minimax-m3")).toEqual([0.3, 1.2, 0.3, 0.06]);
     }
@@ -226,7 +226,7 @@ describe("createPricing", () => {
 
   test("answers from the newest table after a lookup was already made", async () => {
     let now = START;
-    const pricing = createPricing({ cacheFile: cachePath(), fetchImpl: okFetch({ count: 0 }), now: () => now });
+    const pricing = createPricing({ offline: () => false, cacheFile: cachePath(), fetchImpl: okFetch({ count: 0 }), now: () => now });
     expect(pricing.lookup("minimax-m3")).toBeNull();
 
     pricing.use(buildPriceTable([{ id: "minimax/minimax-m3", pricing: { prompt: "0.000001", completion: "0.000002" } }]));
@@ -239,7 +239,7 @@ describe("createPricing", () => {
 
   test("shares one download between concurrent callers", async () => {
     const calls = { count: 0 };
-    const pricing = createPricing({ cacheFile: cachePath(), fetchImpl: okFetch(calls) });
+    const pricing = createPricing({ offline: () => false, cacheFile: cachePath(), fetchImpl: okFetch(calls) });
 
     await Promise.all([pricing.ensure(), pricing.ensure(), pricing.ensure()]);
 
@@ -250,7 +250,7 @@ describe("createPricing", () => {
     const cacheFile = cachePath();
     writeFileSync(cacheFile, "{not json");
     const calls = { count: 0 };
-    const pricing = createPricing({ cacheFile, fetchImpl: okFetch(calls) });
+    const pricing = createPricing({ offline: () => false, cacheFile, fetchImpl: okFetch(calls) });
 
     await pricing.ensure();
 
