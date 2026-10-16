@@ -49,6 +49,35 @@ export function saveTheme(next: TrayTheme): void {
 const compact = (n: number) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumSignificantDigits: 3 }).format(n);
 
+/** The tray polls this often, but a full ccusage rescan across every harness is heavier than that. */
+const TRAY_MAX_AGE_MS = 60_000;
+/** The tray gives up on a request after 4 s, so a rescan that is still running is left to finish unawaited. */
+const TRAY_REFRESH_WAIT_MS = 2_500;
+
+/**
+ * The dashboard payload for the tray. The cache only refreshes when a dashboard tab asks, so with the
+ * browser closed it would sit at whatever it held when that tab last synced (and read "no usage yet"
+ * all morning). Start a rescan once it is older than a minute, and wait briefly for it.
+ */
+export async function trayDashboardData(
+  read: (options: { refresh: boolean }) => Promise<DashboardPayload>,
+  refresh: () => Promise<DashboardPayload>,
+  now: number = Date.now(),
+): Promise<DashboardPayload> {
+  const cached = await read({ refresh: false });
+  const age = now - new Date(cached.generatedAt).getTime();
+  if (Number.isFinite(age) && age < TRAY_MAX_AGE_MS) return cached;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<DashboardPayload>((resolve) => {
+    timer = setTimeout(() => resolve(cached), TRAY_REFRESH_WAIT_MS);
+  });
+  try {
+    return await Promise.race([refresh().catch(() => cached), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function buildTrayStatus(data: DashboardPayload, startup: StartupConfig) {
   const today = localDateKey(new Date());
   const weekStart = new Date();
