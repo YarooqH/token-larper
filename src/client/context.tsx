@@ -29,6 +29,8 @@ export interface Dashboard {
   openModelPrices: () => void;
   /** Switch to the Limits view. */
   openLimits?: () => void;
+  /** In screenshot mode, the generic label for a project's folder name; absent otherwise. */
+  projectLabel?: (name: string) => string;
 }
 
 const DashboardContext = createContext<Dashboard | null>(null);
@@ -39,6 +41,11 @@ export function useDashboard(): Dashboard {
   const ctx = useContext(DashboardContext);
   if (!ctx) throw new Error("useDashboard needs a DashboardProvider");
   return ctx;
+}
+
+/** A project's folder name as it should be shown: itself, or its generic label in screenshot mode. */
+export function useProjectLabel(): (name: string) => string {
+  return useDashboard().projectLabel ?? ((name) => name);
 }
 
 export function ToolTag({ id }: { id: HarnessId }) {

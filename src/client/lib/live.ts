@@ -161,10 +161,6 @@ export function liveSessions(events: LiveEvent[], now: number, withinMs: number)
   return out.sort((a, b) => b.lastAt - a.lastAt);
 }
 
-/** Tokens not read back from the prompt cache: input, cache writes and output. */
-export const uncachedTokens = (t: { inputTokens: number; cacheCreationTokens: number; outputTokens: number }) =>
-  t.inputTokens + t.cacheCreationTokens + t.outputTokens;
-
 /** Everything the model wrote, thinking included, for speed. */
 const generated = (e: LiveEvent) => e.outputTokens + (e.reasoningTokens ?? 0);
 

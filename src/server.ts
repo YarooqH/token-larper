@@ -13,6 +13,8 @@ import { logoSvgFile } from "./client/logoMark.ts";
 import { appleTouchIconPng, faviconIco } from "./icons.ts";
 import { APP_VERSION, RUNNING_FROM_SOURCE } from "./paths.ts";
 import { checkForUpdates, compareVersions, localStatus, startUpdate } from "./updates.ts";
+import { settings } from "./settings.ts";
+import { updatePrivacy } from "./privacyApi.ts";
 
 const ROOT_DIR = resolve(import.meta.dir, "..");
 const CLIENT_DIR = join(ROOT_DIR, "src", "client");
@@ -253,7 +255,19 @@ function startServer(preferredPort: number) {
       return Response.json(await checkForUpdates(url.searchParams.get("force") === "1"));
     }
 
+    if (url.pathname === "/api/privacy" && req.method === "GET") {
+      return Response.json(settings.status());
+    }
+
+    if (url.pathname === "/api/privacy" && req.method === "POST") {
+      const reply = updatePrivacy(settings, await req.json().catch(() => null));
+      return Response.json(reply.body, { status: reply.status });
+    }
+
     if (url.pathname === "/api/update" && req.method === "POST") {
+      if (settings.isOffline()) {
+        return Response.json({ error: "Offline mode is on. Turn it off in Settings → Privacy to update." }, { status: 409 });
+      }
       if (RUNNING_FROM_SOURCE) {
         return Response.json({ error: "This copy runs from a git checkout. Update it with git pull." }, { status: 409 });
       }

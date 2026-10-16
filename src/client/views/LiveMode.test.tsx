@@ -32,27 +32,56 @@ const feed = (events: LiveEvent[], over: Partial<LiveFeed> = {}): LiveFeed => ({
 
 const harness = (id: HarnessSummary["meta"]["id"], name: string) => ({ meta: { id, name, hasUsage: true } }) as HarnessSummary;
 
+describe("Live mode in screenshot mode", () => {
+  const labelOf = (name: string) => (name === "token-larper" ? "Project A" : "Project B");
+
+  test("shows project labels, never the folder names", () => {
+    const events = [event({}), event({ id: "e2", session: "s2", project: "secret-startup", at: NOW - 5 * 60_000, cacheReadTokens: 900_000 })];
+    const html = render(<LiveBoard feed={feed(events)} />, { projectLabel: labelOf });
+    expect(html).toContain("Project A");
+    expect(html).toContain("Project B");
+    expect(html).not.toContain("token-larper");
+    expect(html).not.toContain("secret-startup");
+  });
+
+  test("labels the folder in a response hover card", () => {
+    const tip = render(<ResponseTip e={event({})} at={{ left: 10, top: 20, side: "right" }} />, { projectLabel: labelOf });
+    expect(tip).toContain("Project A");
+    expect(tip).not.toContain("token-larper");
+  });
+
+  test("shows the folder names when the mode is off", () => {
+    expect(render(<LiveBoard feed={feed([event({})])} />)).toContain("token-larper");
+  });
+});
+
 describe("Live mode", () => {
   test("leads with the burn rate by default, with the panels below", () => {
     const html = render(<LiveBoard feed={feed([event({})])} initialLead="cost" />);
     expect(html).toContain('aria-label="Burn rate"');
-    expect(html).toContain('lm-hero-figure">$0.48<small>/hr</small>');
+    expect(html).toContain('lm-hero-figure" style="--fig-chars:6.8">$0.48<small>/hr</small>');
     expect(html).toContain("$0.04 per response");
     expect(html).toContain("Tokens / min, incl. cache reads");
     for (const heading of ["By tool", "By model", "Output speed", "Sessions", "Responses"]) expect(html).toContain(`>${heading}<`);
     expect(html).toContain('class="lm-tick is-new"');
   });
 
-  test("can lead with uncached tokens instead, with cache reads beside them and the burn rate in the readouts", () => {
+  test("can lead with output instead, with speed beside it and the burn rate in the readouts", () => {
     const html = render(<LiveBoard feed={feed([event({})])} initialLead="tokens" />);
-    expect(html).toContain(">Uncached tokens per minute<");
-    expect(html).toContain("input + cache writes + output");
-    expect(html).toContain('lm-hero-figure">405</span>');
-    expect(html).toContain(">Cache reads<");
-    expect(html).toContain("120.0<small>K</small>");
-    expect(html).toContain("Uncached tokens / min<");
-    expect(html).not.toMatch(/new tokens|re-read/i);
+    expect(html).toContain(">Output tokens per minute<");
+    expect(html).toMatch(/lm-hero-figure" style="--fig-chars:3">400<\/span>/);
+    // The median comes from a rate histogram, so one 100 tok/s response reads as its bin's middle.
+    expect(html).toMatch(/lm-hero-side-value">10\d<em>tok\/s<\/em>/);
+    expect(html).toContain("Output tokens / min<");
     expect(html).toContain('<span class="lm-label">Burn rate</span>');
+    expect(html).not.toMatch(/uncached|new tokens|re-read/i);
+    // Output and Speed lead, so they aren't repeated in the readouts.
+    expect(html).not.toContain('<span class="lm-label">Output</span>');
+  });
+
+  test("sizes the big number by its length so a long amount fits its column", () => {
+    const html = render(<LiveBoard feed={feed([event({ cost: 120 })])} initialLead="cost" />);
+    expect(html).toContain('lm-hero-figure" style="--fig-chars:10.8">$1,440.00<small>/hr</small>');
   });
 
   test("shows the largest active context and how many agents are working", () => {

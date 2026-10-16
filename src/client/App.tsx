@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { AlertTriangle, Moon, Power, Radio, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
+import { AlertTriangle, EyeOff, Moon, Power, Radio, RefreshCw, Search, Settings, Sun } from "./components/Icons.tsx";
 import type { DashboardPayload, HarnessId, LimitsPayload, StartupConfig, ThroughputPayload } from "../types.ts";
 import { OTHER_SERIES, SERIES_SLOTS, seriesColor, type SeriesInfo } from "./charts.tsx";
 import { DashboardProvider, type Dashboard } from "./context.tsx";
@@ -8,10 +8,13 @@ import { DateRangePicker } from "./components/DateRangePicker.tsx";
 import { AppFooter } from "./components/AppFooter.tsx";
 import { Logo } from "./components/Logo.tsx";
 import { StreakChip } from "./components/StreakChip.tsx";
-import { SettingsPanel } from "./components/SettingsPanel.tsx";
+import { SettingsPage } from "./components/SettingsPage.tsx";
 import { SelectMenu, type SelectMenuOption } from "./components/SelectMenu.tsx";
 import { UpdateBanner } from "./components/UpdateBanner.tsx";
 import { useUpdates } from "./lib/updates.ts";
+import { usePrivacy } from "./lib/privacy.ts";
+import { settingsHash, settingsSectionFromHash, type SettingsSectionId } from "./lib/settingsIndex.ts";
+import { redactLimits, redactPayload } from "./lib/screenshot.ts";
 import { dayStreak } from "./lib/rank.ts";
 import { isEditable } from "./lib/shortcuts.ts";
 import { daysInRange, sessionsInRange, type Bucket, type HarnessFilter } from "./lib/aggregate.ts";
@@ -71,6 +74,8 @@ interface Prefs {
   bucket: Bucket;
   estimated: boolean;
   checkUpdates: boolean;
+  /** Screenshot mode: project names and folders are replaced with generic labels. */
+  screenshot: boolean;
   /** Live mode replaces the dashboard with one live-updating page; #live links to it. */
   live: boolean;
   /** The version whose banner was closed; a later version shows it again. */
@@ -78,7 +83,7 @@ interface Prefs {
 }
 
 function loadPrefs(): Prefs {
-  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false, checkUpdates: true, live: false };
+  const defaults: Prefs = { view: "overview", showRanks: true, preset: "30d", bucket: "daily", estimated: false, checkUpdates: true, screenshot: false, live: false };
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     const saved: Partial<Prefs> = raw && typeof raw === "object" ? raw : {};
@@ -99,6 +104,7 @@ function loadPrefs(): Prefs {
       preset: preset === "custom" && !customDatesValid ? defaults.preset : preset,
       estimated: saved.estimated === true,
       checkUpdates: saved.checkUpdates !== false,
+      screenshot: saved.screenshot === true,
       live: location.hash === "#live" || (location.hash === "" && saved.live === true),
       ...(typeof saved.dismissedUpdate === "string" ? { dismissedUpdate: saved.dismissedUpdate } : {}),
       ...(customDatesValid ? { customStart: saved.customStart, customEnd: saved.customEnd } : {}),
@@ -121,7 +127,7 @@ function viewFromHash(): View | null {
 }
 
 export function App() {
-  const [data, setData] = useState<DashboardPayload | null>(null);
+  const [fetched, setData] = useState<DashboardPayload | null>(null);
   const [throughputData, setThroughputData] = useState<ThroughputPayload | null>(null);
   const [limitsData, setLimitsData] = useState<LimitsPayload | null>(null);
   const [refreshingLimits, setRefreshingLimits] = useState(false);
@@ -136,7 +142,8 @@ export function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stopped, setStopped] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  // The open section of the settings page, which is part of the address; null while on the dashboard.
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId | null>(() => settingsSectionFromHash(location.hash));
   // Opening settings with the keyboard puts the cursor in the panel's search box.
   const [settingsFromKeyboard, setSettingsFromKeyboard] = useState(false);
   const [savingStartup, setSavingStartup] = useState(false);
@@ -147,6 +154,9 @@ export function App() {
   const startupMutationInFlight = useRef(false);
 
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
+  // Everything below reads `data`, so screenshot mode only has to change it here.
+  const redacted = useMemo(() => (fetched && prefs.screenshot ? redactPayload(fetched) : null), [fetched, prefs.screenshot]);
+  const data = redacted?.data ?? fetched;
   const [harness, setHarness] = useState<HarnessFilter>("all");
   const [search, setSearch] = useState("");
   const [theme, setTheme] = useState<ThemeMode>(() =>
@@ -166,6 +176,7 @@ export function App() {
   const updatePrefs = (patch: Partial<Prefs>) => setPrefs((p) => ({ ...p, ...patch }));
   const [liveArming, setLiveArming] = useState(false);
   const dashboardScroll = useRef(0);
+  const settingsReturnScroll = useRef(0);
   const switching = useRef(false);
 
   /**
@@ -177,13 +188,17 @@ export function App() {
     switching.current = true;
     try {
       if (next) {
-        dashboardScroll.current = window.scrollY;
+        // Coming from the settings page, the dashboard to return to is the one it was opened from.
+        dashboardScroll.current = settingsSection ? settingsReturnScroll.current : window.scrollY;
         setLiveArming(true);
         await liveFeedReady(1500);
         setLiveArming(false);
       }
       await playLiveSwitch(next, () => {
-        flushSync(() => setPrefs((p) => (p.live === next ? p : { ...p, live: next })));
+        flushSync(() => {
+          setSettingsSection(null);
+          setPrefs((p) => (p.live === next ? p : { ...p, live: next }));
+        });
         window.scrollTo(0, next ? 0 : dashboardScroll.current);
       }, loadLead());
     } finally {
@@ -192,8 +207,14 @@ export function App() {
     }
   }
   const updates = useUpdates(prefs.checkUpdates);
-  const showUpdateBanner = updates.phase !== "idle" || (prefs.checkUpdates && !!updates.status?.updateAvailable
+  const privacy = usePrivacy();
+  const showUpdateBanner = updates.phase !== "idle" || (prefs.checkUpdates && !privacy.status?.offline && !!updates.status?.updateAvailable
     && updates.status.latest !== prefs.dismissedUpdate);
+
+  async function changeOffline(offline: boolean) {
+    // The price list status in the payload says whether downloads are off, so reload it.
+    if (await privacy.setOffline(offline)) void fetchDashboard();
+  }
 
   function setShowRanks(showRanks: boolean) {
     setPrefs((p) => ({ ...p, showRanks, view: !showRanks && p.view === "rank" ? "overview" : p.view }));
@@ -204,12 +225,17 @@ export function App() {
   }, [prefs]);
 
   useEffect(() => {
-    const hash = prefs.live ? "#live" : prefs.view === "overview" ? "" : `#${prefs.view}`;
+    const hash = settingsSection
+      ? settingsHash(settingsSection)
+      : prefs.live ? "#live" : prefs.view === "overview" ? "" : `#${prefs.view}`;
     if (location.hash !== hash) history.replaceState(null, "", `${location.pathname}${hash}`);
-  }, [prefs.view, prefs.live]);
+  }, [prefs.view, prefs.live, settingsSection]);
 
   useEffect(() => {
     const onHash = () => {
+      const section = settingsSectionFromHash(location.hash);
+      setSettingsSection(section);
+      if (section) return;
       if (location.hash === "#live") {
         setPrefs((p) => (p.live ? p : { ...p, live: true }));
         return;
@@ -224,7 +250,7 @@ export function App() {
   }, [prefs.showRanks]);
 
   useEffect(() => {
-    if (showSettings) return;
+    if (settingsSection) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "," || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
       if (isEditable(event.target)) return;
@@ -233,16 +259,16 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showSettings]);
+  }, [settingsSection]);
 
   useEffect(() => {
-    if (!prefs.live || showSettings) return;
+    if (!prefs.live || settingsSection) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !document.fullscreenElement) void switchLive(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [prefs.live, showSettings]);
+  }, [prefs.live, settingsSection]);
 
   useEffect(() => {
     applyTheme(theme, appearance, importedTheme);
@@ -474,18 +500,24 @@ export function App() {
     } catch {
       // The server may drop the connection as it exits; it is stopping either way.
     } finally {
-      setShowSettings(false);
+      setSettingsSection(null);
       setStopped(true);
     }
   }
 
   function openSettings(fromKeyboard: boolean) {
+    if (!settingsSection) settingsReturnScroll.current = window.scrollY;
     setSettingsFromKeyboard(fromKeyboard);
-    setShowSettings(true);
+    setSettingsSection((open) => open ?? "appearance");
+    window.scrollTo(0, 0);
     void fetchStartup();
   }
 
-  const closeSettings = useCallback(() => setShowSettings(false), []);
+  /** Back to wherever settings were opened from, scrolled to where it was. */
+  const closeSettings = useCallback(() => {
+    setSettingsSection(null);
+    requestAnimationFrame(() => window.scrollTo(0, settingsReturnScroll.current));
+  }, []);
 
   const estimated = prefs.estimated;
   const costOf = useCallback(
@@ -617,6 +649,12 @@ export function App() {
     updatePrefs({ view: "limits" });
   }
 
+  // Screenshot mode exists for sharing, so quota cards must not show which accounts are signed in.
+  const limitsShown = useMemo(
+    () => (limitsData && prefs.screenshot ? redactLimits(limitsData) : limitsData),
+    [limitsData, prefs.screenshot],
+  );
+
   const ctx: Dashboard = {
     data,
     range,
@@ -627,18 +665,19 @@ export function App() {
     days,
     sessions,
     throughput,
-    limits: limitsData,
+    limits: limitsShown,
     series,
     seriesOf,
     nameOf,
     search: searchable ? search : "",
     openModelPrices,
     openLimits,
+    projectLabel: redacted?.labelOf,
   };
 
   return (
     <DashboardProvider value={ctx}>
-      <div className={prefs.live ? "app is-live" : "app"}>
+      <div className={prefs.live && !settingsSection ? "app is-live" : "app"}>
         <header className="topbar">
           <div className="brand">
             <Logo className="brand-logo" />
@@ -648,6 +687,18 @@ export function App() {
                 <RefreshCw size={12} className="spin" aria-hidden="true" />
                 Syncing {data.syncingHarnesses.map(nameOf).join(", ")}
               </span>
+            )}
+            {prefs.screenshot && (
+              <button
+                type="button"
+                className="pill pill-button"
+                aria-label="Names hidden. Show them again"
+                title="Project names and folders are hidden. Click to show them again."
+                onClick={() => updatePrefs({ screenshot: false })}
+              >
+                <EyeOff size={12} aria-hidden="true" />
+                <span className="pill-label">Names hidden</span>
+              </button>
             )}
             {failed.length > 0 && (
               <span className="pill pill-warning" title="ccusage failed or timed out for these tools. Showing their last good data.">
@@ -664,7 +715,11 @@ export function App() {
               aria-busy={liveArming || undefined}
               onPointerEnter={() => !prefs.live && prepareLiveFeed()}
               onFocus={() => !prefs.live && prepareLiveFeed()}
-              onClick={() => void switchLive(!prefs.live)}
+              onClick={() => {
+                // Live is already on behind the settings page, so the button just goes back to it.
+                if (settingsSection && prefs.live) closeSettings();
+                else void switchLive(!prefs.live);
+              }}
               title={prefs.live ? "Leave Live mode (Esc)" : "Live mode: tokens per minute as they happen"}
             >
               <Radio size={15} aria-hidden="true" />
@@ -686,7 +741,8 @@ export function App() {
             </button>
             <button
               className="icon-btn settings-btn"
-              onClick={() => openSettings(false)}
+              aria-pressed={settingsSection !== null}
+              onClick={() => (settingsSection ? closeSettings() : openSettings(false))}
               title="Settings (,)"
               aria-label="Settings"
               aria-keyshortcuts=","
@@ -710,7 +766,37 @@ export function App() {
           </div>
         </header>
 
-        {prefs.live ? <LiveMode /> : (
+        {settingsSection ? (
+          <SettingsPage
+              initialFocus={settingsFromKeyboard ? "search" : undefined}
+              startup={startup}
+              startupError={startupError}
+              saving={savingStartup}
+              themeMode={theme}
+              followsSystemTheme={followsSystemTheme}
+              appearance={appearance}
+              importedTheme={importedTheme}
+              showRanks={prefs.showRanks}
+              updates={updates}
+              checkUpdates={prefs.checkUpdates}
+              onCheckUpdatesChange={(checkUpdates) => updatePrefs({ checkUpdates })}
+              screenshot={prefs.screenshot}
+              onScreenshotChange={(screenshot) => updatePrefs({ screenshot })}
+              privacy={privacy}
+              onOfflineChange={(offline) => void changeOffline(offline)}
+              priceStatus={data.pricing?.status}
+              section={settingsSection}
+              onSectionChange={setSettingsSection}
+              onClose={closeSettings}
+              onThemeModeChange={changeThemeMode}
+              onAppearanceChange={changeAppearance}
+              onImportTheme={saveImportedTheme}
+              onShowRanksChange={setShowRanks}
+              onToggleStartup={(enabled, open) => void handleToggleStartup(enabled, open)}
+              onRetry={() => void fetchStartup()}
+              onQuit={() => void handleQuit()}
+          />
+        ) : prefs.live ? <LiveMode /> : (
           <div className="dash-stage">
             {showUpdateBanner && (
               <UpdateBanner updates={updates} onDismiss={() => updatePrefs({ dismissedUpdate: updates.status?.latest ?? undefined })} />
@@ -773,7 +859,7 @@ export function App() {
               {view.id === "overview" && <Overview bucket={prefs.bucket} setBucket={(bucket) => updatePrefs({ bucket })} />}
               {view.id === "limits" && (
                 <Limits
-                  limits={limitsData}
+                  limits={limitsShown}
                   refreshing={refreshingLimits}
                   error={limitsError}
                   onRefresh={() => void fetchLimits({ refresh: true })}
@@ -790,30 +876,6 @@ export function App() {
           </div>
         )}
 
-        {showSettings && (
-          <SettingsPanel
-            initialFocus={settingsFromKeyboard ? "search" : undefined}
-            startup={startup}
-            startupError={startupError}
-            saving={savingStartup}
-            themeMode={theme}
-            followsSystemTheme={followsSystemTheme}
-            appearance={appearance}
-            importedTheme={importedTheme}
-            showRanks={prefs.showRanks}
-            updates={updates}
-            checkUpdates={prefs.checkUpdates}
-            onCheckUpdatesChange={(checkUpdates) => updatePrefs({ checkUpdates })}
-            onClose={closeSettings}
-            onThemeModeChange={changeThemeMode}
-            onAppearanceChange={changeAppearance}
-            onImportTheme={saveImportedTheme}
-            onShowRanksChange={setShowRanks}
-            onToggleStartup={(enabled, open) => void handleToggleStartup(enabled, open)}
-            onRetry={() => void fetchStartup()}
-            onQuit={() => void handleQuit()}
-          />
-        )}
       </div>
     </DashboardProvider>
   );

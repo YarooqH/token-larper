@@ -115,8 +115,8 @@ export function ModelPrices({
           </li>
           <li>These are standard rates and don't include long-context surcharges.</li>
           <li>
-            To stop the download, start Token Larper with <code>TOKEN_LARPER_OFFLINE=1</code>; it then uses the last saved
-            list.
+            To stop the download, turn on Offline mode in Settings → Privacy, or start Token Larper with{" "}
+            <code>TOKEN_LARPER_OFFLINE=1</code>; it then uses the last saved list.
           </li>
         </ul>
       </div>

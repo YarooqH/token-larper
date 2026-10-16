@@ -136,6 +136,14 @@ export interface PricingStatus {
   offline: boolean;
 }
 
+/** What the server will and won't reach out for; see Settings → Privacy. */
+export interface PrivacyStatus {
+  /** No request leaves this computer: no update check, no price list download. */
+  offline: boolean;
+  /** TOKEN_LARPER_OFFLINE is set, so the switch in Settings can't turn it off. */
+  locked: boolean;
+}
+
 export interface DashboardPayload {
   generatedAt: string;
   ccusageVersion: string;

@@ -1,14 +1,11 @@
 import React from "react";
 import { RefreshCw } from "./Icons.tsx";
 import { RELEASES_URL, UPDATE_COMMAND, type Updates } from "../lib/updates.ts";
-import type { SettingId } from "../lib/settingsIndex.ts";
 
 interface Props {
   updates: Updates;
-  autoCheck: boolean;
-  onAutoCheckChange: (autoCheck: boolean) => void;
-  /** Which of these settings to render; defaults to all. */
-  show?: (id: SettingId) => boolean;
+  /** Offline mode is on, so nothing can be checked or installed. */
+  offline: boolean;
 }
 
 function describe({ status, checking, phase }: Updates): string {
@@ -19,9 +16,9 @@ function describe({ status, checking, phase }: Updates): string {
   return "You're up to date";
 }
 
-export function UpdateSettings({ updates, autoCheck, onAutoCheckChange, show = () => true }: Props) {
+export function UpdateSettings({ updates, offline }: Props) {
   const { status, checking, phase, error, check, update } = updates;
-  const canUpdate = status?.updateAvailable && status.source === "npm" && phase !== "updating";
+  const canUpdate = !offline && status?.updateAvailable && status.source === "npm" && phase !== "updating";
 
   return (
     <section className="settings-section" aria-labelledby="settings-updates-heading">
@@ -29,11 +26,11 @@ export function UpdateSettings({ updates, autoCheck, onAutoCheckChange, show = (
         <h4 id="settings-updates-heading">Updates</h4>
         <span>{status ? `Version ${status.current}` : ""}</span>
       </div>
-      {show("updates") && <div className="setting-row">
+      <div className="setting-row">
         <div className="setting-copy">
-          <strong>{describe(updates)}</strong>
+          <strong>{offline ? "Offline mode is on" : describe(updates)}</strong>
           <p>
-            {error ? error : status?.source === "source"
+            {offline ? "Turn it off in Privacy to check for updates." : error ? error : status?.source === "source"
               ? "This copy runs from a git checkout. Update it with git pull."
               : <>Updates install with <code>{UPDATE_COMMAND}</code>. <a href={RELEASES_URL} target="_blank" rel="noreferrer">What's new</a></>}
           </p>
@@ -41,28 +38,12 @@ export function UpdateSettings({ updates, autoCheck, onAutoCheckChange, show = (
         {canUpdate ? (
           <button className="btn btn-primary" onClick={() => void update()}>Update now</button>
         ) : (
-          <button className="btn" disabled={checking || phase === "updating"} onClick={() => void check(true)}>
+          <button className="btn" disabled={offline || checking || phase === "updating"} onClick={() => void check(true)}>
             <RefreshCw size={14} className={checking ? "spin" : ""} aria-hidden="true" />
             <span>Check for updates</span>
           </button>
         )}
-      </div>}
-      {show("auto-check") && <div className="setting-row">
-        <div className="setting-copy">
-          <strong id="setting-autoupdate-label">Check automatically</strong>
-          <p>Ask npm for the latest version when the dashboard opens. Nothing else is sent.</p>
-        </div>
-        <button
-          type="button"
-          className={`toggle ${autoCheck ? "on" : ""}`}
-          role="switch"
-          aria-labelledby="setting-autoupdate-label"
-          aria-checked={autoCheck}
-          onClick={() => onAutoCheckChange(!autoCheck)}
-        >
-          <span className="toggle-knob" />
-        </button>
-      </div>}
+      </div>
     </section>
   );
 }
