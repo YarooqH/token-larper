@@ -558,6 +558,13 @@ export function App() {
     };
   }, [data]);
 
+  // Screenshot mode exists for sharing, so quota cards must not show which accounts are signed in.
+  // Hooks stay above the early returns below, or the first render with data would crash the page.
+  const limitsShown = useMemo(
+    () => (limitsData && prefs.screenshot ? redactLimits(limitsData) : limitsData),
+    [limitsData, prefs.screenshot],
+  );
+
   const days = useMemo(
     () => (data ? daysInRange(data.daily, harness, range.start, range.end) : []),
     [data, harness, range.start, range.end]
@@ -648,12 +655,6 @@ export function App() {
   function openLimits() {
     updatePrefs({ view: "limits" });
   }
-
-  // Screenshot mode exists for sharing, so quota cards must not show which accounts are signed in.
-  const limitsShown = useMemo(
-    () => (limitsData && prefs.screenshot ? redactLimits(limitsData) : limitsData),
-    [limitsData, prefs.screenshot],
-  );
 
   const ctx: Dashboard = {
     data,
