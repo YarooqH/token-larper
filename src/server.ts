@@ -202,11 +202,11 @@ function startServer(preferredPort: number) {
     }
 
     if (url.pathname === "/api/tray-status" && req.method === "GET") {
-      const [data, startup] = await Promise.all([
-        trayDashboardData(getDashboardData, () => refreshAllHarnesses()),
+      const [{ data, refreshing }, startup] = await Promise.all([
+        trayDashboardData(getDashboardData, () => refreshAllHarnesses(), { popup: url.searchParams.get("popup") === "1" }),
         getStartupStatus(PORT),
       ]);
-      return Response.json(buildTrayStatus(data, startup));
+      return Response.json(buildTrayStatus(data, startup, refreshing));
     }
 
     // The dashboard reports its resolved theme colors so the tray popup can match them.
