@@ -5,6 +5,7 @@ import { buildClientBundle, PREBUILT_CLIENT } from "./clientBuild.ts";
 import { getDashboardData, stopCcusageRuns, withPricing } from "./ccusage.ts";
 import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./startup.ts";
 import { getThroughput } from "./throughput/index.ts";
+import { getLimitsData } from "./limits/index.ts";
 import { liveResponse } from "./live/index.ts";
 import { startSystemTray, stopSystemTray } from "./tray/index.ts";
 import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
@@ -120,6 +121,7 @@ if (running !== null && compareVersions(running, APP_VERSION) < 0) {
 
 // Warm cached usage before the first dashboard request.
 void getDashboardData();
+void getLimitsData();
 
 function startServer(preferredPort: number) {
   let port = preferredPort;
@@ -183,6 +185,11 @@ function startServer(preferredPort: number) {
       const forceDeepScan = url.searchParams.get("deep") === "1";
       const data = await getDashboardData({ refresh, forceDeepScan });
       return Response.json(withPricing(data));
+    }
+
+    if (url.pathname === "/api/limits" && req.method === "GET") {
+      const refresh = url.searchParams.get("refresh") === "1";
+      return Response.json(await getLimitsData({ refresh }), { headers: { "Cache-Control": "no-store" } });
     }
 
     if (url.pathname === "/api/throughput" && req.method === "GET") {

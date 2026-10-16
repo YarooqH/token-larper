@@ -1,4 +1,4 @@
-import type { DashboardPayload, SessionEntry } from "../../types.ts";
+import type { DashboardPayload, LimitsPayload, SessionEntry } from "../../types.ts";
 
 // Screenshot mode swaps what identifies the person's work (project names, folders, and
 // the paths they sit in) for generic labels, so a screenshot or a screen share can't give
@@ -66,4 +66,9 @@ export function redactPayload(data: DashboardPayload): Redacted {
   });
 
   return { data: { ...data, sessions }, labelOf };
+}
+
+/** Quota cards name the signed-in account (an email or username); screenshot mode drops it. */
+export function redactLimits(limits: LimitsPayload): LimitsPayload {
+  return { ...limits, items: limits.items.map(({ account: _account, ...card }) => card) };
 }

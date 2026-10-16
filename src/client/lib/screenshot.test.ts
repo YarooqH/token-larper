@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { projectLabelAt, redactPayload } from "./screenshot.ts";
+import { projectLabelAt, redactLimits, redactPayload } from "./screenshot.ts";
 import { fakeDashboard } from "../testing/dashboard.tsx";
 import type { SessionEntry } from "../../types.ts";
 
@@ -84,5 +84,20 @@ describe("screenshot mode", () => {
     const out = redactPayload(payload([session({ projectName: "lonely", totalTokens: 5 })]));
     expect(out.data.sessions[0]!.projectName).toBe("Project A");
     expect(out.labelOf("lonely")).toBe("Project A");
+  });
+});
+
+describe("redactLimits", () => {
+  test("drops the account from every card and keeps the rest", () => {
+    const limits = {
+      generatedAt: "2026-10-16T00:00:00Z",
+      items: [
+        { id: "a", harness: "claude" as const, name: "Claude Code", vendor: "Anthropic", account: "me@example.com", planName: "Claude Pro", source: "live" as const, updatedAt: "2026-10-16T00:00:00Z", windows: [] },
+      ],
+    };
+    const out = redactLimits(limits);
+    expect(JSON.stringify(out)).not.toContain("me@example.com");
+    expect(out.items[0]?.planName).toBe("Claude Pro");
+    expect(limits.items[0]?.account).toBe("me@example.com");
   });
 });
