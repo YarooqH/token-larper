@@ -299,11 +299,13 @@ export interface ClaudeBlock {
 }
 
 export interface HarnessLimitCard {
-  /** Unique card ID (usually matches harness, or e.g. "opencode-go"). */
+  /** Unique card ID (usually matches harness, or "<harness>:<account>" when multiple accounts exist). */
   id: string;
   harness: HarnessId;
   name: string;
   vendor: string;
+  /** Account identifier (email or username) when known, used to distinguish multiple accounts. */
+  account?: string;
   planName?: string;
   /** "live" when fetched from vendor quota endpoint; "local" when computed from local logs/DB. */
   source: "live" | "local";

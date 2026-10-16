@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { createDecipheriv } from "node:crypto";
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { mkdir, open, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -24,7 +25,7 @@ const CREDENTIAL_TTL_MS = 10 * 60_000;
 // OpenCode Go list values. These are NOT read from the vendor: keep the plan price, rolling
 // dollar caps and per-model rates in sync with the published OpenCode Go plan by hand.
 export const OPENCODE_GO_LIST_VALUES = {
-  planName: "OpenCode Go ($10/mo)",
+  planName: "OpenCode Go",
   caps: [
     { id: "five_hour", label: "5-hour window", seconds: 5 * 3600, limitUsd: 12 },
     { id: "seven_day", label: "7-day weekly", seconds: 7 * 86400, limitUsd: 30 },
@@ -191,9 +192,26 @@ export function formatClaudePlanName(subscriptionType?: string | null, rateLimit
   return base;
 }
 
+export function decodeJwtPayload(jwt: string | null | undefined): Record<string, unknown> | null {
+  if (!jwt || typeof jwt !== "string") return null;
+  const parts = jwt.split(".");
+  if (parts.length < 2 || !parts[1]) return null;
+  try {
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export function parseClaudeOAuthUsage(
   raw: ClaudeOAuthUsageResponse,
-  meta?: { subscriptionType?: string | null; rateLimitTier?: string | null; updatedAt?: string },
+  meta?: {
+    id?: string;
+    account?: string;
+    subscriptionType?: string | null;
+    rateLimitTier?: string | null;
+    updatedAt?: string;
+  },
 ): HarnessLimitCard {
   const windows: QuotaWindow[] = [];
 
@@ -219,7 +237,7 @@ export function parseClaudeOAuthUsage(
     });
   };
 
-  pushWindow("five_hour", "5-hour session", "Rolling 5h block", raw.five_hour, 5 * 3600);
+  pushWindow("five_hour", "5-hour window", "Rolling 5h block", raw.five_hour, 5 * 3600);
   pushWindow("seven_day", "7-day weekly", "All models", raw.seven_day, 7 * 86400);
   pushWindow("seven_day_opus", "7-day Opus", "Opus weekly cap", raw.seven_day_opus, 7 * 86400);
   pushWindow("seven_day_sonnet", "7-day Sonnet", "Sonnet weekly cap", raw.seven_day_sonnet, 7 * 86400);
@@ -260,10 +278,11 @@ export function parseClaudeOAuthUsage(
   );
 
   return {
-    id: "claude",
+    id: meta?.id || "claude",
     harness: "claude",
     name: "Claude Code",
     vendor: "Anthropic",
+    account: meta?.account,
     planName: formatClaudePlanName(meta?.subscriptionType, meta?.rateLimitTier),
     source: "live",
     sourceLabel: "Anthropic OAuth",
@@ -285,6 +304,8 @@ interface ClaudeOAuthCredentials {
   expiresAt?: number;
   subscriptionType?: string;
   rateLimitTier?: string;
+  account?: string;
+  accountUuid?: string;
 }
 
 interface ClaudeCredentialsFile {
@@ -296,14 +317,15 @@ export const CLAUDE_SIGN_IN_EXPIRED_MESSAGE = "Claude sign-in expired. Open Clau
 // Card-less state for an expired/rejected token. We never refresh it ourselves: rotating the
 // refresh token would race the running Claude Code and could sign the user out of it.
 export function buildClaudeSignInExpiredCard(
-  meta?: { subscriptionType?: string | null; rateLimitTier?: string | null },
+  meta?: { id?: string; account?: string; subscriptionType?: string | null; rateLimitTier?: string | null },
   updatedAt?: string,
 ): HarnessLimitCard {
   return {
-    id: "claude",
+    id: meta?.id || "claude",
     harness: "claude",
     name: "Claude Code",
     vendor: "Anthropic",
+    account: meta?.account,
     planName: formatClaudePlanName(meta?.subscriptionType, meta?.rateLimitTier),
     source: "live",
     sourceLabel: "Anthropic OAuth",
@@ -313,17 +335,171 @@ export function buildClaudeSignInExpiredCard(
   };
 }
 
-async function readClaudeOAuthCredentials(): Promise<ClaudeOAuthCredentials | null> {
-  const home = homedir();
-  const credPath = join(home, ".claude", ".credentials.json");
-  if (existsSync(credPath)) {
+function readClaudeAccountMeta(dirOrFile: string): { email?: string; accountUuid?: string; orgUuid?: string } {
+  const candidates = dirOrFile.endsWith(".json") ? [dirOrFile] : [join(dirOrFile, ".claude.json")];
+  for (const p of candidates) {
+    if (!existsSync(p)) continue;
     try {
-      const file = JSON.parse(readFileSync(credPath, "utf8")) as ClaudeCredentialsFile;
-      if (file.claudeAiOauth?.accessToken) return file.claudeAiOauth;
+      const j = JSON.parse(readFileSync(p, "utf8"));
+      const oa = j?.oauthAccount;
+      if (oa && typeof oa === "object") {
+        return {
+          email: typeof oa.emailAddress === "string" ? oa.emailAddress : undefined,
+          accountUuid: typeof oa.accountUuid === "string" ? oa.accountUuid : undefined,
+          orgUuid: typeof oa.organizationUuid === "string" ? oa.organizationUuid : undefined,
+        };
+      }
     } catch {
-      // fall through to the other stores
+      // ignore
     }
   }
+  return {};
+}
+
+function listClaudeDesktopDirs(): string[] {
+  const home = homedir();
+  const dirs: string[] = [];
+  if (process.platform === "win32") {
+    const appData = process.env.APPDATA || join(home, "AppData", "Roaming");
+    const localAppData = process.env.LOCALAPPDATA || join(home, "AppData", "Local");
+    if (existsSync(join(appData, "Claude"))) dirs.push(join(appData, "Claude"));
+    const pkgsDir = join(localAppData, "Packages");
+    try {
+      for (const name of readdirSync(pkgsDir)) {
+        if (name.toLowerCase().startsWith("claude_")) {
+          const roam = join(pkgsDir, name, "LocalCache", "Roaming", "Claude");
+          if (existsSync(roam)) dirs.push(roam);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  } else if (process.platform === "darwin") {
+    const p = join(home, "Library", "Application Support", "Claude");
+    if (existsSync(p)) dirs.push(p);
+  } else {
+    const p = join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "Claude");
+    if (existsSync(p)) dirs.push(p);
+  }
+  return dirs;
+}
+
+async function readClaudeDesktopOAuthCredentials(
+  emailByUuid: ReadonlyMap<string, string>,
+  defaultEmail?: string,
+): Promise<ClaudeOAuthCredentials[]> {
+  if (process.platform !== "win32") return [];
+  const results: ClaudeOAuthCredentials[] = [];
+  for (const dir of listClaudeDesktopDirs()) {
+    const cfgPath = join(dir, "config.json");
+    const localStatePath = join(dir, "Local State");
+    if (!existsSync(cfgPath) || !existsSync(localStatePath)) continue;
+    try {
+      const localState = JSON.parse(readFileSync(localStatePath, "utf8"));
+      const encKeyB64 = localState?.os_crypt?.encrypted_key;
+      if (typeof encKeyB64 !== "string") continue;
+      const rawKey = Buffer.from(encKeyB64, "base64");
+      if (rawKey.length <= 5 || rawKey.subarray(0, 5).toString("utf8") !== "DPAPI") continue;
+      const masterKey = await decryptWindowsDpapi(rawKey.subarray(5).toString("base64"));
+      if (!masterKey || masterKey.length !== 32) continue;
+
+      const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+      const byAccount = new Map<string, ClaudeOAuthCredentials>();
+      for (const field of ["oauth:tokenCacheV2", "oauth:tokenCache"]) {
+        const b64 = cfg?.[field];
+        if (typeof b64 !== "string" || !b64) continue;
+        const buf = Buffer.from(b64, "base64");
+        if (buf.length < 31 || buf.subarray(0, 3).toString("utf8") !== "v10") continue;
+        const nonce = buf.subarray(3, 15);
+        const tag = buf.subarray(buf.length - 16);
+        const ct = buf.subarray(15, buf.length - 16);
+        const decipher = createDecipheriv("aes-256-gcm", masterKey, nonce);
+        decipher.setAuthTag(tag);
+        const parsed = JSON.parse(Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8"));
+        if (!parsed || typeof parsed !== "object") continue;
+
+        for (const [k, v] of Object.entries(parsed as Record<string, Record<string, unknown>>)) {
+          if (!v || typeof v.token !== "string" || !v.token) continue;
+          // Key format: acct:<accountUuid>|<clientId>:<orgUuid>:...
+          const acctMatch = k.match(/^acct:([^|:]+)\|[^:]+:([^:]+):/);
+          const accountUuid = acctMatch?.[1] || (typeof cfg.lastKnownAccountUuid === "string" ? cfg.lastKnownAccountUuid : "default");
+          const orgUuid = acctMatch?.[2];
+          const groupKey = `${accountUuid}:${orgUuid || ""}`;
+          const email = emailByUuid.get(accountUuid) || (orgUuid ? emailByUuid.get(orgUuid) : undefined) || defaultEmail;
+          const candidate: ClaudeOAuthCredentials = {
+            accessToken: v.token,
+            expiresAt: typeof v.expiresAt === "number" ? v.expiresAt : undefined,
+            subscriptionType: typeof v.subscriptionType === "string" ? v.subscriptionType : undefined,
+            rateLimitTier: typeof v.rateLimitTier === "string" ? v.rateLimitTier : undefined,
+            account: email,
+            accountUuid: groupKey,
+          };
+          const prev = byAccount.get(groupKey);
+          if (
+            !prev ||
+            (!prev.subscriptionType && candidate.subscriptionType) ||
+            (!!candidate.subscriptionType === !!prev.subscriptionType && (candidate.expiresAt ?? 0) > (prev.expiresAt ?? 0))
+          ) {
+            byAccount.set(groupKey, candidate);
+          }
+        }
+      }
+      results.push(...byAccount.values());
+    } catch {
+      // ignore unreadable or undecryptable desktop config
+    }
+  }
+  return results;
+}
+
+async function readAllClaudeOAuthCredentials(): Promise<ClaudeOAuthCredentials[]> {
+  const home = homedir();
+  const emailByUuid = new Map<string, string>();
+  const rootMeta = readClaudeAccountMeta(join(home, ".claude.json"));
+  if (rootMeta.email && rootMeta.accountUuid) emailByUuid.set(rootMeta.accountUuid, rootMeta.email);
+  if (rootMeta.email && rootMeta.orgUuid) emailByUuid.set(rootMeta.orgUuid, rootMeta.email);
+
+  const dirs = new Set<string>();
+  const configured = (process.env.CLAUDE_CONFIG_DIR ?? "")
+    .split(",")
+    .map((d) => d.trim())
+    .filter(Boolean);
+  for (const d of configured) dirs.add(d);
+  dirs.add(join(home, ".claude"));
+  dirs.add(join(home, ".config", "claude"));
+  try {
+    for (const entry of readdirSync(home)) {
+      if (entry.startsWith(".claude") && entry !== ".claude.json" && !entry.startsWith(".claude.json.")) {
+        dirs.add(join(home, entry));
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const cliCreds: ClaudeOAuthCredentials[] = [];
+  for (const dir of dirs) {
+    const meta = readClaudeAccountMeta(dir);
+    if (meta.email && meta.accountUuid) emailByUuid.set(meta.accountUuid, meta.email);
+    if (meta.email && meta.orgUuid) emailByUuid.set(meta.orgUuid, meta.email);
+    const credPath = join(dir, ".credentials.json");
+    if (existsSync(credPath)) {
+      try {
+        const file = JSON.parse(readFileSync(credPath, "utf8")) as ClaudeCredentialsFile;
+        if (file.claudeAiOauth?.accessToken) {
+          cliCreds.push({
+            ...file.claudeAiOauth,
+            account: meta.email || rootMeta.email,
+            accountUuid: meta.accountUuid ? `${meta.accountUuid}:${meta.orgUuid || ""}` : undefined,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const desktopCreds = await readClaudeDesktopOAuthCredentials(emailByUuid, rootMeta.email);
 
   // macOS keeps Claude Code credentials in the login keychain instead of a file.
   if (process.platform === "darwin") {
@@ -331,7 +507,9 @@ async function readClaudeOAuthCredentials(): Promise<ClaudeOAuthCredentials | nu
     if (raw) {
       try {
         const file = JSON.parse(raw) as ClaudeCredentialsFile;
-        if (file.claudeAiOauth?.accessToken) return file.claudeAiOauth;
+        if (file.claudeAiOauth?.accessToken) {
+          cliCreds.push({ ...file.claudeAiOauth, account: rootMeta.email });
+        }
       } catch {
         // ignore malformed keychain item
       }
@@ -343,13 +521,37 @@ async function readClaudeOAuthCredentials(): Promise<ClaudeOAuthCredentials | nu
     try {
       const piAuth = JSON.parse(readFileSync(piAuthPath, "utf8"));
       if (piAuth?.anthropic?.access) {
-        return { accessToken: piAuth.anthropic.access, expiresAt: piAuth.anthropic.expires };
+        cliCreds.push({
+          accessToken: piAuth.anthropic.access,
+          expiresAt: piAuth.anthropic.expires,
+          account: rootMeta.email,
+        });
       }
     } catch {
       // ignore
     }
   }
-  return null;
+
+  // Merge Desktop and CLI credentials, deduplicating by account/email/token and preferring valid tokens over expired ones.
+  const now = Date.now();
+  const isFresh = (c: ClaudeOAuthCredentials) => typeof c.expiresAt !== "number" || c.expiresAt > now;
+  const merged = new Map<string, ClaudeOAuthCredentials>();
+
+  for (const cred of [...desktopCreds, ...cliCreds]) {
+    if (!cred.accessToken) continue;
+    const key = (cred.account || cred.accountUuid || cred.accessToken).toLowerCase();
+    const existing = merged.get(key);
+    if (!existing || (!isFresh(existing) && isFresh(cred))) {
+      merged.set(key, cred);
+    }
+  }
+
+  // If we have at least one valid credential and another entry has no account identifier and is expired, drop the orphan expired entry.
+  const list = [...merged.values()];
+  if (list.some(isFresh)) {
+    return list.filter((c) => isFresh(c) || !!c.account);
+  }
+  return list;
 }
 
 const CLAUDE_BACKOFF_DEFAULT_MS = 5 * 60_000;
@@ -357,10 +559,17 @@ let claudeBackoffUntilMs = 0;
 // Why a provider returned nothing this round; read once by collectAllLimits to explain an unavailable card.
 const failureReasons = new Map<string, string>();
 
-async function fetchClaudeLimits(): Promise<HarnessLimitCard | null> {
-  const oauth = await readClaudeOAuthCredentials();
+async function fetchClaudeLimitsForCredential(
+  oauth: ClaudeOAuthCredentials,
+  cardId: string,
+): Promise<HarnessLimitCard | null> {
   if (!oauth?.accessToken) return null;
-  const meta = { subscriptionType: oauth.subscriptionType, rateLimitTier: oauth.rateLimitTier };
+  const meta = {
+    id: cardId,
+    account: oauth.account,
+    subscriptionType: oauth.subscriptionType,
+    rateLimitTier: oauth.rateLimitTier,
+  };
 
   if (typeof oauth.expiresAt === "number" && Date.now() >= oauth.expiresAt) {
     return buildClaudeSignInExpiredCard(meta);
@@ -476,7 +685,11 @@ function formatCodexPlan(planType?: string | null): string {
   return p ? `ChatGPT ${p.charAt(0).toUpperCase()}${p.slice(1)}` : "ChatGPT";
 }
 
-export function parseCodexWhamUsage(raw: CodexWhamUsageResponse, updatedAt?: string): HarnessLimitCard {
+export function parseCodexWhamUsage(
+  raw: CodexWhamUsageResponse,
+  updatedAt?: string,
+  meta?: { id?: string; account?: string },
+): HarnessLimitCard {
   const windows: QuotaWindow[] = [];
 
   const pushWhamWindow = (
@@ -518,10 +731,11 @@ export function parseCodexWhamUsage(raw: CodexWhamUsageResponse, updatedAt?: str
   }
 
   return {
-    id: "codex",
+    id: meta?.id || "codex",
     harness: "codex",
     name: "Codex",
     vendor: "OpenAI",
+    account: meta?.account,
     planName: formatCodexPlan(raw.plan_type),
     source: "live",
     sourceLabel: "OpenAI Backend",
@@ -535,6 +749,7 @@ export function parseCodexRolloutRateLimits(
   raw: CodexRolloutRateLimits,
   nowMs = Date.now(),
   updatedAt?: string,
+  meta?: { id?: string; account?: string },
 ): HarnessLimitCard {
   const windows: QuotaWindow[] = [];
 
@@ -565,10 +780,11 @@ export function parseCodexRolloutRateLimits(
   pushRolloutWindow("secondary", raw.secondary);
 
   return {
-    id: "codex",
+    id: meta?.id || "codex",
     harness: "codex",
     name: "Codex",
     vendor: "OpenAI",
+    account: meta?.account,
     planName: formatCodexPlan(raw.plan_type),
     source: "local",
     sourceLabel: "Session log",
@@ -601,8 +817,10 @@ export function latestCodexRateLimitsFromText(
   return null;
 }
 
-async function findLatestCodexRolloutRateLimits(): Promise<{ rateLimits: CodexRolloutRateLimits; updatedAt: string } | null> {
-  const sessionsRoot = join(homedir(), ".codex", "sessions");
+async function findLatestCodexRolloutRateLimits(
+  rootDir = join(homedir(), ".codex"),
+): Promise<{ rateLimits: CodexRolloutRateLimits; updatedAt: string } | null> {
+  const sessionsRoot = join(rootDir, "sessions");
   // Rollouts live in YYYY/MM/DD dirs, so name-descending order finds the newest ones without statting the archive.
   const files = await collectJsonlFiles(sessionsRoot, { newestNameFirst: true, limit: CODEX_ROLLOUT_CANDIDATES });
   files.sort((a, b) => b.mtimeMs - a.mtimeMs);
@@ -620,40 +838,89 @@ async function findLatestCodexRolloutRateLimits(): Promise<{ rateLimits: CodexRo
   return null;
 }
 
-async function fetchCodexLimits(): Promise<HarnessLimitCard | null> {
-  const authPath = join(homedir(), ".codex", "auth.json");
-  if (existsSync(authPath)) {
+interface CodexAuthEntry {
+  accessToken: string;
+  accountId?: string;
+  email?: string;
+  dir: string;
+}
+
+function readCodexAuthEntries(): CodexAuthEntry[] {
+  const home = homedir();
+  const dirs = new Set<string>();
+  if (process.env.CODEX_HOME) dirs.add(process.env.CODEX_HOME);
+  dirs.add(join(home, ".codex"));
+  try {
+    for (const name of readdirSync(home)) {
+      if (name.startsWith(".codex")) dirs.add(join(home, name));
+    }
+  } catch {
+    // ignore
+  }
+
+  const byKey = new Map<string, CodexAuthEntry>();
+  for (const dir of dirs) {
+    const authPath = join(dir, "auth.json");
+    if (!existsSync(authPath)) continue;
     try {
       const auth = JSON.parse(readFileSync(authPath, "utf8"));
       const accessToken = auth?.tokens?.access_token;
-      const accountId = auth?.tokens?.account_id;
-      if (accessToken) {
-        const headers: Record<string, string> = {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-          "User-Agent": "codex-cli/0.1.0",
-        };
-        if (accountId) headers["ChatGPT-Account-Id"] = String(accountId);
+      if (typeof accessToken !== "string" || !accessToken) continue;
+      const accountId = typeof auth?.tokens?.account_id === "string" ? auth.tokens.account_id : undefined;
+      const jwt = decodeJwtPayload(auth?.tokens?.id_token);
+      const email = typeof jwt?.email === "string" ? jwt.email : undefined;
+      const key = (accountId || email || accessToken).toLowerCase();
+      if (!byKey.has(key)) {
+        byKey.set(key, { accessToken, accountId, email, dir });
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return [...byKey.values()];
+}
 
-        const res = await fetch("https://chatgpt.com/backend-api/wham/usage", {
-          headers,
-          signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as CodexWhamUsageResponse;
-          if (data.rate_limit) {
-            return parseCodexWhamUsage(data);
-          }
+async function fetchCodexLimits(): Promise<HarnessLimitCard[]> {
+  const entries = readCodexAuthEntries();
+  const cards: HarnessLimitCard[] = [];
+  const multiple = entries.length > 1;
+
+  for (const entry of entries) {
+    const cardId = multiple && entry.email ? `codex:${entry.email.toLowerCase()}` : "codex";
+    try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${entry.accessToken}`,
+        Accept: "application/json",
+        "User-Agent": "codex-cli/0.1.0",
+      };
+      if (entry.accountId) headers["ChatGPT-Account-Id"] = String(entry.accountId);
+
+      const res = await fetch("https://chatgpt.com/backend-api/wham/usage", {
+        headers,
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as CodexWhamUsageResponse;
+        if (data.rate_limit) {
+          cards.push(parseCodexWhamUsage(data, undefined, { id: cardId, account: entry.email }));
+          continue;
         }
       }
     } catch {
-      // Fall back to local rollout logs below
+      // Fall back to local rollout logs for this dir below
+    }
+
+    const local = await findLatestCodexRolloutRateLimits(entry.dir);
+    if (local) {
+      cards.push(parseCodexRolloutRateLimits(local.rateLimits, Date.now(), local.updatedAt, { id: cardId, account: entry.email }));
     }
   }
 
+  if (cards.length > 0) return cards;
+
   const local = await findLatestCodexRolloutRateLimits();
-  if (!local) return null;
-  return parseCodexRolloutRateLimits(local.rateLimits, Date.now(), local.updatedAt);
+  if (!local) return [];
+  return [parseCodexRolloutRateLimits(local.rateLimits, Date.now(), local.updatedAt)];
 }
 
 // ============================================================================
@@ -668,6 +935,8 @@ export interface AntigravityModelQuota {
 }
 
 export interface AntigravityParsedState {
+  accountName?: string;
+  email?: string;
   tierName?: string;
   availableCredits?: number;
   models: AntigravityModelQuota[];
@@ -754,6 +1023,14 @@ export function parseAntigravityUserStatusProto(base64Buf: string): AntigravityP
 
     const top = decodeProtoFields(userStatusBytes);
     for (const f of top) {
+      if (f.fn === 3 && f.wt === 2 && f.val instanceof Uint8Array) {
+        const name = Buffer.from(f.val).toString("utf8").trim();
+        if (name) result.accountName = name;
+      }
+      if (f.fn === 7 && f.wt === 2 && f.val instanceof Uint8Array) {
+        const email = Buffer.from(f.val).toString("utf8").trim();
+        if (email && email.includes("@")) result.email = email;
+      }
       if (f.fn === 33 && f.wt === 2 && f.val instanceof Uint8Array) {
         for (const mf of decodeProtoFields(f.val)) {
           if (mf.fn === 1 && mf.wt === 2 && mf.val instanceof Uint8Array) {
@@ -815,6 +1092,8 @@ export function parseAntigravityUserStatusProto(base64Buf: string): AntigravityP
 export function buildAntigravityLimitCard(
   models: AntigravityModelQuota[],
   opts: {
+    id?: string;
+    account?: string;
     tierName?: string;
     availableCredits?: number;
     source: "live" | "local";
@@ -911,10 +1190,11 @@ export function buildAntigravityLimitCard(
   }
 
   return {
-    id: "antigravity",
+    id: opts.id || "antigravity",
     harness: "antigravity",
     name: "Antigravity",
     vendor: "Google",
+    account: opts.account,
     planName: opts.tierName || "Google AI",
     source: opts.source,
     sourceLabel: opts.source === "live" ? "Cloud Code API" : "Local IDE state",
@@ -962,8 +1242,21 @@ function listAntigravityInstalls(): AntigravityInstall[] {
     } catch {
       // not an editor install
     }
+    const profilesDir = join(base, app, "User", "profiles");
+    try {
+      for (const prof of readdirSync(profilesDir)) {
+        const profDb = join(profilesDir, prof, "globalStorage", "state.vscdb");
+        try {
+          installs.push({ app: `${app} (${prof})`, dbPath: profDb, mtimeMs: statSync(profDb).mtimeMs });
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // no profiles dir
+    }
   }
-  return installs;
+  return installs.sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
 const normalizeModelName = (label: string) => label.replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
@@ -981,8 +1274,41 @@ export function liveMatchesLocal(local: AntigravityModelQuota[], live: Antigravi
 }
 
 // PowerShell + Add-Type costs seconds and a process spawn, so each target runs at most once per TTL.
-const readWindowsCredential = memoizeAsyncTtl(readWindowsCredentialUncached, CREDENTIAL_TTL_MS);
+const readWindowsCredentials = memoizeAsyncTtl(readWindowsCredentialsUncached, CREDENTIAL_TTL_MS);
 const readKeychainSecret = memoizeAsyncTtl(readKeychainSecretUncached, CREDENTIAL_TTL_MS);
+const decryptWindowsDpapi = memoizeAsyncTtl(decryptWindowsDpapiUncached, CREDENTIAL_TTL_MS);
+
+async function readWindowsCredential(targetNameOrPrefix: string): Promise<string | null> {
+  const list = await readWindowsCredentials(targetNameOrPrefix);
+  return list[0] ?? null;
+}
+
+async function decryptWindowsDpapiUncached(encBase64: string): Promise<Buffer | null> {
+  if (process.platform !== "win32") return null;
+  try {
+    const safeB64 = encBase64.replace(/'/g, "");
+    const psScript = `
+Add-Type -AssemblyName System.Security
+$enc = [Convert]::FromBase64String('${safeB64}')
+$dec = [System.Security.Cryptography.ProtectedData]::Unprotect($enc, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
+[Convert]::ToBase64String($dec)
+`;
+    const proc = Bun.spawn(["powershell", "-NoProfile", "-NonInteractive", "-Command", psScript], {
+      stdout: "pipe",
+      stderr: "ignore",
+      windowsHide: true,
+    });
+    const timer = setTimeout(() => proc.kill(), 6_000);
+    try {
+      const text = (await new Response(proc.stdout).text()).trim();
+      return text ? Buffer.from(text, "base64") : null;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return null;
+  }
+}
 
 async function readKeychainSecretUncached(service: string): Promise<string | null> {
   if (process.platform !== "darwin") return null;
@@ -1003,15 +1329,15 @@ async function readKeychainSecretUncached(service: string): Promise<string | nul
   }
 }
 
-async function readWindowsCredentialUncached(targetNameOrPrefix: string): Promise<string | null> {
-  if (process.platform !== "win32") return null;
+async function readWindowsCredentialsUncached(targetNameOrPrefix: string): Promise<string[]> {
+  if (process.platform !== "win32") return [];
   try {
     const safeTarget = targetNameOrPrefix.replace(/'/g, "''");
     const psScript = `
 $code = @'
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Text;
 public class CredHelper {
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct CREDENTIAL {
@@ -1034,30 +1360,38 @@ public class CredHelper {
     public static extern bool CredEnumerate(string filter, int flag, out int count, out IntPtr pCredentials);
     [DllImport("advapi32.dll", SetLastError = true)]
     public static extern void CredFree(IntPtr cred);
-    public static string GetPass(string target) {
+    public static string[] GetAllBase64(string target) {
+        var list = new List<string>();
+        int count;
         IntPtr ptr;
+        if (CredEnumerate(target + "*", 0, out count, out ptr) && count > 0) {
+            for (int i = 0; i < count; i++) {
+                IntPtr cPtr = Marshal.ReadIntPtr(ptr, i * IntPtr.Size);
+                CREDENTIAL cred = (CREDENTIAL)Marshal.PtrToStructure(cPtr, typeof(CREDENTIAL));
+                if (cred.CredentialBlobSize > 0 && cred.CredentialBlob != IntPtr.Zero) {
+                    byte[] b = new byte[cred.CredentialBlobSize];
+                    Marshal.Copy(cred.CredentialBlob, b, 0, cred.CredentialBlobSize);
+                    list.Add(Convert.ToBase64String(b));
+                }
+            }
+            CredFree(ptr);
+            return list.ToArray();
+        }
         if (CredRead(target, 1, 0, out ptr)) {
             CREDENTIAL cred = (CREDENTIAL)Marshal.PtrToStructure(ptr, typeof(CREDENTIAL));
-            byte[] b = new byte[cred.CredentialBlobSize];
-            Marshal.Copy(cred.CredentialBlob, b, 0, cred.CredentialBlobSize);
+            if (cred.CredentialBlobSize > 0 && cred.CredentialBlob != IntPtr.Zero) {
+                byte[] b = new byte[cred.CredentialBlobSize];
+                Marshal.Copy(cred.CredentialBlob, b, 0, cred.CredentialBlobSize);
+                list.Add(Convert.ToBase64String(b));
+            }
             CredFree(ptr);
-            return Encoding.UTF8.GetString(b);
         }
-        int count;
-        if (CredEnumerate(target + "*", 0, out count, out ptr) && count > 0) {
-            IntPtr cPtr = Marshal.ReadIntPtr(ptr, 0);
-            CREDENTIAL cred = (CREDENTIAL)Marshal.PtrToStructure(cPtr, typeof(CREDENTIAL));
-            byte[] b = new byte[cred.CredentialBlobSize];
-            Marshal.Copy(cred.CredentialBlob, b, 0, cred.CredentialBlobSize);
-            CredFree(ptr);
-            return Encoding.UTF8.GetString(b);
-        }
-        return null;
+        return list.ToArray();
     }
 }
 '@
 Add-Type -TypeDefinition $code
-[CredHelper]::GetPass('${safeTarget}')
+[CredHelper]::GetAllBase64('${safeTarget}') -join "\`n"
 `;
     const proc = Bun.spawn(["powershell", "-NoProfile", "-NonInteractive", "-Command", psScript], {
       stdout: "pipe",
@@ -1067,37 +1401,100 @@ Add-Type -TypeDefinition $code
     const timer = setTimeout(() => proc.kill(), 6_000);
     try {
       const text = (await new Response(proc.stdout).text()).trim();
-      return text || null;
+      if (!text) return [];
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const line of text.split(/\r?\n/)) {
+        const b64 = line.trim();
+        if (!b64) continue;
+        const decoded = Buffer.from(b64, "base64").toString("utf8").trim();
+        if (decoded && !seen.has(decoded)) {
+          seen.add(decoded);
+          out.push(decoded);
+        }
+      }
+      return out;
     } finally {
       clearTimeout(timer);
     }
   } catch {
-    return null;
+    return [];
   }
 }
 
-async function fetchAntigravityLimits(): Promise<HarnessLimitCard | null> {
-  const active = pickActiveAntigravityInstall(listAntigravityInstalls());
-  let localParsed: AntigravityParsedState = { models: [] };
+interface AntigravityAccountState {
+  key: string;
+  email?: string;
+  accountName?: string;
+  tierName?: string;
+  availableCredits?: number;
+  models: AntigravityModelQuota[];
+  source: "live" | "local";
+  updatedAt: string;
+}
 
-  if (active) {
+async function fetchAntigravityLimits(): Promise<HarnessLimitCard[]> {
+  const installs = listAntigravityInstalls();
+  const accountsByKey = new Map<string, AntigravityAccountState>();
+
+  for (const inst of installs) {
     try {
-      const db = new Database(active.dbPath, { readonly: true });
+      const db = new Database(inst.dbPath, { readonly: true });
+      const syncedAt = new Date(inst.mtimeMs).toISOString();
+
+      // 1. Primary unified state sync userStatus
       const row = db
         .query("SELECT value FROM ItemTable WHERE key = 'antigravityUnifiedStateSync.userStatus'")
         .get() as { value?: string } | null;
       if (row?.value) {
-        localParsed = parseAntigravityUserStatusProto(row.value);
+        const parsed = parseAntigravityUserStatusProto(row.value);
+        if (parsed.models.length > 0) {
+          const key = (parsed.email || parsed.accountName || inst.app).toLowerCase();
+          if (!accountsByKey.has(key)) {
+            accountsByKey.set(key, {
+              key,
+              email: parsed.email,
+              accountName: parsed.accountName,
+              tierName: parsed.tierName,
+              availableCredits: parsed.availableCredits,
+              models: parsed.models,
+              source: "local",
+              updatedAt: syncedAt,
+            });
+          }
+        }
       }
-      if (localParsed.models.length === 0) {
-        const authRow = db
-          .query("SELECT value FROM ItemTable WHERE key = 'antigravityAuthStatus'")
-          .get() as { value?: string } | null;
-        if (authRow?.value) {
+
+      // 2. Fallback or additional account in antigravityAuthStatus
+      const authRow = db
+        .query("SELECT value FROM ItemTable WHERE key = 'antigravityAuthStatus'")
+        .get() as { value?: string } | null;
+      if (authRow?.value) {
+        try {
           const parsedJson = JSON.parse(authRow.value);
           if (parsedJson?.userStatusProtoBinaryBase64) {
-            localParsed = parseAntigravityUserStatusProto(parsedJson.userStatusProtoBinaryBase64);
+            const parsed = parseAntigravityUserStatusProto(parsedJson.userStatusProtoBinaryBase64);
+            const email = typeof parsedJson.email === "string" && parsedJson.email.includes("@") ? parsedJson.email : parsed.email;
+            const accountName = typeof parsedJson.name === "string" ? parsedJson.name : parsed.accountName;
+            // Only use authStatus when unified state sync had no models for this install
+            if (parsed.models.length > 0 && !row?.value) {
+              const key = (email || accountName || inst.app).toLowerCase();
+              if (!accountsByKey.has(key)) {
+                accountsByKey.set(key, {
+                  key,
+                  email,
+                  accountName,
+                  tierName: parsed.tierName,
+                  availableCredits: parsed.availableCredits,
+                  models: parsed.models,
+                  source: "local",
+                  updatedAt: syncedAt,
+                });
+              }
+            }
           }
+        } catch {
+          // ignore
         }
       }
       db.close();
@@ -1105,27 +1502,20 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard | null> {
       // ignore sqlite errors
     }
   }
-  const syncedAt = active ? new Date(active.mtimeMs).toISOString() : undefined;
-  let liveMismatch = false;
 
-  // Try live Cloud Code fetch using Windows Credential Manager or gemini oauth token
-  let accessToken: string | null = null;
-  const rawWinCred = await readWindowsCredential("gemini:antigravity");
-  if (rawWinCred) {
+  // Try live Cloud Code fetch using all gemini:antigravity* credentials in Windows Credential Manager
+  const rawWinCreds = await readWindowsCredentials("gemini:antigravity");
+  for (const rawWinCred of rawWinCreds) {
     try {
       const clean = rawWinCred.replace(/^[^\{]*/, "");
       const parsed = JSON.parse(clean);
       const expiry = parsed?.token?.expiry ? Date.parse(parsed.token.expiry) : null;
-      if (parsed?.token?.access_token && (!expiry || expiry > Date.now())) {
-        accessToken = parsed.token.access_token;
-      }
-    } catch {
-      // ignore
-    }
-  }
+      const accessToken = parsed?.token?.access_token;
+      if (!accessToken || (expiry && expiry <= Date.now())) continue;
 
-  if (accessToken) {
-    try {
+      const jwt = decodeJwtPayload(parsed?.id_token);
+      const liveEmail = typeof jwt?.email === "string" ? jwt.email : undefined;
+
       const res = await fetch("https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels", {
         method: "POST",
         headers: {
@@ -1136,69 +1526,71 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard | null> {
         body: "{}",
         signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
       });
-      if (res.ok) {
-        const data = (await res.json()) as {
-          models?: Record<
-            string,
-            {
-              displayName?: string;
-              quotaInfo?: { remainingFraction?: number; resetTime?: string };
-            }
-          >;
-        };
-        if (data?.models) {
-          const liveModels: AntigravityModelQuota[] = [];
-          for (const [id, m] of Object.entries(data.models)) {
-            if (!m.displayName || !m.quotaInfo) continue;
-            liveModels.push({
-              id,
-              label: m.displayName,
-              remainingFraction: typeof m.quotaInfo.remainingFraction === "number" ? m.quotaInfo.remainingFraction : 0,
-              resetTime: m.quotaInfo.resetTime ?? null,
-            });
+      if (!res.ok) continue;
+
+      const data = (await res.json()) as {
+        models?: Record<
+          string,
+          {
+            displayName?: string;
+            quotaInfo?: { remainingFraction?: number; resetTime?: string };
           }
-          if (liveModels.length > 0) {
-            if (liveMatchesLocal(localParsed.models, liveModels)) {
-              return buildAntigravityLimitCard(liveModels, {
-                tierName: localParsed.tierName,
-                availableCredits: localParsed.availableCredits,
-                source: "live",
-              });
-            }
-            liveMismatch = true;
-          }
-        }
+        >;
+      };
+      if (!data?.models) continue;
+
+      const liveModels: AntigravityModelQuota[] = [];
+      for (const [id, m] of Object.entries(data.models)) {
+        if (!m.quotaInfo) continue;
+        if (id.includes("chat_") || id.includes("tab_")) continue;
+        const label = m.displayName || (id.startsWith("gemini-") ? id.replace(/-tiered$/, "").replace(/-/g, " ") : undefined);
+        if (!label) continue;
+        liveModels.push({
+          id,
+          label,
+          remainingFraction: typeof m.quotaInfo.remainingFraction === "number" ? m.quotaInfo.remainingFraction : 0,
+          resetTime: m.quotaInfo.resetTime ?? null,
+        });
+      }
+      if (liveModels.length === 0) continue;
+
+      const emailKey = liveEmail?.toLowerCase();
+      const matched =
+        (emailKey ? accountsByKey.get(emailKey) : undefined) ??
+        [...accountsByKey.values()].find((a) => !a.email && liveMatchesLocal(a.models, liveModels));
+
+      if (matched) {
+        matched.models = liveModels;
+        matched.source = "live";
+        matched.updatedAt = new Date().toISOString();
+        if (liveEmail && !matched.email) matched.email = liveEmail;
+      } else {
+        const key = emailKey || `live-${accountsByKey.size + 1}`;
+        accountsByKey.set(key, {
+          key,
+          email: liveEmail,
+          models: liveModels,
+          source: "live",
+          updatedAt: new Date().toISOString(),
+        });
       }
     } catch {
-      // Fall through to local state.vscdb
+      // ignore failed credential
     }
   }
 
-  if (localParsed.models.length > 0) {
-    const where = active ? active.app : "Antigravity";
-    const age = active ? formatSyncAge(Date.now() - active.mtimeMs) : null;
-    const why = liveMismatch
-      ? "The saved login is for a different Google account"
-      : process.platform === "win32"
-      ? "Live fetch unavailable"
-      : "Live quota needs Windows Credential Manager";
-    return buildAntigravityLimitCard(localParsed.models, {
-      tierName: localParsed.tierName,
-      availableCredits: localParsed.availableCredits,
-      source: "local",
-      updatedAt: syncedAt,
-      note: `${why}. Showing ${where}${age ? `, last synced ${age}` : ""}.`,
-    });
-  }
-
-  return null;
-}
-
-function formatSyncAge(ms: number): string {
-  const minutes = Math.max(0, Math.round(ms / 60_000));
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
+  const all = [...accountsByKey.values()];
+  const multiple = all.length > 1;
+  return all.map((acc) =>
+    buildAntigravityLimitCard(acc.models, {
+      id: multiple ? `antigravity:${acc.key}` : "antigravity",
+      account: acc.email || acc.accountName,
+      tierName: acc.tierName,
+      availableCredits: acc.availableCredits,
+      source: acc.source,
+      updatedAt: acc.updatedAt,
+    }),
+  );
 }
 
 // ============================================================================
@@ -1435,6 +1827,7 @@ async function collectOpenCodeGoEvents(nowMs = Date.now()): Promise<OpenCodeGoSp
 // ============================================================================
 
 export interface CopilotInternalUserResponse {
+  login?: string;
   copilot_plan?: string;
   access_type_sku?: string;
   quota_reset_date_utc?: string;
@@ -1450,7 +1843,11 @@ export interface CopilotInternalUserResponse {
   >;
 }
 
-export function parseCopilotUsage(raw: CopilotInternalUserResponse, updatedAt?: string): HarnessLimitCard | null {
+export function parseCopilotUsage(
+  raw: CopilotInternalUserResponse,
+  updatedAt?: string,
+  opts?: { id?: string; account?: string },
+): HarnessLimitCard | null {
   const snapshots = raw.quota_snapshots;
   if (!snapshots) return null;
 
@@ -1498,11 +1895,14 @@ export function parseCopilotUsage(raw: CopilotInternalUserResponse, updatedAt?: 
   else if (plan === "business") planName = "Copilot Business";
   else if (plan === "enterprise") planName = "Copilot Enterprise";
 
+  const account = opts?.account || (typeof raw.login === "string" && raw.login ? raw.login : undefined);
+
   return {
-    id: "copilot",
+    id: opts?.id || "copilot",
     harness: "copilot",
     name: "Copilot",
     vendor: "GitHub",
+    account,
     planName,
     source: "live",
     sourceLabel: "GitHub API",
@@ -1511,22 +1911,24 @@ export function parseCopilotUsage(raw: CopilotInternalUserResponse, updatedAt?: 
   };
 }
 
-async function fetchCopilotLimits(): Promise<HarnessLimitCard | null> {
+async function fetchCopilotLimits(): Promise<HarnessLimitCard[]> {
   const home = homedir();
-  const hostPaths = [
-    join(process.env.LOCALAPPDATA || join(home, "AppData", "Local"), "github-copilot", "hosts.json"),
-    join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "github-copilot", "hosts.json"),
+  const configDirs = [
+    join(process.env.LOCALAPPDATA || join(home, "AppData", "Local"), "github-copilot"),
+    join(process.env.XDG_CONFIG_HOME || join(home, ".config"), "github-copilot"),
   ];
 
-  let ghToken: string | null = null;
-  for (const p of hostPaths) {
-    if (existsSync(p)) {
+  const tokens = new Map<string, string | undefined>();
+  for (const dir of configDirs) {
+    for (const file of ["hosts.json", "apps.json"]) {
+      const p = join(dir, file);
+      if (!existsSync(p)) continue;
       try {
-        const j = JSON.parse(readFileSync(p, "utf8"));
-        const entry = j?.["github.com"];
-        if (entry?.oauth_token) {
-          ghToken = entry.oauth_token;
-          break;
+        const j = JSON.parse(readFileSync(p, "utf8")) as Record<string, { oauth_token?: string; user?: string }>;
+        for (const [key, entry] of Object.entries(j ?? {})) {
+          if (key.startsWith("github.com") && entry?.oauth_token) {
+            tokens.set(entry.oauth_token, typeof entry.user === "string" ? entry.user : undefined);
+          }
         }
       } catch {
         // ignore
@@ -1534,29 +1936,47 @@ async function fetchCopilotLimits(): Promise<HarnessLimitCard | null> {
     }
   }
 
-  if (!ghToken) {
-    ghToken = await readWindowsCredential("gh:github.com");
+  const winTokens = await readWindowsCredentials("gh:github.com");
+  for (const tok of winTokens) {
+    if (tok && !tokens.has(tok)) tokens.set(tok, undefined);
   }
 
-  if (!ghToken) return null;
+  if (tokens.size === 0) return [];
 
-  try {
-    const res = await fetch("https://api.github.com/copilot_internal/user", {
-      headers: {
-        Authorization: `token ${ghToken}`,
-        Accept: "application/json",
-        "Editor-Version": "vscode/1.96.0",
-        "Copilot-Integration-Id": "vscode-chat",
-        "User-Agent": "GitHubCopilotChat/0.24.0",
-      },
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as CopilotInternalUserResponse;
-    return parseCopilotUsage(data);
-  } catch {
-    return null;
+  const cardsByAccount = new Map<string, HarnessLimitCard>();
+  for (const [ghToken, hintUser] of tokens) {
+    try {
+      const res = await fetch("https://api.github.com/copilot_internal/user", {
+        headers: {
+          Authorization: `token ${ghToken}`,
+          Accept: "application/json",
+          "Editor-Version": "vscode/1.96.0",
+          "Copilot-Integration-Id": "vscode-chat",
+          "User-Agent": "GitHubCopilotChat/0.24.0",
+        },
+        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
+      });
+      if (!res.ok) continue;
+      const data = (await res.json()) as CopilotInternalUserResponse;
+      const card = parseCopilotUsage(data, undefined, { account: data.login || hintUser });
+      if (!card) continue;
+      const key = (card.account || ghToken).toLowerCase();
+      if (!cardsByAccount.has(key)) {
+        cardsByAccount.set(key, card);
+      }
+    } catch {
+      // ignore failed token
+    }
   }
+
+  const all = [...cardsByAccount.values()];
+  if (all.length > 1) {
+    return all.map((c, idx) => ({
+      ...c,
+      id: `copilot:${(c.account || String(idx + 1)).toLowerCase()}`,
+    }));
+  }
+  return all;
 }
 
 // ============================================================================
@@ -1585,29 +2005,51 @@ async function writeDiskCache(payload: LimitsPayload): Promise<void> {
 
 // When Anthropic's quota can not be read (expired sign-in, rate limit), fall back to the current
 // 5-hour session rebuilt from local logs: a reset time and activity, but no percentage.
-async function fetchClaudeWithLocalFallback(): Promise<HarnessLimitCard | null> {
-  const live = await fetchClaudeLimits();
-  if (live && live.windows.length > 0) return live;
+async function fetchClaudeWithLocalFallback(): Promise<HarnessLimitCard[]> {
+  const creds = await readAllClaudeOAuthCredentials();
+  const multiple = creds.length > 1;
+  const liveCards: HarnessLimitCard[] = [];
+  let firstErrorCard: HarnessLimitCard | null = null;
+
+  for (let i = 0; i < creds.length; i++) {
+    const cred = creds[i]!;
+    const cardId = multiple ? `claude:${(cred.account || cred.accountUuid || String(i + 1)).toLowerCase()}` : "claude";
+    const card = await fetchClaudeLimitsForCredential(cred, cardId);
+    if (card && card.windows.length > 0) {
+      liveCards.push(card);
+    } else if (card && !firstErrorCard) {
+      firstErrorCard = card;
+    }
+  }
+
+  if (liveCards.length > 0) return liveCards;
+
   const block = await findCurrentClaudeBlock();
-  if (!block) return live;
-  const oauth = await readClaudeOAuthCredentials();
-  const reason = live?.error ?? failureReasons.get("claude") ?? "Live quota unavailable";
-  return {
-    id: "claude",
-    harness: "claude",
-    name: "Claude Code",
-    vendor: "Anthropic",
-    planName: live?.planName ?? formatClaudePlanName(oauth?.subscriptionType, oauth?.rateLimitTier),
-    source: "local",
-    sourceLabel: "Local logs",
-    updatedAt: new Date().toISOString(),
-    windows: [],
-    block,
-    note: `${reason}. Session estimated from local logs.`,
-  };
+  const primaryOauth = creds[0] ?? null;
+  if (!block) return firstErrorCard ? [firstErrorCard] : [];
+
+  const reason = firstErrorCard?.error ?? failureReasons.get("claude") ?? "Live quota unavailable";
+  return [
+    {
+      id: "claude",
+      harness: "claude",
+      name: "Claude Code",
+      vendor: "Anthropic",
+      account: primaryOauth?.account,
+      planName: firstErrorCard?.planName ?? formatClaudePlanName(primaryOauth?.subscriptionType, primaryOauth?.rateLimitTier),
+      source: "local",
+      sourceLabel: "Local logs",
+      updatedAt: new Date().toISOString(),
+      windows: [],
+      block,
+      note: `${reason}. Session estimated from local logs.`,
+    },
+  ];
 }
 
-const PROVIDERS: { id: string; run: () => Promise<HarnessLimitCard | null> }[] = [
+type ProviderResult = HarnessLimitCard | HarnessLimitCard[] | null;
+
+const PROVIDERS: { id: string; run: () => Promise<ProviderResult> }[] = [
   { id: "claude", run: fetchClaudeWithLocalFallback },
   { id: "antigravity", run: fetchAntigravityLimits },
   { id: "codex", run: fetchCodexLimits },
@@ -1630,39 +2072,49 @@ function isShowable(card: HarnessLimitCard | null | undefined): card is HarnessL
 // keeps its last good card marked stale, until that snapshot is older than STALE_MAX_AGE_MS.
 export function mergeWithCache(
   prevById: ReadonlyMap<string, HarnessLimitCard>,
-  fresh: ReadonlyMap<string, HarnessLimitCard | null>,
+  fresh: ReadonlyMap<string, ProviderResult>,
   nowMs: number = Date.now(),
   reasons: ReadonlyMap<string, string> = new Map(),
 ): HarnessLimitCard[] {
   const items: HarnessLimitCard[] = [];
-  for (const [id, card] of fresh) {
-    if (isShowable(card)) {
-      const { stale: _stale, staleSince: _staleSince, ...clean } = card;
-      items.push(clean);
+  for (const [id, entry] of fresh) {
+    const candidates = Array.isArray(entry) ? entry : entry ? [entry] : [];
+    const showable = candidates.filter(isShowable);
+    if (showable.length > 0) {
+      for (const card of showable) {
+        const { stale: _stale, staleSince: _staleSince, ...clean } = card;
+        items.push(clean);
+      }
       continue;
     }
-    const cached = prevById.get(id);
+
+    const cachedCards = [...prevById.values()].filter(
+      (c) => (c.id === id || c.id.startsWith(`${id}:`)) && c.windows.length > 0,
+    );
     const reason = reasons.get(id);
-    if (cached && cached.windows.length > 0) {
-      // staleSince stays the time of the last successful fetch across repeated failures.
-      const staleSince = cached.stale && cached.staleSince ? cached.staleSince : cached.updatedAt;
-      const age = nowMs - Date.parse(staleSince);
-      if (Number.isFinite(age) && age <= STALE_MAX_AGE_MS) {
-        items.push({ ...cached, stale: true, staleSince });
-        continue;
+    if (cachedCards.length > 0) {
+      for (const cached of cachedCards) {
+        // staleSince stays the time of the last successful fetch across repeated failures.
+        const staleSince = cached.stale && cached.staleSince ? cached.staleSince : cached.updatedAt;
+        const age = nowMs - Date.parse(staleSince);
+        if (Number.isFinite(age) && age <= STALE_MAX_AGE_MS) {
+          items.push({ ...cached, stale: true, staleSince });
+          continue;
+        }
+        // Too old to trust: keep the tool visible but without numbers that would read as current.
+        items.push({
+          id: cached.id,
+          harness: cached.harness,
+          name: cached.name,
+          vendor: cached.vendor,
+          account: cached.account,
+          planName: cached.planName,
+          source: cached.source,
+          updatedAt: new Date(nowMs).toISOString(),
+          windows: [],
+          error: reason ?? "Couldn't refresh this quota",
+        });
       }
-      // Too old to trust: keep the tool visible but without numbers that would read as current.
-      items.push({
-        id: cached.id,
-        harness: cached.harness,
-        name: cached.name,
-        vendor: cached.vendor,
-        planName: cached.planName,
-        source: cached.source,
-        updatedAt: new Date(nowMs).toISOString(),
-        windows: [],
-        error: reason ?? "Couldn't refresh this quota",
-      });
       continue;
     }
     // Never had data, but we know why the lookup failed (e.g. rate limited): say so instead of hiding the tool.
@@ -1689,7 +2141,7 @@ async function collectAllLimits(): Promise<LimitsPayload> {
 
   failureReasons.clear();
   const settled = await Promise.allSettled(PROVIDERS.map((p) => withTimeout(p.run(), PROVIDER_TIMEOUT_MS)));
-  const fresh = new Map<string, HarnessLimitCard | null>();
+  const fresh = new Map<string, ProviderResult>();
   PROVIDERS.forEach((p, i) => {
     const result = settled[i]!;
     fresh.set(p.id, result.status === "fulfilled" ? result.value : null);

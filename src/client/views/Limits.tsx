@@ -101,6 +101,11 @@ export function isUnavailable(card: HarnessLimitCard): boolean {
   return card.windows.length === 0 && !!card.error;
 }
 
+/** Whether a subscription card is on a free tier (hidden by default). */
+export function isFreePlan(card: Pick<HarnessLimitCard, "planName">): boolean {
+  return /\bfree\b/i.test(card.planName ?? "");
+}
+
 export function cardNeedsAttention(card: HarnessLimitCard): boolean {
   return isUnavailable(card) || card.windows.some((w) => w.status === "warning" || w.status === "critical");
 }
@@ -112,13 +117,13 @@ function attentionRank(card: HarnessLimitCard): number {
   return 3;
 }
 
-/** Cards that need attention first, then live before local, then by name so the order never shuffles. */
+/** Cards that need attention first, then grouped by tool name (live before local within a tool) so multi-account cards stay together. */
 export function sortCards(cards: HarnessLimitCard[]): HarnessLimitCard[] {
   return [...cards].sort(
     (a, b) =>
       attentionRank(a) - attentionRank(b) ||
-      (a.source === b.source ? 0 : a.source === "live" ? -1 : 1) ||
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) ||
+      (a.source === b.source ? 0 : a.source === "live" ? -1 : 1) ||
       a.id.localeCompare(b.id),
   );
 }
@@ -183,7 +188,7 @@ export function pickHeadlineCredit(credits: CardCredit[], nowMs = Date.now()): C
   return soonest?.credit ?? credits[0] ?? null;
 }
 
-/** A card note earns a line only when it says something the Live / Local tag does not. */
+/** A card note earns a line only when it explains a fallback or missing credential. */
 function usefulNote(card: HarnessLimitCard): string | null {
   const note = card.note?.trim();
   if (!note || /^estimated from local/i.test(note)) return null;
@@ -210,7 +215,7 @@ function RefreshButton({ refreshing, onRefresh, label }: { refreshing?: boolean;
 }
 
 /**
- * Compact strip shown on Overview / Tools: one tile per plan with its tightest window,
+ * Compact strip shown on Overview / Tools: one tile per paid plan with its tightest window,
  * and a link to the full Limits view.
  */
 export function LimitsSummaryStrip({
@@ -224,7 +229,11 @@ export function LimitsSummaryStrip({
   now?: number;
 }) {
   const nowMs = useNow(now);
-  const cards = useMemo(() => sortCards(limits?.items ?? []), [limits]);
+  const cards = useMemo(() => {
+    const all = sortCards(limits?.items ?? []);
+    const paid = all.filter((c) => !isFreePlan(c));
+    return paid.length > 0 ? paid : all;
+  }, [limits]);
 
   if (cards.length === 0) return null;
 
@@ -236,26 +245,50 @@ export function LimitsSummaryStrip({
           All limits
         </button>
       </div>
-      <div className="limits-strip-grid">
+      <div className="limits-strip-list">
         {cards.map((card) => (
-          <MiniCard key={card.id} card={card} nowMs={nowMs} onOpen={onOpenLimits} />
+          <StripRow
+            key={card.id}
+            card={card}
+            nowMs={nowMs}
+            onOpen={onOpenLimits}
+            showAccount={cards.some((other) => other !== card && other.name === card.name)}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-/** One tile of the strip. Every tile has the same four rows (tool, value, bar, line) so they line up. */
-function MiniCard({ card, nowMs, onOpen }: { card: HarnessLimitCard; nowMs: number; onOpen: () => void }) {
+/** Bars in the strip are neutral; only a window that is running low gets a colour. */
+function stripBarColor(status: QuotaWindow["status"]): string {
+  if (status === "critical") return "var(--error-text)";
+  if (status === "warning") return "var(--warning-text)";
+  return "var(--text-2)";
+}
+
+/** One row of the strip: tool, bar, value, note. Every row has the same four columns so they line up. */
+function StripRow({
+  card,
+  nowMs,
+  onOpen,
+  showAccount,
+}: {
+  card: HarnessLimitCard;
+  nowMs: number;
+  onOpen: () => void;
+  /** Two cards of the same tool (two accounts) need the account to tell them apart. */
+  showAccount: boolean;
+}) {
   const { seriesOf } = useDashboard();
-  const brandColor = seriesOf(card.harness).color;
   const primary = pickPrimaryWindow(card);
 
   let tone = "";
   let value: React.ReactNode;
   let barPercent = 0;
-  let barColor = brandColor;
-  let line = "";
+  let barColor = "var(--text-2)";
+  let barFaded = false;
+  let note = "";
 
   if (primary) {
     const { remaining, known } = windowPercents(primary);
@@ -264,7 +297,7 @@ function MiniCard({ card, nowMs, onOpen }: { card: HarnessLimitCard; nowMs: numb
     const staleAge = card.stale ? formatAge(card.staleSince, nowMs) : null;
     tone = ` is-${windowTone(primary)}${card.stale ? " is-stale" : ""}`;
     barPercent = known ? remaining : 0;
-    barColor = windowBarColor(brandColor, primary.status);
+    barColor = stripBarColor(primary.status);
     value = (
       <>
         {statusText && (
@@ -276,37 +309,41 @@ function MiniCard({ card, nowMs, onOpen }: { card: HarnessLimitCard; nowMs: numb
         {known ? `${formatPercent(remaining)}% left` : "No data"}
       </>
     );
-    line = card.stale
+    note = card.stale
       ? `Stale${staleAge ? ` · ${staleAge}` : ""}`
       : countdown
       ? describeReset(countdown)
       : primary.remainingValueText ?? primary.label;
   } else if (card.block) {
-    // No quota is known, so the bar shows how much of the 5-hour session is left in a neutral colour.
+    // No quota is known, so the faded bar only shows how much of the 5-hour session is left.
     const countdown = formatResetCountdown(card.block.endsAt, nowMs);
     const endMs = Date.parse(card.block.endsAt);
     barPercent = Number.isFinite(endMs) ? clampPercent(((endMs - nowMs) / (5 * 3600_000)) * 100) : 0;
-    barColor = "var(--text-3)";
+    barFaded = true;
     tone = " is-session";
-    value = countdown ? describeReset(countdown) : "Session ended";
-    line = describeBlockActivity(card.block);
+    value = "Session";
+    note = countdown ? (countdown === RESETTING_NOW ? "Session ended" : `Ends in ${countdown}`) : "Session ended";
   } else {
     tone = card.error ? " is-error" : " is-empty";
     value = card.error ? "Unavailable" : "No data";
-    line = card.error ?? "";
+    note = card.error ?? "";
   }
 
+  const brandColor = seriesOf(card.harness).color;
   return (
-    <button type="button" className={`limits-mini-card${tone}`} onClick={onOpen}>
-      <span className="limits-mini-tool">
+    <button type="button" className={`limits-row${tone}`} onClick={onOpen} title={card.account}>
+      <span className="limits-row-tool">
         <ToolMark harness={card.harness} name={card.name} color={brandColor} size={15} decorative />
         <strong>{card.name}</strong>
+        {showAccount && card.account && <span className="limits-row-account">{card.account}</span>}
       </span>
-      <span className="limits-mini-pct">{value}</span>
-      <div className="limits-mini-bar" aria-hidden="true">
-        <span style={{ width: barWidth(barPercent), background: barColor }} />
-      </div>
-      <p className="limits-mini-line">{line || " "}</p>
+      <span className="limits-row-bar" aria-hidden="true">
+        <span style={{ width: barWidth(barPercent), background: barColor, opacity: barFaded ? 0.35 : undefined }} />
+      </span>
+      <span className="limits-row-value">{value}</span>
+      <span className="limits-row-note" title={note}>
+        {note}
+      </span>
     </button>
   );
 }
@@ -317,6 +354,7 @@ export function Limits({
   onRefresh,
   error,
   now,
+  showFree: initialShowFree = false,
 }: {
   limits: LimitsPayload | null | undefined;
   refreshing?: boolean;
@@ -325,12 +363,20 @@ export function Limits({
   error?: string | null;
   /** Fixes the clock for the first render (tests). */
   now?: number;
+  /** Whether free plans start visible (defaults to false). */
+  showFree?: boolean;
 }) {
   const nowMs = useNow(now);
+  const [showFree, setShowFree] = useState(initialShowFree);
 
   // The Limits tab ignores the global tool filter: its picker is hidden here, so a filter set
   // elsewhere would leave a shortened list with no way to clear it.
-  const cards = useMemo(() => sortCards(limits?.items ?? []), [limits]);
+  const allCards = useMemo(() => sortCards(limits?.items ?? []), [limits]);
+  const freeCount = useMemo(() => allCards.filter(isFreePlan).length, [allCards]);
+  const cards = useMemo(
+    () => (showFree ? allCards : allCards.filter((c) => !isFreePlan(c))),
+    [allCards, showFree],
+  );
 
   if (!limits) {
     return error ? (
@@ -361,18 +407,41 @@ export function Limits({
       )}
 
       <div className="limits-bar">
-        {updated && (
-          <span className={`limits-updated${old ? " is-old" : ""}`}>
-            {old && <AlertTriangle size={13} aria-hidden="true" />}
-            <time dateTime={limits.generatedAt}>{updated}</time>
-          </span>
-        )}
-        {onRefresh && <RefreshButton refreshing={refreshing} onRefresh={onRefresh} label="Refresh" />}
+        <div className="limits-bar-status">
+          {updated && (
+            <span className={`limits-updated${old ? " is-old" : ""}`}>
+              {old && <AlertTriangle size={13} aria-hidden="true" />}
+              <time dateTime={limits.generatedAt}>{updated}</time>
+            </span>
+          )}
+        </div>
+        <div className="limits-bar-actions">
+          {freeCount > 0 && (
+            <button
+              type="button"
+              className="btn limits-free-toggle"
+              aria-pressed={showFree}
+              onClick={() => setShowFree((v) => !v)}
+            >
+              <span>{showFree ? `Hide free (${freeCount})` : `Show free (${freeCount})`}</span>
+            </button>
+          )}
+          {onRefresh && <RefreshButton refreshing={refreshing} onRefresh={onRefresh} label="Refresh" />}
+        </div>
       </div>
 
-      {cards.length === 0 ? (
+      {allCards.length === 0 ? (
         <section className="panel limits-empty">
           <p>No quota sources found. Sign in to Claude Code, Codex, Copilot or Antigravity.</p>
+        </section>
+      ) : cards.length === 0 ? (
+        <section className="panel limits-empty">
+          <p>
+            {freeCount} free {freeCount === 1 ? "subscription is" : "subscriptions are"} hidden by default.
+          </p>
+          <button type="button" className="btn" onClick={() => setShowFree(true)}>
+            <span>Show free ({freeCount})</span>
+          </button>
         </section>
       ) : (
         <div className="limits-grid">
@@ -420,12 +489,7 @@ function CardStatus({ card, unavailable, nowMs }: { card: HarnessLimitCard; unav
       </span>
     );
   }
-  return (
-    <span className={`limit-status is-${card.source}`}>
-      <i aria-hidden="true" />
-      {card.source === "live" ? "Live" : "Local"}
-    </span>
-  );
+  return null;
 }
 
 function LimitCard({ card, nowMs }: { card: HarnessLimitCard; nowMs: number }) {
@@ -438,23 +502,30 @@ function LimitCard({ card, nowMs }: { card: HarnessLimitCard; nowMs: number }) {
   const tone = hasCritical ? "is-critical" : unavailable ? "is-error" : hasWarning ? "is-warning" : "";
 
   const credit = pickHeadlineCredit(card.credits ?? [], nowMs);
-  const breakdownItems = card.breakdown?.items ?? [];
   const note = usefulNote(card);
   const refreshFailed = !!card.error && !unavailable;
-  const hasFoot = !!credit || breakdownItems.length > 0 || !!note || refreshFailed;
+  const hasFoot = !!credit || !!note || refreshFailed;
+  const statusEl = CardStatus({ card, unavailable, nowMs });
 
   return (
     <article
       className={["panel limit-card", tone, card.stale && "is-stale"].filter(Boolean).join(" ")}
-      aria-label={`${card.name} usage limits`}
+      aria-label={`${card.name}${card.account ? ` (${card.account})` : ""} usage limits`}
     >
       <header className="limit-card-head">
         <div className="limit-card-title">
           <ToolMark harness={card.harness} name={card.name} color={brandColor} size={18} decorative />
-          <h3>{card.name}</h3>
+          <div className="limit-card-title-text">
+            <h3>{card.name}</h3>
+            {card.account && <span className="limit-card-account">{card.account}</span>}
+          </div>
         </div>
-        {card.planName && <span className="limit-plan-badge">{card.planName}</span>}
-        <CardStatus card={card} unavailable={unavailable} nowMs={nowMs} />
+        {(card.planName || statusEl) && (
+          <div className="limit-card-badges">
+            {card.planName && <span className="limit-plan-badge">{card.planName}</span>}
+            {statusEl}
+          </div>
+        )}
       </header>
 
       {unavailable ? (
@@ -474,24 +545,13 @@ function LimitCard({ card, nowMs }: { card: HarnessLimitCard; nowMs: number }) {
       {hasFoot && (
         <footer className="limit-card-foot">
           {credit && (
-            <p className="limit-line">
-              {credit.label} {credit.remainingText}
-              {(card.credits?.length ?? 0) > 1 ? ` (+${card.credits!.length - 1} more)` : ""}
-            </p>
-          )}
-          {breakdownItems.length > 0 && (
-            <details className="limit-breakdown">
-              <summary>Breakdown</summary>
-              <p className="limit-breakdown-label">{card.breakdown!.label}</p>
-              <ul>
-                {breakdownItems.map((item, i) => (
-                  <li key={`${item.name}-${i}`}>
-                    <span>{item.name}</span>
-                    <span>{formatPercent(item.percent)}%</span>
-                  </li>
-                ))}
-              </ul>
-            </details>
+            <div className="limit-credit-row">
+              <span>{credit.label}</span>
+              <strong>
+                {credit.remainingText}
+                {(card.credits?.length ?? 0) > 1 ? ` (+${card.credits!.length - 1} more)` : ""}
+              </strong>
+            </div>
           )}
           {refreshFailed && <p className="limit-line is-error">Last refresh failed: {card.error}</p>}
           {note && <p className="limit-line">{note}</p>}
@@ -503,15 +563,22 @@ function LimitCard({ card, nowMs }: { card: HarnessLimitCard; nowMs: number }) {
 
 function BlockRow({ block, nowMs }: { block: NonNullable<HarnessLimitCard["block"]>; nowMs: number }) {
   const countdown = formatResetCountdown(block.endsAt, nowMs);
+  const endMs = Date.parse(block.endsAt);
+  const barPercent = Number.isFinite(endMs) ? clampPercent(((endMs - nowMs) / (5 * 3600_000)) * 100) : 0;
   return (
     <div className="limit-window is-ok">
       <div className="limit-window-top">
-        <span className="limit-window-label">5-hour session</span>
+        <span className="limit-window-label">5-hour window</span>
         <span className="limit-window-num">
           <span className="limit-window-pct is-ok">{countdown ? describeReset(countdown) : "Session ended"}</span>
         </span>
       </div>
-      <p className="limit-window-foot">{describeBlockActivity(block)}</p>
+      <div className="limit-bar-track" aria-hidden="true">
+        <span className="limit-bar-fill" style={{ width: barWidth(barPercent), background: "var(--text-3)" }} />
+      </div>
+      <div className="limit-window-foot">
+        <span>{describeBlockActivity(block)}</span>
+      </div>
     </div>
   );
 }
@@ -527,20 +594,23 @@ function WindowRow({
   brandColor: string;
   nowMs: number;
 }) {
-  const { remaining, known } = windowPercents(win);
+  const { remaining, used, known } = windowPercents(win);
   const tone = windowTone(win);
   const statusText = windowStatusText(win);
   const countdown = formatResetCountdown(win.resetsAt, nowMs);
-  const reset = countdown ? describeReset(countdown) : null;
-  // Amounts when the provider gives them ("$1.98 of $60.00 used"), else the used share ("44% used").
-  const { used } = windowPercents(win);
-  const counter =
-    win.usedValueText && win.limitValueText
-      ? `${win.usedValueText} of ${win.limitValueText} used`
-      : known
-      ? `${formatPercent(used)}% used`
-      : null;
-  const foot = [counter, reset].filter(Boolean).join(" · ");
+  const reset = countdown
+    ? describeReset(countdown)
+    : finite(win.windowSeconds) && win.windowSeconds > 0 && known && used <= 0
+    ? "Resets on use"
+    : null;
+
+  const usedText = known
+    ? win.usedValueText && win.limitValueText
+      ? `${formatPercent(used)}% used (${win.usedValueText} / ${win.limitValueText})`
+      : `${formatPercent(used)}% used`
+    : win.usedValueText && win.limitValueText
+    ? `${win.usedValueText} / ${win.limitValueText} used`
+    : null;
 
   const pctText = known ? `${formatPercent(remaining)}% left` : "No data";
   const valueText = [pctText, reset?.toLowerCase(), statusText?.toLowerCase()].filter(Boolean).join(", ");
@@ -554,8 +624,6 @@ function WindowRow({
           <span className={`limit-window-pct is-${tone}`}>{pctText}</span>
         </span>
       </div>
-
-      {win.detail && <p className="limit-window-detail">{win.detail}</p>}
 
       <div
         className="limit-bar-track"
@@ -572,7 +640,12 @@ function WindowRow({
         />
       </div>
 
-      {foot && <p className="limit-window-foot">{foot}</p>}
+      {(usedText || reset) && (
+        <div className="limit-window-foot">
+          <span>{usedText}</span>
+          {reset && <span>{reset}</span>}
+        </div>
+      )}
     </li>
   );
 }

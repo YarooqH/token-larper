@@ -420,4 +420,24 @@ describe("antigravity account selection", () => {
     expect(liveMatchesLocal([q("Claude Opus 4.6")], [q("Gemini 3.5 Flash")])).toBe(true);
     expect(liveMatchesLocal([], [q("Gemini 3.5 Flash")])).toBe(true);
   });
+
+  test("mergeWithCache handles multiple account cards per provider and carries them over when stale", () => {
+    const now = Date.parse("2026-10-14T12:00:00Z");
+    const acc1 = makeCard("antigravity:a@example.com", new Date(now - 60_000).toISOString(), {
+      harness: "antigravity",
+      account: "a@example.com",
+    });
+    const acc2 = makeCard("antigravity:b@example.com", new Date(now - 60_000).toISOString(), {
+      harness: "antigravity",
+      account: "b@example.com",
+    });
+    const freshItems = mergeWithCache(new Map(), new Map([["antigravity", [acc1, acc2]]]), now);
+    expect(freshItems.map((i) => i.id)).toEqual(["antigravity:a@example.com", "antigravity:b@example.com"]);
+
+    const prevMap = new Map(freshItems.map((i) => [i.id, i]));
+    const staleItems = mergeWithCache(prevMap, new Map([["antigravity", []]]), now);
+    expect(staleItems).toHaveLength(2);
+    expect(staleItems[0]?.stale).toBe(true);
+    expect(staleItems[1]?.stale).toBe(true);
+  });
 });

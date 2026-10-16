@@ -8,6 +8,7 @@ import {
   formatAge,
   formatPercent,
   formatResetCountdown,
+  isFreePlan,
   Limits,
   LimitsSummaryStrip,
   pickHeadlineCredit,
@@ -28,6 +29,7 @@ const sampleLimits: LimitsPayload = {
       harness: "claude",
       name: "Claude Code",
       vendor: "Anthropic",
+      account: "user@example.com",
       planName: "Claude Pro",
       source: "live",
       sourceLabel: "Anthropic OAuth",
@@ -35,7 +37,7 @@ const sampleLimits: LimitsPayload = {
       windows: [
         {
           id: "five_hour",
-          label: "5-hour session",
+          label: "5-hour window",
           sublabel: "Rolling 5h block",
           usedPercent: 100,
           remainingPercent: 0,
@@ -76,7 +78,7 @@ const sampleLimits: LimitsPayload = {
       harness: "opencode",
       name: "OpenCode Go",
       vendor: "Anomaly",
-      planName: "OpenCode Go ($10/mo)",
+      planName: "OpenCode Go",
       source: "local",
       sourceLabel: "Local rolling ledger",
       updatedAt: "2026-10-14T03:00:00Z",
@@ -190,16 +192,25 @@ describe("Limits helpers", () => {
     expect(sorted.map((w) => w.id)).toEqual(["five_a", "five_b", "week", "unknown", "nan"]);
   });
 
-  test("sortCards orders attention first, then live before local, then by name", () => {
+  test("sortCards orders attention first, then groups by name (live before local within a tool)", () => {
     const sorted = sortCards([
       card({ id: "local-a", name: "Alpha", source: "local" }),
+      card({ id: "live-a", name: "Alpha", source: "live" }),
       card({ id: "live-z", name: "Zed", source: "live" }),
       card({ id: "live-b", name: "beta", source: "live" }),
       card({ id: "warn", name: "Warned", source: "local", windows: [win({ status: "warning", remainingPercent: 15 })] }),
       card({ id: "err", name: "Broken", source: "live", windows: [], error: "expired" }),
       card({ id: "crit", name: "Critical", source: "local", windows: [win({ status: "critical", remainingPercent: 0 })] }),
     ]);
-    expect(sorted.map((c) => c.id)).toEqual(["crit", "err", "warn", "live-b", "live-z", "local-a"]);
+    expect(sorted.map((c) => c.id)).toEqual(["crit", "err", "warn", "live-a", "local-a", "live-b", "live-z"]);
+  });
+
+  test("isFreePlan identifies free subscription tiers", () => {
+    expect(isFreePlan({ planName: "ChatGPT Free" })).toBe(true);
+    expect(isFreePlan({ planName: "Copilot Free" })).toBe(true);
+    expect(isFreePlan({ planName: "Claude Pro" })).toBe(false);
+    expect(isFreePlan({ planName: "Google AI Ultra" })).toBe(false);
+    expect(isFreePlan({ planName: undefined })).toBe(false);
   });
 
   test("cardNeedsAttention covers flagged windows and unreadable providers", () => {
@@ -231,32 +242,63 @@ describe("Limits view", () => {
     }
   });
 
-  test("a card is title, plan, one status word, windows and a single credit line", () => {
+  test("a card has consistent header (title, account, plan badge), windows, and credit row without Live/Local dots", () => {
     const html = view(<Limits limits={sampleLimits} now={NOW} />);
     expect(html).toContain("Claude Pro");
-    expect(html).toContain("OpenCode Go ($10/mo)");
-    expect(html).toContain("5-hour session");
+    expect(html).toContain("user@example.com");
+    expect(html).toContain("OpenCode Go");
+    expect(html).toContain("5-hour window");
     expect(html).toContain("0% left");
     expect(html).toContain("44% left");
-    expect(html).toContain("Promo credit $100.00 left");
-    expect(html).toContain("Live");
-    expect(html).toContain("Local");
+    expect(html).toContain("<span>Promo credit</span><strong>$100.00 left</strong>");
+    expect(html).not.toContain(">Live<");
+    expect(html).not.toContain(">Local<");
+    expect(html).not.toContain("limit-breakdown");
     for (const gone of ["Anthropic", "Anomaly", "Anthropic OAuth", "Local rolling ledger", "Rolling 5h block", "$60 rolling cap", "% of window consumed", "Running low"]) {
       expect(html).not.toContain(gone);
     }
   });
 
-  test("a window is a label, a percent, a bar and one muted line with the dollar counter and reset", () => {
+  test("a window has a consistent label, percent left, bar, and footer with percent used and reset", () => {
     const html = view(<Limits limits={sampleLimits} now={NOW} />);
-    expect(html.indexOf("5-hour session")).toBeLessThan(html.indexOf("7-day weekly"));
+    expect(html.indexOf("5-hour window")).toBeLessThan(html.indexOf("7-day weekly"));
     expect(html).toContain("Resets in 4d 20h");
-    expect(html).toContain("$1.98 of $60.00 used · Resets in 2d 21h");
-    // Percent-only providers still say how much is used.
-    expect(html).toContain("56% used · Resets in 4d 20h");
+    expect(html).toContain("<span>3% used ($1.98 / $60.00)</span><span>Resets in 2d 21h</span>");
+    expect(html).toContain("<span>56% used</span><span>Resets in 4d 20h</span>");
     expect(html).toContain('role="progressbar"');
     expect(html).toContain('aria-valuetext="44% left, resets in 4d 20h"');
     expect(html).toContain("limit-bar-fill");
     expect(html).not.toContain("limit-bar-pace");
+  });
+
+  test("hides free subscriptions by default and shows a Show free toggle button", () => {
+    const withFree = payload([
+      ...sampleLimits.items,
+      card({ id: "codex", harness: "codex", name: "Codex", account: "user@example.com", planName: "ChatGPT Free" }),
+      card({ id: "copilot", harness: "copilot", name: "Copilot", account: "ghuser", planName: "Copilot Free" }),
+    ]);
+    const hiddenHtml = view(<Limits limits={withFree} now={NOW} />);
+    expect(hiddenHtml).toContain("Claude Pro");
+    expect(hiddenHtml).not.toContain("ChatGPT Free");
+    expect(hiddenHtml).not.toContain("Copilot Free");
+    expect(hiddenHtml).toContain("Show free (2)");
+
+    const shownHtml = view(<Limits limits={withFree} now={NOW} showFree />);
+    expect(shownHtml).toContain("ChatGPT Free");
+    expect(shownHtml).toContain("Copilot Free");
+    expect(shownHtml).toContain("Hide free (2)");
+  });
+
+  test("renders multiple accounts for the same provider with distinct account labels", () => {
+    const multi = payload([
+      card({ id: "antigravity:a", harness: "antigravity", name: "Antigravity", account: "ultra@example.com", planName: "Google AI Ultra" }),
+      card({ id: "antigravity:b", harness: "antigravity", name: "Antigravity", account: "pro@example.com", planName: "Google AI Pro" }),
+    ]);
+    const html = view(<Limits limits={multi} now={NOW} />);
+    expect(html).toContain("ultra@example.com");
+    expect(html).toContain("pro@example.com");
+    expect(html).toContain("Google AI Ultra");
+    expect(html).toContain("Google AI Pro");
   });
 
   test("critical and warning windows carry a word as well as colour, and the progressbar says it", () => {
@@ -271,7 +313,7 @@ describe("Limits view", () => {
   test("does not apply the global tool filter, since the picker is hidden on this view", () => {
     const html = view(<Limits limits={sampleLimits} now={NOW} />, { harness: "claude" });
     expect(html).toContain("Claude Pro");
-    expect(html).toContain("OpenCode Go ($10/mo)");
+    expect(html).toContain("OpenCode Go");
   });
 
   test("a stale card says only Stale, keeps its countdowns, and dims via is-stale", () => {
@@ -327,14 +369,7 @@ describe("Limits view", () => {
     expect(html).toContain("limit-windows");
   });
 
-  test("the breakdown sits in a collapsed details element", () => {
-    const html = view(<Limits limits={sampleLimits} now={NOW} />);
-    expect(html).toContain('<details class="limit-breakdown"><summary>Breakdown</summary>');
-    expect(html).not.toContain("<details open");
-    expect(html).toContain("97%");
-  });
-
-  test("extra credits are one line per card: the soonest-expiring bucket with a count of the rest", () => {
+  test("extra credits are one row per card: the soonest-expiring bucket with a count of the rest", () => {
     const html = view(
       <Limits
         limits={payload([
@@ -350,8 +385,7 @@ describe("Limits view", () => {
         now={NOW}
       />,
     );
-    expect(html).toContain("Promo $9.00 left (+1 more)");
-    expect((html.match(/limit-line/g) ?? []).length).toBe(1);
+    expect(html).toContain('<div class="limit-credit-row"><span>Promo</span><strong>$9.00 left (+1 more)</strong></div>');
   });
 
   test("the header flags an old payload with a short age and nothing else", () => {
@@ -403,6 +437,46 @@ describe("Limits view", () => {
   });
 });
 
+describe("strip rows", () => {
+  test("each row is tool, bar, value and note, with a neutral bar unless the window is low", () => {
+    const html = view(<LimitsSummaryStrip limits={sampleLimits} onOpenLimits={() => {}} now={NOW} />);
+    expect(html).toContain("limits-row-tool");
+    expect(html).toContain("limits-row-bar");
+    expect(html).toContain("limits-row-value");
+    expect(html).toContain("limits-row-note");
+    expect(html).toContain("background:var(--text-2)");
+    expect(html).toContain("background:var(--error-text)");
+    expect(html).not.toContain("limits-mini");
+  });
+
+  test("two accounts of one tool are told apart by the account", () => {
+    const html = view(
+      <LimitsSummaryStrip
+        limits={payload([
+          card({ id: "a", name: "Antigravity", planName: "Google AI Ultra", account: "ultra@example.com" }),
+          card({ id: "b", name: "Antigravity", planName: "Google AI Pro", account: "pro@example.com" }),
+        ])}
+        onOpenLimits={() => {}}
+        now={NOW}
+      />,
+    );
+    expect(html).toContain("ultra@example.com");
+    expect(html).toContain("pro@example.com");
+  });
+
+  test("an error row says Unavailable and keeps the message as its note", () => {
+    const html = view(
+      <LimitsSummaryStrip
+        limits={payload([card({ id: "bad", name: "Expired Tool", planName: "Pro", windows: [], error: "Sign in again." })])}
+        onOpenLimits={() => {}}
+        now={NOW}
+      />,
+    );
+    expect(html).toContain("Unavailable");
+    expect(html).toContain("Sign in again.");
+  });
+});
+
 describe("local session block", () => {
   const blockCard = card({
     id: "claude",
@@ -414,25 +488,26 @@ describe("local session block", () => {
     block: { startsAt: "2026-10-14T01:30:00Z", endsAt: "2026-10-14T06:30:00Z", messages: 127, tokens: 867_389 },
   });
 
-  test("a card shows the session reset and activity, with no percentage and no empty-state text", () => {
+  test("a card shows the session reset, progress bar, and activity, with no percentage and no empty-state text", () => {
     const html = view(<Limits limits={payload([blockCard])} now={NOW} />);
-    expect(html).toContain("5-hour session");
+    expect(html).toContain("5-hour window");
     expect(html).toContain("Resets in 3h 30m");
     expect(html).toContain("127 messages");
     expect(html).toContain("867.4K tokens");
-    expect(html).toContain("Local");
+    expect(html).toContain("limit-bar-track");
     expect(html).toContain("Claude sign-in expired.");
     expect(html).not.toContain("% left");
     expect(html).not.toContain("No quota data yet");
     expect(html).not.toContain("Unavailable");
   });
 
-  test("the strip tile shows the reset and activity instead of dropping the plan", () => {
+  test("the strip row shows the session end instead of dropping the plan", () => {
     const html = view(<LimitsSummaryStrip limits={payload([blockCard])} onOpenLimits={() => {}} now={NOW} />);
     expect(html).toContain("Claude Code");
-    expect(html).toContain("Resets in 3h 30m");
-    expect(html).toContain("127 messages");
+    expect(html).toContain("Session");
+    expect(html).toContain("Ends in 3h 30m");
     expect(html).not.toContain("No data");
+    expect(html).not.toContain("% left");
   });
 
   test("a single message and a bad token count do not break the line", () => {
@@ -504,7 +579,7 @@ describe("Limits worst-case data", () => {
 
   test("the strip lists every plan and prints no NaN", () => {
     const html = view(<LimitsSummaryStrip limits={worst} onOpenLimits={() => {}} now={NOW} />);
-    expect((html.match(/<button[^>]*limits-mini-card/g) ?? []).length).toBe(12);
+    expect((html.match(/<button[^>]*limits-row/g) ?? []).length).toBe(12);
     expect(html).not.toContain("more plan");
     expect(html).not.toContain("NaN");
   });
