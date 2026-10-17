@@ -228,7 +228,7 @@ export const HARNESS_DEFINITIONS: HarnessDefinition[] = [
 ];
 
 function resolveCcusageBinary(): { cmd: string[]; version: string } {
-  let version = "20.0.24";
+  let version = "20.0.34";
   try {
     const pkgPath = join(ROOT_DIR, "node_modules", "ccusage", "package.json");
     if (existsSync(pkgPath)) {
