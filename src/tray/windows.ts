@@ -199,7 +199,7 @@ $popup.Add_Deactivate({
 
 function Show-StatusPopup {
   # Refresh first so the numbers and colors are current when it appears.
-  Update-TrayStatus
+  Update-TrayStatus $true
   $cursor = [System.Windows.Forms.Cursor]::Position
   $area = [System.Windows.Forms.Screen]::FromPoint($cursor).WorkingArea
   $x = [Math]::Max($area.Left + 8, [Math]::Min($cursor.X - $popup.Width + 24, $area.Right - $popup.Width - 8))
@@ -295,6 +295,13 @@ $menu.Items.Add($itemQuit) | Out-Null
 
 $notifyIcon.ContextMenuStrip = $menu
 
+$script:refetchTimer = New-Object System.Windows.Forms.Timer
+$script:refetchTimer.Interval = 5000
+$script:refetchTimer.Add_Tick({
+  $script:refetchTimer.Stop()
+  if ($popup.Visible) { Update-TrayStatus }
+})
+
 # Left-click toggles the status popup; right-click keeps the context menu.
 $notifyIcon.Add_MouseClick({
   param($sender, $eventArgs)
@@ -309,9 +316,11 @@ $notifyIcon.Add_MouseClick({
   }
 })
 
-function Update-TrayStatus {
+function Update-TrayStatus([bool]$popupOpen = $false) {
   try {
-    $st = Invoke-RestMethod -Uri "$BaseUrl/api/tray-status" -Method Get -TimeoutSec 4
+    # Opening the popup asks the server for a fresh snapshot, which can take a few seconds.
+    $uri = if ($popupOpen) { "$BaseUrl/api/tray-status?popup=1" } else { "$BaseUrl/api/tray-status" }
+    $st = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec $(if ($popupOpen) { 6 } else { 4 })
     if ($null -ne $st) {
       $itemStats.Text = $st.summaryText
       $tooltip = "Token Larper: $($st.shortTooltip)"
@@ -330,6 +339,11 @@ function Update-TrayStatus {
       $popupStreak.ForeColor = if ($st.streakActive) { $script:popupColors.gold } else { $script:popupColors.text3 }
       $itemBoot.Checked = [bool]$st.bootEnabled
       $itemOpenOnBoot.Checked = [bool]$st.openBrowserOnBoot
+      # The rescan outlasted the request: look again once it has had time to finish.
+      if ($popupOpen -and $st.refreshing) {
+        $script:refetchTimer.Stop()
+        $script:refetchTimer.Start()
+      }
     }
   } catch {
     $popupTodayTokens.Text = "Unavailable"

@@ -49,7 +49,45 @@ export function saveTheme(next: TrayTheme): void {
 const compact = (n: number) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumSignificantDigits: 3 }).format(n);
 
-export function buildTrayStatus(data: DashboardPayload, startup: StartupConfig) {
+/** A full ccusage rescan runs every harness, so it is not worth doing on every 15 s poll. */
+const POLL_MAX_AGE_MS = 5 * 60_000;
+/** Opening the popup is someone looking at the numbers, so those get a fresher snapshot. */
+const POPUP_MAX_AGE_MS = 60_000;
+/** The tray gives up on the popup's request after 6 s; a slower rescan is left to finish and re-polled. */
+const POPUP_REFRESH_WAIT_MS = 3_500;
+
+/**
+ * The dashboard payload for the tray. The cache only refreshes when a dashboard tab asks, so with the
+ * browser closed it would sit at whatever it held when that tab last synced (and read "no usage yet"
+ * all morning). A stale snapshot starts a rescan; only the popup waits for it, and `refreshing` says
+ * the numbers are about to change.
+ */
+export async function trayDashboardData(
+  read: (options: { refresh: boolean }) => Promise<DashboardPayload>,
+  refresh: () => Promise<DashboardPayload>,
+  { popup = false, now = Date.now() }: { popup?: boolean; now?: number } = {},
+): Promise<{ data: DashboardPayload; refreshing: boolean }> {
+  const cached = await read({ refresh: false });
+  const age = now - new Date(cached.generatedAt).getTime();
+  if (Number.isFinite(age) && age < (popup ? POPUP_MAX_AGE_MS : POLL_MAX_AGE_MS)) {
+    return { data: cached, refreshing: false };
+  }
+  const rescan = refresh().catch(() => cached);
+  // A poll never waits: it starts the rescan and the next poll sees the result.
+  if (!popup) return { data: cached, refreshing: true };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), POPUP_REFRESH_WAIT_MS);
+  });
+  try {
+    const data = await Promise.race([rescan, timeout]);
+    return data ? { data, refreshing: false } : { data: cached, refreshing: true };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export function buildTrayStatus(data: DashboardPayload, startup: StartupConfig, refreshing = false) {
   const today = localDateKey(new Date());
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 6);
@@ -78,7 +116,9 @@ export function buildTrayStatus(data: DashboardPayload, startup: StartupConfig) 
     streakText: streak.days > 0 ? `${streak.days} day streak` : "No streak",
     // Lit once today has usage; dim while the streak still needs today (or there is none).
     streakActive: streak.days > 0 && streak.doneToday,
-    updatedText: syncing ? "Syncing…" : `Updated ${updated}`,
+    updatedText: syncing || refreshing ? "Syncing…" : `Updated ${updated}`,
+    // The popup asks again shortly when its rescan outlasted the request.
+    refreshing,
     theme,
     // Menu and tooltip
     summaryText: `Today ${compact(todayTokens)} · ${formatCurrency(todayCost)}   All time ${allTime}`,

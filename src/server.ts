@@ -2,13 +2,13 @@ import "./logFile.ts";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildClientBundle, PREBUILT_CLIENT } from "./clientBuild.ts";
-import { getDashboardData, stopCcusageRuns, withPricing } from "./ccusage.ts";
+import { getDashboardData, refreshAllHarnesses, stopCcusageRuns, withPricing } from "./ccusage.ts";
 import { getStartupStatus, repointStartupIfStale, setStartupStatus } from "./startup.ts";
 import { getThroughput } from "./throughput/index.ts";
 import { getLimitsData } from "./limits/index.ts";
 import { liveResponse } from "./live/index.ts";
 import { startSystemTray, stopSystemTray } from "./tray/index.ts";
-import { buildTrayStatus, parseTheme, saveTheme } from "./trayStatus.ts";
+import { buildTrayStatus, parseTheme, saveTheme, trayDashboardData } from "./trayStatus.ts";
 import { logoSvgFile } from "./client/logoMark.ts";
 import { appleTouchIconPng, faviconIco } from "./icons.ts";
 import { APP_VERSION, RUNNING_FROM_SOURCE } from "./paths.ts";
@@ -202,11 +202,11 @@ function startServer(preferredPort: number) {
     }
 
     if (url.pathname === "/api/tray-status" && req.method === "GET") {
-      const [data, startup] = await Promise.all([
-        getDashboardData({ refresh: false }),
+      const [{ data, refreshing }, startup] = await Promise.all([
+        trayDashboardData(getDashboardData, () => refreshAllHarnesses(), { popup: url.searchParams.get("popup") === "1" }),
         getStartupStatus(PORT),
       ]);
-      return Response.json(buildTrayStatus(data, startup));
+      return Response.json(buildTrayStatus(data, startup, refreshing));
     }
 
     // The dashboard reports its resolved theme colors so the tray popup can match them.
