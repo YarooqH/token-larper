@@ -1,6 +1,6 @@
 import type { DashboardPayload, HarnessId, TimePeriodRow } from "../../types.ts";
 import { formatCompactNumber, formatCurrency, localDateKey } from "../utils.ts";
-import { addDays, formatDay, formatSpan, parseDay, todayKey } from "./range.ts";
+import { addDays, daysInRange, formatDay, formatSpan, parseDay, todayKey } from "./range.ts";
 
 // Everything on the Rank tab is lifetime and computed from data the dashboard already
 // has; filters never change it. Sessions can stay open for weeks (Antigravity keeps one
@@ -87,10 +87,18 @@ export function lastDefeated(tokens: number): Rival | null {
 
 // ---------- Lifetime stats ----------
 
+/** Lifetime tokens that earn one streak freeze. */
+export const FREEZE_EVERY = 500e6;
+/** Tokens in a day that light the flame. Any usage still keeps the streak. */
+export const DAILY_GOAL = 500e3;
+
 export interface Streak {
+  /** Days with usage; frozen days keep the run alive without adding to it. */
   days: number;
   start: string;
   end: string;
+  /** Missed days a freeze covered, oldest first. */
+  frozen: string[];
 }
 
 export interface LifetimeStats {
@@ -142,40 +150,92 @@ function activeDaysOf(data: DashboardPayload): TimePeriodRow[] {
   return data.daily.filter((d) => d.totalTokens > 0).sort((a, b) => a.period.localeCompare(b.period));
 }
 
+interface StreakWalk {
+  longest: Streak | null;
+  current: Streak | null;
+  /** Freezes earned and not yet spent. */
+  freezes: number;
+  /** Lifetime tokens still needed for the next freeze. */
+  nextFreezeIn: number;
+}
+
 /**
  * Consecutive-day runs over sorted active days. A run still counts as current when its
  * last day is yesterday: today isn't over, so the streak is alive until it's missed.
+ *
+ * Every FREEZE_EVERY lifetime tokens earns a freeze. A gap is frozen only when the
+ * freezes earned before it cover every missed day; otherwise the run breaks and the
+ * freezes are kept. Replaying history this way gives the same answer on every load.
  */
-function streaksOf(days: TimePeriodRow[], today: string): { longest: Streak | null; current: Streak | null } {
+function streaksOf(days: TimePeriodRow[], today: string): StreakWalk {
   let longest: Streak | null = null;
   let run: Streak | null = null;
+  let tokens = 0;
+  let spent = 0;
+  // Missed days strictly between two days, or null when the freezes in hand can't cover them.
+  const bridge = (from: string, to: string): string[] | null => {
+    const missed = daysInRange(from, to) - 2;
+    if (missed > Math.floor(tokens / FREEZE_EVERY) - spent) return null;
+    return Array.from({ length: missed }, (_, i) => addDays(from, i + 1));
+  };
   for (const d of days) {
     const prev: Streak | null = run;
+    const gap = prev ? bridge(prev.end, d.period) : null;
     const next: Streak =
-      prev && addDays(prev.end, 1) === d.period
-        ? { days: prev.days + 1, start: prev.start, end: d.period }
-        : { days: 1, start: d.period, end: d.period };
+      prev && gap
+        ? { days: prev.days + 1, start: prev.start, end: d.period, frozen: [...prev.frozen, ...gap] }
+        : { days: 1, start: d.period, end: d.period, frozen: [] };
+    if (gap) spent += gap.length;
     run = next;
+    tokens += d.totalTokens;
     if (!longest || next.days > longest.days) longest = next;
   }
   const last: Streak | null = run;
-  const current = last && (last.end === today || last.end === addDays(today, -1)) ? last : null;
-  return { longest, current };
+  let current: Streak | null = null;
+  if (last && last.end >= today) current = last;
+  else if (last) {
+    const gap = bridge(last.end, today);
+    if (gap) {
+      spent += gap.length;
+      current = { ...last, frozen: [...last.frozen, ...gap] };
+    }
+  }
+  return {
+    longest,
+    current,
+    freezes: Math.floor(tokens / FREEZE_EVERY) - spent,
+    nextFreezeIn: FREEZE_EVERY - (tokens % FREEZE_EVERY),
+  };
 }
 
 export interface DayStreak {
-  /** Consecutive active days ending today, or yesterday if today has no usage yet. */
+  /** Active days in the streak ending today, or yesterday if today has no usage yet. */
   days: number;
   /** Whether today already has usage, so the streak is safe for the day. */
   doneToday: boolean;
+  todayTokens: number;
+  /** Whether today reached DAILY_GOAL, which lights the flame. */
+  goalMet: boolean;
+  /** Freezes ready to cover a missed day. */
+  freezes: number;
+  nextFreezeIn: number;
+  /** Missed days in this streak that a freeze covered, oldest first. */
+  frozen: string[];
 }
 
 /** The streak shown in the header and the tray popup. */
 export function dayStreak(data: DashboardPayload, today: string = todayKey()): DayStreak {
   const days = activeDaysOf(data);
+  const walk = streaksOf(days, today);
+  const todayTokens = days.find((d) => d.period === today)?.totalTokens ?? 0;
   return {
-    days: streaksOf(days, today).current?.days ?? 0,
-    doneToday: days.some((d) => d.period === today),
+    days: walk.current?.days ?? 0,
+    doneToday: todayTokens > 0,
+    todayTokens,
+    goalMet: todayTokens >= DAILY_GOAL,
+    freezes: walk.freezes,
+    nextFreezeIn: walk.nextFreezeIn,
+    frozen: walk.current?.frozen ?? [],
   };
 }
 

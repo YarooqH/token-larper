@@ -15,6 +15,7 @@ import {
   Moon,
   Share2,
   Shield,
+  Snowflake,
   Sparkles,
   Trophy,
   Waves,
@@ -22,7 +23,7 @@ import {
   type Icon,
 } from "../components/Icons.tsx";
 import { useDashboard } from "../context.tsx";
-import { achievements, dayStreak, lastDefeated, lifetimeStats, nextRival, rankFor, TIERS } from "../lib/rank.ts";
+import { achievements, DAILY_GOAL, dayStreak, FREEZE_EVERY, lastDefeated, lifetimeStats, nextRival, rankFor, TIERS } from "../lib/rank.ts";
 import { addDays, parseDay, todayKey } from "../lib/range.ts";
 import { cardPng, shareCardSvg, svgDataUrl, themeCardColors } from "../lib/shareCard.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
@@ -43,6 +44,34 @@ const TROPHY_ICONS: Record<string, Icon> = {
   hopper: FolderGit2,
   collector: Boxes,
   loyalist: Heart,
+};
+
+// Earned seals take a color from the chart series, so the row isn't one flat gold.
+const SEAL_COLORS: Record<string, string> = {
+  billion: "var(--series-4)",
+  "ten-billion": "var(--series-5)",
+  "streak-7": "var(--flame)",
+  "streak-30": "var(--flame)",
+  "night-owl": "var(--series-7)",
+  polyglot: "var(--series-1)",
+  whale: "var(--series-1)",
+  leviathan: "var(--freeze)",
+  "big-spender": "var(--series-6)",
+  "free-lunch": "var(--series-3)",
+  weekend: "var(--series-2)",
+  "cache-goblin": "var(--series-3)",
+  hopper: "var(--series-7)",
+  collector: "var(--series-2)",
+  loyalist: "var(--series-5)",
+};
+
+type DayState = "goal" | "used" | "frozen" | "none";
+
+const DAY_STATE_LABELS: Record<DayState, string> = {
+  goal: "hit the daily goal",
+  used: "used a coding tool",
+  frozen: "streak freeze used",
+  none: "no usage",
 };
 
 function ShareDialog({ svg, showCost, setShowCost, onClose }: {
@@ -142,15 +171,19 @@ export function Rank() {
 
   const streak = dayStreak(data);
   const best = stats.longestStreak?.days ?? 0;
-  const lit = streak.days > 0 && streak.doneToday;
+  const lit = streak.days > 0 && streak.goalMet;
   const today = todayKey();
-  const activeDays = useMemo(() => new Set(stats.days.map((d) => d.period)), [stats.days]);
+  const tokensByDay = useMemo(() => new Map(stats.days.map((d) => [d.period, d.totalTokens])), [stats.days]);
+  const frozenDays = new Set(streak.frozen);
   const week = Array.from({ length: 7 }, (_, i) => {
     const key = addDays(today, i - 6);
     const date = parseDay(key);
+    const tokens = tokensByDay.get(key);
+    const state: DayState =
+      tokens !== undefined ? (tokens >= DAILY_GOAL ? "goal" : "used") : frozenDays.has(key) ? "frozen" : "none";
     return {
       key,
-      used: activeDays.has(key),
+      state,
       isToday: key === today,
       letter: date.toLocaleDateString("en-US", { weekday: "narrow" }),
       name: date.toLocaleDateString("en-US", { weekday: "long" }),
@@ -159,9 +192,12 @@ export function Rank() {
   const status =
     streak.days === 0
       ? "Use a coding tool today to start a streak."
-      : streak.doneToday
+      : streak.goalMet
         ? "You're covered for today."
-        : "Use a coding tool today to keep it going.";
+        : streak.doneToday
+          ? `Covered for today. ${formatCompactNumber(DAILY_GOAL - streak.todayTokens)} more tokens lights the flame.`
+          : "Use a coding tool today to keep it going.";
+  const freezePct = ((FREEZE_EVERY - streak.nextFreezeIn) / FREEZE_EVERY) * 100;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -204,8 +240,8 @@ export function Rank() {
             {week.map((d) => (
               <li
                 key={d.key}
-                className={`week-day ${d.used ? "is-used" : ""} ${d.isToday ? "is-today" : ""}`}
-                aria-label={`${d.name}${d.isToday ? ", today" : ""}: ${d.used ? "used a coding tool" : "no usage"}`}
+                className={`week-day is-${d.state} ${d.isToday ? "is-today" : ""}`}
+                aria-label={`${d.name}${d.isToday ? ", today" : ""}: ${DAY_STATE_LABELS[d.state]}`}
               >
                 <span className="week-dot" aria-hidden="true" />
                 <span className="week-name" aria-hidden="true">{d.letter}</span>
@@ -251,6 +287,28 @@ export function Rank() {
         <span className="sheet-row-value">{rank.next ? `${formatCompactNumber(rank.toNext)} to ${rank.next.title}` : "Top rank"}</span>
       </section>
 
+      <section className="sheet-row" aria-label="Streak freezes">
+        <span className="sheet-row-label">Freezes</span>
+        <div className="sheet-rival">
+          <strong className="freeze-count">
+            <Snowflake size={14} aria-hidden="true" /> {streak.freezes} ready
+          </strong>
+          <span
+            className="rival-bar freeze-bar"
+            role="meter"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(freezePct)}
+            aria-label="Progress to the next streak freeze"
+          >
+            <span style={{ width: `${freezePct}%` }} />
+          </span>
+        </div>
+        <span className="sheet-row-value" title={`Every ${formatCompactNumber(FREEZE_EVERY)} tokens earns a freeze that covers one missed day.`}>
+          {formatCompactNumber(streak.nextFreezeIn)} to next freeze
+        </span>
+      </section>
+
       {rival && (
         <section className="sheet-row" aria-label="Next rival">
           <span className="sheet-row-label">Next rival</span>
@@ -273,6 +331,7 @@ export function Rank() {
                   <button
                     type="button"
                     className={`seal ${b.earned ? "is-earned" : ""}`}
+                    style={b.earned && SEAL_COLORS[b.id] ? ({ "--seal": SEAL_COLORS[b.id] } as React.CSSProperties) : undefined}
                     aria-pressed={selected?.id === b.id}
                     aria-label={`${b.name}, ${b.earned ? "earned" : `locked, ${b.progress.label}`}`}
                     title={b.name}

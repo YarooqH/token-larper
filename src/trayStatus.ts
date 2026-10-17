@@ -114,8 +114,8 @@ export function buildTrayStatus(data: DashboardPayload, startup: StartupConfig, 
     weekText: `${compact(weekTokens)} · ${formatCurrency(weekCost)}`,
     allTimeText: allTime,
     streakText: streak.days > 0 ? `${streak.days} day streak` : "No streak",
-    // Lit once today has usage; dim while the streak still needs today (or there is none).
-    streakActive: streak.days > 0 && streak.doneToday,
+    // Lit once today reaches the daily goal, like the header flame; dim otherwise.
+    streakActive: streak.days > 0 && streak.goalMet,
     updatedText: syncing || refreshing ? "Syncing…" : `Updated ${updated}`,
     // The popup asks again shortly when its rescan outlasted the request.
     refreshing,
