@@ -134,8 +134,8 @@ function runWave(from: Point, to: Point, ring: SVGSVGElement, toLive: boolean) {
 function landOnToggle() {
   document.querySelector(".live-toggle")?.animate(
     [
-      { boxShadow: "0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent)" },
-      { boxShadow: "0 0 0 12px color-mix(in srgb, var(--accent) 0%, transparent)" },
+      { boxShadow: "0 0 0 0 color-mix(in srgb, var(--live) 60%, transparent)" },
+      { boxShadow: "0 0 0 12px color-mix(in srgb, var(--live) 0%, transparent)" },
     ],
     { duration: 620, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
   );
