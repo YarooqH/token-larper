@@ -16,6 +16,7 @@ import { isoWeek, localDateKey } from "./client/utils.ts";
 import { opencodeSessionUpdated, resolveSessionProject, saveSessionProjects } from "./projects.ts";
 import { APP_ROOT, DATA_DIR } from "./paths.ts";
 import { pricing, type Rates } from "./pricing.ts";
+import { saveDailyHistory, withDailyHistory } from "./dailyHistory.ts";
 
 const ROOT_DIR = APP_ROOT;
 const CACHE_DIR = DATA_DIR;
@@ -810,7 +811,7 @@ function buildDashboardPayloadFromStore(): DashboardPayload {
 
   for (const def of HARNESS_DEFINITIONS) {
     const raw = inMemoryHarnessStore.get(def.id);
-    const dailyRows: any[] = Array.isArray(raw?.dailyRaw?.daily) ? raw.dailyRaw.daily : [];
+    const dailyRows: any[] = withDailyHistory(def.id, Array.isArray(raw?.dailyRaw?.daily) ? raw.dailyRaw.daily : []);
     const sessionRows: any[] = Array.isArray(raw?.sessionRaw?.sessions)
       ? raw.sessionRaw.sessions
       : [];
@@ -1097,6 +1098,7 @@ function buildDashboardPayloadFromStore(): DashboardPayload {
     promptTotal > 0 ? Math.round((totalCacheRead / promptTotal) * 1000) / 10 : 0;
 
   saveSessionProjects();
+  saveDailyHistory();
 
   return {
     generatedAt: new Date().toISOString(),
