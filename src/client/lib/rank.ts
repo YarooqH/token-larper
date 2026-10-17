@@ -89,6 +89,8 @@ export function lastDefeated(tokens: number): Rival | null {
 
 /** Lifetime tokens that earn one streak freeze. */
 export const FREEZE_EVERY = 500e6;
+/** Most freezes held at once. Tokens past the cap earn nothing until one is spent. */
+export const FREEZE_CAP = 5;
 /** Tokens in a day that light the flame. Any usage still keeps the streak. */
 export const DAILY_GOAL = 500e3;
 
@@ -153,7 +155,7 @@ function activeDaysOf(data: DashboardPayload): TimePeriodRow[] {
 interface StreakWalk {
   longest: Streak | null;
   current: Streak | null;
-  /** Freezes earned and not yet spent. */
+  /** Freezes held, at most FREEZE_CAP. */
   freezes: number;
   /** Lifetime tokens still needed for the next freeze. */
   nextFreezeIn: number;
@@ -163,19 +165,20 @@ interface StreakWalk {
  * Consecutive-day runs over sorted active days. A run still counts as current when its
  * last day is yesterday: today isn't over, so the streak is alive until it's missed.
  *
- * Every FREEZE_EVERY lifetime tokens earns a freeze. A gap is frozen only when the
- * freezes earned before it cover every missed day; otherwise the run breaks and the
- * freezes are kept. Replaying history this way gives the same answer on every load.
+ * Every FREEZE_EVERY lifetime tokens earns a freeze, up to FREEZE_CAP held. A gap is
+ * frozen only when the freezes held before it cover every missed day; otherwise the run
+ * breaks and the freezes are kept. Replaying history this way gives the same answer on
+ * every load.
  */
 function streaksOf(days: TimePeriodRow[], today: string): StreakWalk {
   let longest: Streak | null = null;
   let run: Streak | null = null;
   let tokens = 0;
-  let spent = 0;
-  // Missed days strictly between two days, or null when the freezes in hand can't cover them.
+  let held = 0;
+  // Missed days strictly between two days, or null when the freezes held can't cover them.
   const bridge = (from: string, to: string): string[] | null => {
     const missed = daysInRange(from, to) - 2;
-    if (missed > Math.floor(tokens / FREEZE_EVERY) - spent) return null;
+    if (missed > held) return null;
     return Array.from({ length: missed }, (_, i) => addDays(from, i + 1));
   };
   for (const d of days) {
@@ -185,8 +188,10 @@ function streaksOf(days: TimePeriodRow[], today: string): StreakWalk {
       prev && gap
         ? { days: prev.days + 1, start: prev.start, end: d.period, frozen: [...prev.frozen, ...gap] }
         : { days: 1, start: d.period, end: d.period, frozen: [] };
-    if (gap) spent += gap.length;
+    if (gap) held -= gap.length;
     run = next;
+    const earned = Math.floor((tokens + d.totalTokens) / FREEZE_EVERY) - Math.floor(tokens / FREEZE_EVERY);
+    held = Math.min(FREEZE_CAP, held + earned);
     tokens += d.totalTokens;
     if (!longest || next.days > longest.days) longest = next;
   }
@@ -196,14 +201,14 @@ function streaksOf(days: TimePeriodRow[], today: string): StreakWalk {
   else if (last) {
     const gap = bridge(last.end, today);
     if (gap) {
-      spent += gap.length;
+      held -= gap.length;
       current = { ...last, frozen: [...last.frozen, ...gap] };
     }
   }
   return {
     longest,
     current,
-    freezes: Math.floor(tokens / FREEZE_EVERY) - spent,
+    freezes: held,
     nextFreezeIn: FREEZE_EVERY - (tokens % FREEZE_EVERY),
   };
 }

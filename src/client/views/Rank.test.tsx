@@ -49,7 +49,7 @@ describe("Stats tab", () => {
     expect(html).toContain(">3 day streak<");
     expect(html.match(/week-day is-frozen/g)).toHaveLength(1);
     expect(html).toContain(": streak freeze used");
-    expect(html).toContain("1 ready");
+    expect(html).toContain("1 of 5 ready");
     expect(html).toContain("398.00M to next freeze");
   });
 

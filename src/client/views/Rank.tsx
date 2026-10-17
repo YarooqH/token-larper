@@ -23,7 +23,7 @@ import {
   type Icon,
 } from "../components/Icons.tsx";
 import { useDashboard } from "../context.tsx";
-import { achievements, DAILY_GOAL, dayStreak, FREEZE_EVERY, lastDefeated, lifetimeStats, nextRival, rankFor, TIERS } from "../lib/rank.ts";
+import { achievements, DAILY_GOAL, dayStreak, FREEZE_CAP, FREEZE_EVERY, lastDefeated, lifetimeStats, nextRival, rankFor, TIERS } from "../lib/rank.ts";
 import { addDays, parseDay, todayKey } from "../lib/range.ts";
 import { cardPng, shareCardSvg, svgDataUrl, themeCardColors } from "../lib/shareCard.ts";
 import { formatCompactNumber, formatCurrency } from "../utils.ts";
@@ -197,7 +197,8 @@ export function Rank() {
         : streak.doneToday
           ? `Covered for today. ${formatCompactNumber(DAILY_GOAL - streak.todayTokens)} more tokens lights the flame.`
           : "Use a coding tool today to keep it going.";
-  const freezePct = ((FREEZE_EVERY - streak.nextFreezeIn) / FREEZE_EVERY) * 100;
+  const freezesFull = streak.freezes >= FREEZE_CAP;
+  const freezePct = freezesFull ? 100 : ((FREEZE_EVERY - streak.nextFreezeIn) / FREEZE_EVERY) * 100;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -291,7 +292,7 @@ export function Rank() {
         <span className="sheet-row-label">Freezes</span>
         <div className="sheet-rival">
           <strong className="freeze-count">
-            <Snowflake size={14} aria-hidden="true" /> {streak.freezes} ready
+            <Snowflake size={14} aria-hidden="true" /> {streak.freezes} of {FREEZE_CAP} ready
           </strong>
           <span
             className="rival-bar freeze-bar"
@@ -304,8 +305,11 @@ export function Rank() {
             <span style={{ width: `${freezePct}%` }} />
           </span>
         </div>
-        <span className="sheet-row-value" title={`Every ${formatCompactNumber(FREEZE_EVERY)} tokens earns a freeze that covers one missed day.`}>
-          {formatCompactNumber(streak.nextFreezeIn)} to next freeze
+        <span
+          className="sheet-row-value"
+          title={`Every ${formatCompactNumber(FREEZE_EVERY)} tokens earns a freeze that covers one missed day. You can hold ${FREEZE_CAP}.`}
+        >
+          {freezesFull ? "Full" : `${formatCompactNumber(streak.nextFreezeIn)} to next freeze`}
         </span>
       </section>
 

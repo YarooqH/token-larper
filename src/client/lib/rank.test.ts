@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { DashboardPayload } from "../../types.ts";
 import { fakeDashboard } from "../testing/dashboard.tsx";
-import { DAILY_GOAL, dayStreak, FREEZE_EVERY, lifetimeStats } from "./rank.ts";
+import { DAILY_GOAL, dayStreak, FREEZE_CAP, FREEZE_EVERY, lifetimeStats } from "./rank.ts";
 
 // dayStreak only reads data.daily, so the rest of the payload can stay empty.
 const withDays = (...periods: string[]) =>
@@ -60,6 +60,15 @@ describe("streak freezes", () => {
     const s = dayStreak(withTokens({ "2026-10-04": 1.2e9 }), "2026-10-04");
     expect(s.freezes).toBe(2);
     expect(s.nextFreezeIn).toBe(3 * FREEZE_EVERY - 1.2e9);
+  });
+
+  test("holds at most FREEZE_CAP, and earns again once one is spent", () => {
+    expect(dayStreak(withTokens({ "2026-10-04": 10e9 }), "2026-10-04").freezes).toBe(FREEZE_CAP);
+    // Five held, one spent on Oct 2, then Oct 3 earns one back.
+    const data = withTokens({ "2026-10-01": 10e9, "2026-10-03": FREEZE_EVERY });
+    expect(dayStreak(data, "2026-10-03")).toMatchObject({ days: 2, freezes: FREEZE_CAP, frozen: ["2026-10-02"] });
+    // Tokens earned while full are lost, so a 6-day gap still breaks the run.
+    expect(dayStreak(withTokens({ "2026-10-01": 10e9, "2026-10-08": 1000 }), "2026-10-08")).toMatchObject({ days: 1, freezes: FREEZE_CAP });
   });
 
   test("a freeze covers a missed day, which keeps the run but adds no day", () => {
