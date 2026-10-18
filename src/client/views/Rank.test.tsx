@@ -7,10 +7,11 @@ import { Rank } from "./Rank.tsx";
 
 // The Stats tab leads with the day streak, then shows rank as one plain row.
 
-function view(daysAgo: number[], tokens = 5.2e9) {
+// Each day defaults to 1M tokens, over the daily goal. dayTokens overrides it by days ago.
+function view(daysAgo: number[], tokens = 5.2e9, dayTokens: Record<number, number> = {}) {
   const base = fakeDashboard().data;
   const template = base.daily[0]!;
-  const daily: TimePeriodRow[] = daysAgo.map((n) => ({ ...template, period: addDays(todayKey(), -n), totalTokens: 1000 }));
+  const daily: TimePeriodRow[] = daysAgo.map((n) => ({ ...template, period: addDays(todayKey(), -n), totalTokens: dayTokens[n] ?? 1e6 }));
   const data: DashboardPayload = { ...base, daily, totals: { ...base.totals, totalTokens: tokens } };
   return render(<Rank />, { data });
 }
@@ -28,9 +29,28 @@ describe("Stats tab", () => {
 
   test("marks the last seven days, today included", () => {
     const html = view([2, 1, 0]);
-    expect(html.match(/week-day is-used/g)).toHaveLength(3);
+    expect(html.match(/week-day is-goal/g)).toHaveLength(3);
     expect(html).toContain("is-today");
+    expect(html).toContain(", today: hit the daily goal");
+    expect(html).toContain("sheet-flame is-lit");
+  });
+
+  test("keeps the flame dark until today reaches the daily goal", () => {
+    const html = view([1, 0], 5.2e9, { 0: 100e3 });
+    expect(html).toContain(">2 day streak<");
+    expect(html).toContain("Covered for today. 400.0K more tokens lights the flame.");
+    expect(html).toContain("week-day is-used is-today");
     expect(html).toContain(", today: used a coding tool");
+    expect(html).not.toContain("sheet-flame is-lit");
+  });
+
+  test("shows a day a freeze covered, and the freezes left", () => {
+    const html = view([3, 1, 0], 5.2e9, { 3: 1.1e9 });
+    expect(html).toContain(">3 day streak<");
+    expect(html.match(/week-day is-frozen/g)).toHaveLength(1);
+    expect(html).toContain(": streak freeze used");
+    expect(html).toContain("1 of 5 ready");
+    expect(html).toContain("398.00M to next freeze");
   });
 
   test("asks for usage today when the streak is only alive from yesterday", () => {
