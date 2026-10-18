@@ -4,7 +4,7 @@
     "": {
       "name": "token-larper",
       "dependencies": {
-        "ccusage": "20.0.24",
+        "ccusage": "20.0.34",
       },
       "devDependencies": {
         "@types/bun": "^1.4.2",
@@ -17,17 +17,17 @@
     },
   },
   "packages": {
-    "@ccusage/ccusage-darwin-arm64": ["@ccusage/ccusage-darwin-arm64@20.0.24", "", { "os": "darwin", "cpu": "arm64" }, "sha512-jdJP78y2SYRSoGcakANRYeqAbwG2FBw5dzyb6bakIM3S08G2LNrBFQVbsQvNB/f2OXbUtQpJzofHJvoDIyVW1Q=="],
+    "@ccusage/ccusage-darwin-arm64": ["@ccusage/ccusage-darwin-arm64@20.0.34", "", { "os": "darwin", "cpu": "arm64" }, "sha512-5nxESxlJXpGwNDmQied945d+lSxgTr9X32Jc+acOhyEE7EsRoZGQlgoHJc17CTdow1rVxWHOC2VqEJ1QeRZtMA=="],
 
-    "@ccusage/ccusage-darwin-x64": ["@ccusage/ccusage-darwin-x64@20.0.24", "", { "os": "darwin", "cpu": "x64" }, "sha512-iCko1HCk7fVLrs7TYyztMUv9Ze6iQDp6IhyeIzNfh9QJUUssxoNh9t7AkUgZL0EkiRbBBdsBrdYrAZ2WmkHpkQ=="],
+    "@ccusage/ccusage-darwin-x64": ["@ccusage/ccusage-darwin-x64@20.0.34", "", { "os": "darwin", "cpu": "x64" }, "sha512-+p9HnxpUF8/IfjwRmBeXQN3zbFUtyAuVhPOXZ5OEA4moKd5/zukQEzeoZ6JjdxBaF+8PtUcDgXt+r7+kTmD3Jw=="],
 
-    "@ccusage/ccusage-linux-arm64": ["@ccusage/ccusage-linux-arm64@20.0.24", "", { "os": "linux", "cpu": "arm64" }, "sha512-P3tkw7vIv78MKx9Xycqt6RE+cBv4wpZbmWFP81w5MYngYB9s1c8RqS24F/6a+B439WXLQ2051bqAqh96hTe0lw=="],
+    "@ccusage/ccusage-linux-arm64": ["@ccusage/ccusage-linux-arm64@20.0.34", "", { "os": "linux", "cpu": "arm64" }, "sha512-/AxN0LHBCs9OFJP832q5T2+u8Cecao2kOdm8nfV5feN5Qz4ngubhw6+HjvZhYC8qAOA0vXen/x4+RK1y/Q/E2w=="],
 
-    "@ccusage/ccusage-linux-x64": ["@ccusage/ccusage-linux-x64@20.0.24", "", { "os": "linux", "cpu": "x64" }, "sha512-ydXM6AEUTO/T5dZK04GFGy6ePYBOjv3euQmJt0mDNg+/8SJDLWpg5GCtF9pnBrRR2GVA6b4PGouHe+ObLokBIw=="],
+    "@ccusage/ccusage-linux-x64": ["@ccusage/ccusage-linux-x64@20.0.34", "", { "os": "linux", "cpu": "x64" }, "sha512-V2f3tWoBYcT3G9yZJTlPwPMmd7sGqrjoKYlrJHm1y7rhttWNqAPlLIaGCp5ENhpPksny1D9ZUYVWCE4IwBlKgQ=="],
 
-    "@ccusage/ccusage-win32-arm64": ["@ccusage/ccusage-win32-arm64@20.0.24", "", { "os": "win32", "cpu": "arm64" }, "sha512-BDPgaqNPSlVM2dHGJRW1uRj53AOK1C+ih/1Ik5vUC8TOzr4t2Glb9abtnt0Jq0lUyr8qTQ5k0ow6p6LQyUa9AQ=="],
+    "@ccusage/ccusage-win32-arm64": ["@ccusage/ccusage-win32-arm64@20.0.34", "", { "os": "win32", "cpu": "arm64" }, "sha512-b0Zf4pJp22uCm6ikkisZxooqDu61c4icdoaQUwgJQ4xlGT4z0r0xJUoHyqLWj6beaoVJ8SQ0Pwe6yqdJRFeMNg=="],
 
-    "@ccusage/ccusage-win32-x64": ["@ccusage/ccusage-win32-x64@20.0.24", "", { "os": "win32", "cpu": "x64" }, "sha512-Pxb7rcHEoB4EByJKRQBaoPJcIvXxeRZZDK8aSHvX4Ah3VmuKJJoGGGqZ5pKnYuBTSmrpBo2EzRQ7fCGiFcv5+g=="],
+    "@ccusage/ccusage-win32-x64": ["@ccusage/ccusage-win32-x64@20.0.34", "", { "os": "win32", "cpu": "x64" }, "sha512-GjMyUiIOG6DXttZcqfUCXwYlYzkiYMzjIWxbxG18YdR82Dh0VQ1Ui96xZKdin0AuqPYpyQLkKFcglfuD71JJiA=="],
 
     "@types/bun": ["@types/bun@1.4.2", "", { "dependencies": { "bun-types": "1.4.2" } }, "sha512-GimotNn7+ZV0uVArItBbriZsR1oNf0+WTzPkdcFrzShI7k2norL0uzEaJT8T33dWr7O/c9ZDuAFQrctKCi72oQ=="],
 
@@ -79,7 +79,7 @@
 
     "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
-    "ccusage": ["ccusage@20.0.24", "", { "optionalDependencies": { "@ccusage/ccusage-darwin-arm64": "20.0.24", "@ccusage/ccusage-darwin-x64": "20.0.24", "@ccusage/ccusage-linux-arm64": "20.0.24", "@ccusage/ccusage-linux-x64": "20.0.24", "@ccusage/ccusage-win32-arm64": "20.0.24", "@ccusage/ccusage-win32-x64": "20.0.24" }, "bin": { "ccusage": "./src/cli.js" } }, "sha512-sHq7axM0ucbFS4m5xFzS7NxYSmOP1+PSDup3nVb+pitI3eEuwEiGObhsXvu47DSvB2hHpEts/quA3/0EE5i1Zw=="],
+    "ccusage": ["ccusage@20.0.34", "", { "optionalDependencies": { "@ccusage/ccusage-darwin-arm64": "20.0.34", "@ccusage/ccusage-darwin-x64": "20.0.34", "@ccusage/ccusage-linux-arm64": "20.0.34", "@ccusage/ccusage-linux-x64": "20.0.34", "@ccusage/ccusage-win32-arm64": "20.0.34", "@ccusage/ccusage-win32-x64": "20.0.34" }, "bin": { "ccusage": "./src/cli.js" } }, "sha512-NpTlUWDfB4lkX9OenYzuTvbFllTxgOlAQO+aWLGIzD6zrl6fGss31ziP/ngZa2JNeW5nMRg51Uoygme49GnSQQ=="],
 
     "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
 
