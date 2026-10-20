@@ -40,6 +40,22 @@ describe("privacy settings", () => {
     expect(html).toContain(">Paused<");
   });
 
+  test("offline mode names every outside request it stops, including plan quotas", () => {
+    const html = render();
+    expect(html).toContain("contact npm, OpenRouter, or the AI vendors.");
+    expect(html).toContain("Limits shows only what local logs know");
+  });
+
+  test("plan quota lookups have their own row that says when they're paused", () => {
+    const online = render({ show: (id) => id === "quota-lookups" });
+    expect(online).toContain("Plan quota lookups");
+    expect(online).toContain("Anthropic, OpenAI, GitHub, and Google");
+    expect(online).toContain('<p class="setting-meta">On</p>');
+    expect(online).toContain("Network");
+    const offline = render({ show: (id) => id === "quota-lookups", privacy: { status: { offline: true, locked: false }, saving: false, error: null } });
+    expect(offline).toContain('<p class="setting-meta">Paused</p>');
+  });
+
   test("online, it says when each request last ran", () => {
     const html = render({ checkedAt: new Date(Date.now() - 2 * 3_600_000).toISOString() });
     expect(html).toContain("Checked 2 h ago");

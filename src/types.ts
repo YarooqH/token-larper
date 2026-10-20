@@ -335,6 +335,8 @@ export interface HarnessLimitCard {
   };
   note?: string;
   error?: string;
+  /** Offline mode skipped the live lookup and nothing local could stand in for it. */
+  offline?: boolean;
   /** Present instead of quota windows when only local logs could be read. No percentage is known. */
   block?: ClaudeBlock;
   /** True when this card is a carried-over snapshot because the provider could not be reached this time. */

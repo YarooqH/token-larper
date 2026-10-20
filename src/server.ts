@@ -119,9 +119,9 @@ if (running !== null && compareVersions(running, APP_VERSION) < 0) {
   process.exit(0);
 }
 
-// Warm cached usage before the first dashboard request.
+// Warm cached usage before the first dashboard request. Plan quotas need vendor requests, so not while offline.
 void getDashboardData();
-void getLimitsData();
+if (!settings.isOffline()) void getLimitsData();
 
 function startServer(preferredPort: number) {
   let port = preferredPort;

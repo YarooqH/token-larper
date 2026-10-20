@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { dataPath } from "../paths.ts";
+import { settings } from "../settings.ts";
 import { findCurrentClaudeBlock } from "./claudeBlock.ts";
 import type { HarnessLimitCard, LimitsPayload, QuotaWindow, QuotaWindowStatus } from "../types.ts";
 
@@ -91,6 +92,23 @@ export function memoizeAsyncTtl<T>(
     pending.set(key, next);
     return next;
   };
+}
+
+export const LIMITS_OFFLINE_MESSAGE = "Offline mode is on";
+
+// Every vendor quota request goes through here. Providers check offline mode first so they can
+// say why a card is empty; this is the backstop that keeps a missed check from reaching the network.
+export async function requestQuota(url: string, init: RequestInit, offline = settings.isOffline()): Promise<Response> {
+  if (offline) throw new Error(LIMITS_OFFLINE_MESSAGE);
+  return fetch(url, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS), ...init });
+}
+
+/** Stands in for a tool whose quota needs a live request while offline mode is on. */
+export function buildLimitsOfflineCard(
+  meta: Pick<HarnessLimitCard, "id" | "harness" | "name" | "vendor" | "account" | "planName">,
+  updatedAt?: string,
+): HarnessLimitCard {
+  return { ...meta, source: "live", updatedAt: updatedAt ?? new Date().toISOString(), windows: [], offline: true };
 }
 
 interface SessionFile {
@@ -562,6 +580,7 @@ const failureReasons = new Map<string, string>();
 async function fetchClaudeLimitsForCredential(
   oauth: ClaudeOAuthCredentials,
   cardId: string,
+  offline: boolean,
 ): Promise<HarnessLimitCard | null> {
   if (!oauth?.accessToken) return null;
   const meta = {
@@ -574,21 +593,30 @@ async function fetchClaudeLimitsForCredential(
   if (typeof oauth.expiresAt === "number" && Date.now() >= oauth.expiresAt) {
     return buildClaudeSignInExpiredCard(meta);
   }
+  if (offline) {
+    return buildLimitsOfflineCard({
+      id: cardId,
+      harness: "claude",
+      name: "Claude Code",
+      vendor: "Anthropic",
+      account: oauth.account,
+      planName: formatClaudePlanName(oauth.subscriptionType, oauth.rateLimitTier),
+    });
+  }
   if (Date.now() < claudeBackoffUntilMs) {
     failureReasons.set("claude", "Anthropic is rate-limiting the usage lookup");
     return null;
   }
 
   try {
-    const res = await fetch("https://api.anthropic.com/api/oauth/usage", {
+    const res = await requestQuota("https://api.anthropic.com/api/oauth/usage", {
       headers: {
         Authorization: `Bearer ${oauth.accessToken}`,
         "anthropic-beta": "oauth-2025-04-20",
         "User-Agent": "claude-code/2.1.5",
         "Content-Type": "application/json",
       },
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
+    }, offline);
     if (res.status === 401) return buildClaudeSignInExpiredCard(meta);
     if (res.status === 429) {
       // This endpoint rate-limits hard; back off instead of retrying every poll.
@@ -880,39 +908,43 @@ function readCodexAuthEntries(): CodexAuthEntry[] {
   return [...byKey.values()];
 }
 
-async function fetchCodexLimits(): Promise<HarnessLimitCard[]> {
+async function fetchCodexLiveCard(entry: CodexAuthEntry, cardId: string): Promise<HarnessLimitCard | null> {
+  try {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${entry.accessToken}`,
+      Accept: "application/json",
+      "User-Agent": "codex-cli/0.1.0",
+    };
+    if (entry.accountId) headers["ChatGPT-Account-Id"] = String(entry.accountId);
+
+    const res = await requestQuota("https://chatgpt.com/backend-api/wham/usage", { headers });
+    if (!res.ok) return null;
+    const data = (await res.json()) as CodexWhamUsageResponse;
+    return data.rate_limit ? parseCodexWhamUsage(data, undefined, { id: cardId, account: entry.email }) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCodexLimits(offline: boolean): Promise<HarnessLimitCard[]> {
   const entries = readCodexAuthEntries();
   const cards: HarnessLimitCard[] = [];
   const multiple = entries.length > 1;
 
   for (const entry of entries) {
     const cardId = multiple && entry.email ? `codex:${entry.email.toLowerCase()}` : "codex";
-    try {
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${entry.accessToken}`,
-        Accept: "application/json",
-        "User-Agent": "codex-cli/0.1.0",
-      };
-      if (entry.accountId) headers["ChatGPT-Account-Id"] = String(entry.accountId);
-
-      const res = await fetch("https://chatgpt.com/backend-api/wham/usage", {
-        headers,
-        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as CodexWhamUsageResponse;
-        if (data.rate_limit) {
-          cards.push(parseCodexWhamUsage(data, undefined, { id: cardId, account: entry.email }));
-          continue;
-        }
-      }
-    } catch {
-      // Fall back to local rollout logs for this dir below
+    const live = offline ? null : await fetchCodexLiveCard(entry, cardId);
+    if (live) {
+      cards.push(live);
+      continue;
     }
 
+    // Fall back to the rate limits Codex wrote into its own session logs.
     const local = await findLatestCodexRolloutRateLimits(entry.dir);
     if (local) {
       cards.push(parseCodexRolloutRateLimits(local.rateLimits, Date.now(), local.updatedAt, { id: cardId, account: entry.email }));
+    } else if (offline) {
+      cards.push(buildLimitsOfflineCard({ id: cardId, harness: "codex", name: "Codex", vendor: "OpenAI", account: entry.email }));
     }
   }
 
@@ -1433,7 +1465,7 @@ interface AntigravityAccountState {
   updatedAt: string;
 }
 
-async function fetchAntigravityLimits(): Promise<HarnessLimitCard[]> {
+async function fetchAntigravityLimits(offline: boolean): Promise<HarnessLimitCard[]> {
   const installs = listAntigravityInstalls();
   const accountsByKey = new Map<string, AntigravityAccountState>();
 
@@ -1505,7 +1537,10 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard[]> {
 
   // Try live Cloud Code fetch using all gemini:antigravity* credentials in Windows Credential Manager
   const rawWinCreds = await readWindowsCredentials("gemini:antigravity");
-  for (const rawWinCred of rawWinCreds) {
+  if (offline && accountsByKey.size === 0 && rawWinCreds.length > 0) {
+    return [buildLimitsOfflineCard({ id: "antigravity", harness: "antigravity", name: "Antigravity", vendor: "Google" })];
+  }
+  for (const rawWinCred of offline ? [] : rawWinCreds) {
     try {
       const clean = rawWinCred.replace(/^[^\{]*/, "");
       const parsed = JSON.parse(clean);
@@ -1516,7 +1551,7 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard[]> {
       const jwt = decodeJwtPayload(parsed?.id_token);
       const liveEmail = typeof jwt?.email === "string" ? jwt.email : undefined;
 
-      const res = await fetch("https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels", {
+      const res = await requestQuota("https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -1524,8 +1559,7 @@ async function fetchAntigravityLimits(): Promise<HarnessLimitCard[]> {
           "User-Agent": "antigravity/1.3.4",
         },
         body: "{}",
-        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-      });
+      }, offline);
       if (!res.ok) continue;
 
       const data = (await res.json()) as {
@@ -1911,7 +1945,7 @@ export function parseCopilotUsage(
   };
 }
 
-async function fetchCopilotLimits(): Promise<HarnessLimitCard[]> {
+async function fetchCopilotLimits(offline: boolean): Promise<HarnessLimitCard[]> {
   const home = homedir();
   const configDirs = [
     join(process.env.LOCALAPPDATA || join(home, "AppData", "Local"), "github-copilot"),
@@ -1942,11 +1976,24 @@ async function fetchCopilotLimits(): Promise<HarnessLimitCard[]> {
   }
 
   if (tokens.size === 0) return [];
+  if (offline) {
+    const accounts = [...new Set([...tokens.values()].filter((user): user is string => !!user))];
+    const multiple = accounts.length > 1;
+    const offlineCard = (account?: string) =>
+      buildLimitsOfflineCard({
+        id: multiple && account ? `copilot:${account.toLowerCase()}` : "copilot",
+        harness: "copilot",
+        name: "Copilot",
+        vendor: "GitHub",
+        account,
+      });
+    return accounts.length > 0 ? accounts.map(offlineCard) : [offlineCard()];
+  }
 
   const cardsByAccount = new Map<string, HarnessLimitCard>();
   for (const [ghToken, hintUser] of tokens) {
     try {
-      const res = await fetch("https://api.github.com/copilot_internal/user", {
+      const res = await requestQuota("https://api.github.com/copilot_internal/user", {
         headers: {
           Authorization: `token ${ghToken}`,
           Accept: "application/json",
@@ -1954,8 +2001,7 @@ async function fetchCopilotLimits(): Promise<HarnessLimitCard[]> {
           "Copilot-Integration-Id": "vscode-chat",
           "User-Agent": "GitHubCopilotChat/0.24.0",
         },
-        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-      });
+      }, offline);
       if (!res.ok) continue;
       const data = (await res.json()) as CopilotInternalUserResponse;
       const card = parseCopilotUsage(data, undefined, { account: data.login || hintUser });
@@ -1983,8 +2029,9 @@ async function fetchCopilotLimits(): Promise<HarnessLimitCard[]> {
 // Coordinator & Cache
 // ============================================================================
 
-let memoryCache: { payload: LimitsPayload; fetchedAtMs: number } | null = null;
-let inFlightPromise: Promise<LimitsPayload> | null = null;
+// Both remember which mode produced them, so switching offline mode never serves the other mode's result.
+let memoryCache: { payload: LimitsPayload; fetchedAtMs: number; offline: boolean } | null = null;
+let inFlight: { promise: Promise<LimitsPayload>; offline: boolean } | null = null;
 
 async function readDiskCache(): Promise<LimitsPayload | null> {
   try {
@@ -2005,7 +2052,7 @@ async function writeDiskCache(payload: LimitsPayload): Promise<void> {
 
 // When Anthropic's quota can not be read (expired sign-in, rate limit), fall back to the current
 // 5-hour session rebuilt from local logs: a reset time and activity, but no percentage.
-async function fetchClaudeWithLocalFallback(): Promise<HarnessLimitCard[]> {
+async function fetchClaudeWithLocalFallback(offline: boolean): Promise<HarnessLimitCard[]> {
   const creds = await readAllClaudeOAuthCredentials();
   const multiple = creds.length > 1;
   const liveCards: HarnessLimitCard[] = [];
@@ -2014,7 +2061,7 @@ async function fetchClaudeWithLocalFallback(): Promise<HarnessLimitCard[]> {
   for (let i = 0; i < creds.length; i++) {
     const cred = creds[i]!;
     const cardId = multiple ? `claude:${(cred.account || cred.accountUuid || String(i + 1)).toLowerCase()}` : "claude";
-    const card = await fetchClaudeLimitsForCredential(cred, cardId);
+    const card = await fetchClaudeLimitsForCredential(cred, cardId, offline);
     if (card && card.windows.length > 0) {
       liveCards.push(card);
     } else if (card && !firstErrorCard) {
@@ -2028,7 +2075,11 @@ async function fetchClaudeWithLocalFallback(): Promise<HarnessLimitCard[]> {
   const primaryOauth = creds[0] ?? null;
   if (!block) return firstErrorCard ? [firstErrorCard] : [];
 
-  const reason = firstErrorCard?.error ?? failureReasons.get("claude") ?? "Live quota unavailable";
+  const reason =
+    firstErrorCard?.error ??
+    (offline ? LIMITS_OFFLINE_MESSAGE : undefined) ??
+    failureReasons.get("claude") ??
+    "Live quota unavailable";
   return [
     {
       id: "claude",
@@ -2049,7 +2100,7 @@ async function fetchClaudeWithLocalFallback(): Promise<HarnessLimitCard[]> {
 
 type ProviderResult = HarnessLimitCard | HarnessLimitCard[] | null;
 
-const PROVIDERS: { id: string; run: () => Promise<ProviderResult> }[] = [
+const PROVIDERS: { id: string; run: (offline: boolean) => Promise<ProviderResult> }[] = [
   { id: "claude", run: fetchClaudeWithLocalFallback },
   { id: "antigravity", run: fetchAntigravityLimits },
   { id: "codex", run: fetchCodexLimits },
@@ -2063,9 +2114,10 @@ const PROVIDERS: { id: string; run: () => Promise<ProviderResult> }[] = [
   { id: "copilot", run: fetchCopilotLimits },
 ];
 
-// A card is worth showing when it has quota windows, or an error the UI should surface (e.g. expired sign-in).
+// A card is worth showing when it has quota windows, or an error the UI should surface (e.g. expired sign-in),
+// or says offline mode skipped it.
 function isShowable(card: HarnessLimitCard | null | undefined): card is HarnessLimitCard {
-  return !!card && (card.windows.length > 0 || !!card.error || !!card.block);
+  return !!card && (card.windows.length > 0 || !!card.error || !!card.block || !!card.offline);
 }
 
 // Combines this round's results with the previous payload. A provider that failed (null/empty)
@@ -2135,12 +2187,12 @@ export function isCacheFresh(ageMs: number, refresh: boolean): boolean {
   return ageMs < (refresh ? MIN_FORCED_REFRESH_MS : CACHE_TTL_MS);
 }
 
-async function collectAllLimits(): Promise<LimitsPayload> {
+async function collectAllLimits(offline: boolean): Promise<LimitsPayload> {
   const prevCache = memoryCache?.payload ?? (await readDiskCache());
   const prevById = new Map<string, HarnessLimitCard>(prevCache?.items.map((item) => [item.id, item]) ?? []);
 
   failureReasons.clear();
-  const settled = await Promise.allSettled(PROVIDERS.map((p) => withTimeout(p.run(), PROVIDER_TIMEOUT_MS)));
+  const settled = await Promise.allSettled(PROVIDERS.map((p) => withTimeout(p.run(offline), PROVIDER_TIMEOUT_MS)));
   const fresh = new Map<string, ProviderResult>();
   PROVIDERS.forEach((p, i) => {
     const result = settled[i]!;
@@ -2152,19 +2204,24 @@ async function collectAllLimits(): Promise<LimitsPayload> {
     items: mergeWithCache(prevById, fresh, Date.now(), failureReasons),
   };
 
-  memoryCache = { payload, fetchedAtMs: Date.now() };
+  memoryCache = { payload, fetchedAtMs: Date.now(), offline };
   void writeDiskCache(payload);
   return payload;
 }
 
-export async function getLimitsData(opts?: { refresh?: boolean }): Promise<LimitsPayload> {
+export async function getLimitsData(opts?: { refresh?: boolean; offline?: boolean }): Promise<LimitsPayload> {
   const refresh = opts?.refresh ?? false;
-  if (memoryCache && isCacheFresh(Date.now() - memoryCache.fetchedAtMs, refresh)) {
+  const offline = opts?.offline ?? settings.isOffline();
+  if (memoryCache?.offline === offline && isCacheFresh(Date.now() - memoryCache.fetchedAtMs, refresh)) {
     return memoryCache.payload;
   }
-  if (inFlightPromise) return inFlightPromise;
-  inFlightPromise = collectAllLimits().finally(() => {
-    inFlightPromise = null;
-  });
-  return inFlightPromise;
+  if (inFlight?.offline === offline) return inFlight.promise;
+  const current = {
+    offline,
+    promise: collectAllLimits(offline).finally(() => {
+      if (inFlight === current) inFlight = null;
+    }),
+  };
+  inFlight = current;
+  return current.promise;
 }

@@ -46,7 +46,7 @@ export function PrivacySettings({
 }: Props) {
   const { status, saving, error } = privacy;
   const offline = status?.offline ?? false;
-  const showNetwork = show("offline") || show("auto-check") || show("price-list");
+  const showNetwork = show("offline") || show("auto-check") || show("price-list") || show("quota-lookups");
 
   return (
     <>
@@ -80,7 +80,7 @@ export function PrivacySettings({
                 <p>
                   {status?.locked
                     ? "Set by TOKEN_LARPER_OFFLINE. Remove the variable and restart Token Larper to turn it off."
-                    : "Don't contact npm or OpenRouter. Update checks stop, and cost estimates use the saved price list."}
+                    : "Don't contact npm, OpenRouter, or the AI vendors. Update checks stop, cost estimates use the saved price list, and Limits shows only what local logs know."}
                 </p>
                 {error && <p className="setting-error" role="alert">{error}</p>}
               </div>
@@ -108,6 +108,18 @@ export function PrivacySettings({
                 <strong>Price list download</strong>
                 <p>Downloads OpenRouter's public model prices from openrouter.ai once a day, for cost estimates. Nothing is sent but the request.</p>
                 <p className="setting-meta">{priceListLine({ offline, status: priceStatus })}</p>
+              </div>
+            </div>
+          )}
+          {show("quota-lookups") && (
+            <div className="setting-row">
+              <div className="setting-copy">
+                <strong>Plan quota lookups</strong>
+                <p>
+                  Asks Anthropic, OpenAI, GitHub, and Google how much of your plan is left, while limits are on screen. Each
+                  tool's saved sign-in goes only to that tool's own vendor.
+                </p>
+                <p className="setting-meta">{offline ? "Paused" : "On"}</p>
               </div>
             </div>
           )}

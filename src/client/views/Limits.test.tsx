@@ -355,6 +355,15 @@ describe("Limits view", () => {
     expect(html).not.toContain("limit-error-line");
   });
 
+  test("a card skipped by offline mode says so, without an error", () => {
+    const html = view(<Limits limits={payload([card({ windows: [], offline: true })])} now={NOW} />);
+    expect(html).toContain("Offline mode is on. Turn it off in Settings → Privacy to check this quota.");
+    expect(html).toContain(">Offline</span>");
+    expect(html).not.toContain("Unavailable");
+    expect(html).not.toContain("No quota data yet.");
+    expect(html).not.toContain("is-error");
+  });
+
   test("the generic local-ledger note renders nothing, while a useful note stays small and muted", () => {
     const generic = view(<Limits limits={payload([card({ source: "local", note: "Estimated from local logs against list caps" })])} now={NOW} />);
     expect(generic).not.toContain("Estimated from local logs");
@@ -474,6 +483,15 @@ describe("strip rows", () => {
     );
     expect(html).toContain("Unavailable");
     expect(html).toContain("Sign in again.");
+  });
+
+  test("an offline row says Offline, not Unavailable", () => {
+    const html = view(
+      <LimitsSummaryStrip limits={payload([card({ windows: [], offline: true })])} onOpenLimits={() => {}} now={NOW} />,
+    );
+    expect(html).toContain(">Offline<");
+    expect(html).toContain("Offline mode is on");
+    expect(html).not.toContain("Unavailable");
   });
 });
 

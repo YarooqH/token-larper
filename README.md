@@ -162,7 +162,7 @@ The **Limits** tab shows the plans you're signed in to and how much of each is l
 
 Token Larper only reads the sign-ins these tools have already saved. It never refreshes them, writes them, or sends them anywhere but the tool's own vendor. If you're signed in with more than one account (another `~/.claude*` or `~/.codex*` folder, or a second Antigravity profile), each account gets its own card.
 
-Free plans are hidden by default; **Show free** on the Limits tab brings them back. Readings refresh about once a minute while a tab that shows limits is open, and **Sync** refreshes them now. A tool whose lookup fails keeps its last reading, marked stale, for up to 15 minutes; after that it shows why the lookup failed instead of old numbers.
+Free plans are hidden by default; **Show free** on the Limits tab brings them back. Readings refresh about once a minute while a tab that shows limits is open, and **Sync** refreshes them now. A tool whose lookup fails keeps its last reading, marked stale, for up to 15 minutes; after that it shows why the lookup failed instead of old numbers. Offline mode skips the live lookups and keeps the local fallbacks.
 
 The vendor endpoints aren't public APIs, so a tool can stop reporting if its vendor changes one. The rest of the dashboard doesn't depend on them.
 
@@ -256,9 +256,9 @@ Token Larper never sends your prompts, token counts, costs, or project names any
 | --- | --- | --- | --- |
 | **Update check** to `registry.npmjs.org` | When the dashboard opens | Only the package name | **Settings → Privacy**, or Offline mode |
 | **Price list** from `openrouter.ai` | Once a day | Nothing but the request | Offline mode |
-| **Plan quotas** from Anthropic, ChatGPT, GitHub, and Google | At startup, then about once a minute while a tab that shows limits is open | Your saved sign-in for that tool, to that tool's own vendor | See below |
+| **Plan quotas** from Anthropic, ChatGPT, GitHub, and Google | At startup, then about once a minute while a tab that shows limits is open | Your saved sign-in for that tool, to that tool's own vendor | Offline mode |
 
-**Offline mode** in **Settings → Privacy** (or starting with `TOKEN_LARPER_OFFLINE=1`) stops the update check and the price list download. It doesn't stop the plan quota lookups yet. To stop those, sign out of a tool or don't use the Limits tab and Quota strip.
+**Offline mode** in **Settings → Privacy** (or starting with `TOKEN_LARPER_OFFLINE=1`) stops all three. Cost estimates then use the saved price list, and the Limits tab shows only what's on your machine: the Claude 5-hour session from your logs, Codex's last reading from its session logs, Antigravity's local state, and OpenCode Go. A tool that needs a live lookup says Offline mode is on.
 
 **Screenshot mode** in the same place replaces project names and folders with Project A, Project B, and so on, everywhere in the dashboard, for screenshots and screen shares.
 
