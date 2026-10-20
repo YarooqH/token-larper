@@ -8,7 +8,7 @@
 <h1 align="center">Token Larper</h1>
 
 <p align="center">
-  See what your AI coding agents cost you, in one local dashboard.
+  See what your AI coding agents cost you, and how much of your plan is left, in one local dashboard.
 </p>
 
 <p align="center">
@@ -20,14 +20,17 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#a-quick-tour">A quick tour</a> ·
-  <a href="#supported-harnesses-18-agents">Supported agents</a> ·
+  <a href="#limits">Limits</a> ·
+  <a href="#live-mode">Live mode</a> ·
+  <a href="#supported-agents">Supported agents</a> ·
+  <a href="#privacy-and-network-requests">Privacy</a> ·
   <a href="#uninstalling">Uninstall</a> ·
   <a href="#troubleshooting--faq">FAQ</a>
 </p>
 
-Token Larper reads the session logs that Claude Code, Codex, Antigravity, GitHub Copilot CLI, OpenCode, and 13 other coding agents already write to your disk, and turns them into a dashboard at `localhost:4269`. Nothing about your usage leaves your machine. It runs on Windows, macOS, and Linux, and on Windows it also sits in the system tray.
+Token Larper reads the session logs that Claude Code, Codex, Antigravity, GitHub Copilot CLI, OpenCode, and 13 other coding agents already write to your disk, and turns them into a dashboard at `localhost:4269`. Your prompts and usage stay on your machine. It runs on Windows, macOS, and Linux, and on Windows it also sits in the system tray.
 
-It's built on top of [`ccusage`](https://github.com/ccusage/ccusage), which does the log parsing, token counting, and pricing. Token Larper adds the dashboard, the tray icon, project grouping, and the Hall of Larp.
+It's built on top of [`ccusage`](https://github.com/ccusage/ccusage), which does the log parsing, token counting, and pricing. Token Larper adds the dashboard, subscription limits, Live mode, model speed, project grouping, the tray icon, and the Hall of Larp.
 
 ## Quick start
 
@@ -69,155 +72,270 @@ The screens below use sample data. No local sessions or project names are includ
 | --- | --- |
 | ![Rank and badges](docs/media/rank.jpg) | ![Theme and startup settings](docs/media/settings.jpg) |
 
+The dashboard has seven tabs, plus Live mode and Settings:
+
+| Tab | What it shows |
+| --- | --- |
+| **Overview** | Tokens and cost across every tool for the date range, the token mix, and a Quota strip with what's left on your paid plans. |
+| **Limits** | Every subscription's rolling windows, how much of each is used, and when it resets. See [Limits](#limits). |
+| **Tools** | Each tool's tokens, cost, speed, and tokens per minute, with speed over time. |
+| **Models** | The same per model, plus the price list behind cost estimates. |
+| **Projects** | Sessions grouped by repository, so work in any folder of a repo counts toward it. |
+| **Sessions** | Every session with its tool, model, project, tokens, cost, and speed. |
+| **Stats** | The Hall of Larp: day streak, lifetime rank, rivals, records, and badges. |
+
 ---
 
 ## Features
 
-* **Private and offline**: No API keys and no proxy to set up. Two optional requests leave your machine, and neither sends anything about your usage: an update check that asks npm for the latest version number, and a once-a-day download of OpenRouter's public model price list. **Settings → Privacy** shows when each last ran, turns the update check off, and has an **Offline mode** switch that stops both (you can also start with `TOKEN_LARPER_OFFLINE=1`). **Screenshot mode** in the same place replaces project names and folders with Project A, Project B, and so on, for screenshots and screen shares.
-* **18 agents, one total**: Every supported harness is detected automatically and counted together, with filters per tool, model, session, and project.
-* **Subscription-aware**: Verified API costs are kept apart from the estimated **"LARP Value"**, the API price of tokens you used through a flat-rate plan like Claude Pro/Max, Copilot, or Antigravity. Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
-* **Model speed**: Approximate output tokens per second for each tool and model, and tokens per minute while a tool is working, read from the session files of Claude Code, Codex, OpenCode, Pi, Antigravity, Gemini CLI, and Copilot CLI. See [Speed and Tokens per Minute](#speed-and-tokens-per-minute).
+* **18 agents, one total**: Every supported agent is detected automatically and counted together, with filters per tool, model, session, and project. No API keys and no proxy to set up.
+* **Subscription limits**: The **Limits** tab shows what's left of your Claude, Codex, Copilot, Antigravity, and OpenCode Go plans: each rolling window, how much is used, and when it resets. More than one signed-in account per tool is shown side by side. See [Limits](#limits).
+* **Subscription-aware costs**: Verified API costs are kept apart from the estimated **"LARP Value"**, the API price of tokens you used through a flat-rate plan like Claude Pro/Max, Copilot, or Antigravity. Estimates use [OpenRouter's](https://openrouter.ai/models) current list prices, so new models are priced without waiting for an update.
 * **Live mode**: Press **Live** in the top bar and the dashboard becomes one screen that updates every second: tokens per minute with a rolling trace, every response on a tape as it lands, tokens by tool and by model, output speed per response, and your active sessions with their context size. See [Live mode](#live-mode).
-* **Hall of Larp**: Lifetime token burn, 14 achievements, an 11-tier rank ladder with rivals, a day streak in the header, and a 1200×630 share card.
+* **Model speed**: Approximate output tokens per second for each tool and model, and tokens per minute while a tool is working, read from the session files of Claude Code, Codex, OpenCode, Pi, Antigravity, Gemini CLI, and Copilot CLI. See [Speed and tokens per minute](#speed-and-tokens-per-minute).
+* **Hall of Larp**: A day streak with streak freezes and a daily goal, an 11-tier lifetime rank with rivals, 14 badges, and a 1200×630 share card. See [Hall of Larp](#hall-of-larp).
+* **History that doesn't shrink**: When a tool prunes, moves, or compresses its old logs, the days ccusage already reported are kept, so lifetime totals and streaks don't drop.
+* **Private by default**: Your usage, prompts, and project names never leave your machine. **Screenshot mode** replaces project names and folders with Project A, Project B, and so on, for screen shares. See [Privacy and network requests](#privacy-and-network-requests) for every request the app makes.
 * **Six styles, your colors**: Grove, Terminal, Paper, Brutal, Soft, and Mono each change fonts, corners, spacing, borders, and shadows. Pick a base color and an accent from presets or any custom color, or import a tweakcn/shadcn CSS theme.
-* **Cross-platform**: The engine, scrapers, and dashboard behave the same on Windows, macOS (Apple Silicon and Intel), and Linux. The tray icon is Windows-only.
+* **Cross-platform**: The engine, scanners, and dashboard behave the same on Windows, macOS (Apple Silicon and Intel), and Linux. The tray icon is Windows-only.
 * **Lightweight install**: About 5 MB with its dependencies, on top of Bun. No Electron, no database, and the dashboard ships prebuilt.
 
 ---
-## Prerequisites
 
-Before setting up Token Larper, ensure your machine meets the following requirements:
+## Requirements
 
-### 1. Operating System
-Token Larper runs across all major operating systems:
-* **Windows 10 / Windows 11** (64-bit x64 or ARM64):
-  * Full web dashboard + native Windows System Tray widget (`t.` monogram with live hover stats & boot auto-start).
-* **macOS** (12.0+ Monterey or later, Apple Silicon M-series or Intel x64):
-  * Full web dashboard + all 18 harness scrapers. Launches via terminal or background daemon (`nohup` / LaunchAgent).
-* **Linux** (Ubuntu, Debian, Fedora, Arch, etc., x64 or ARM64):
-  * Full web dashboard + all 18 harness scrapers. Launches via terminal or `systemd --user`.
-
-### 2. Bun Runtime (v1.1+)
-Token Larper uses **[Bun](https://bun.sh)** for its ultra-fast JavaScript/TypeScript server, bundling, and process management.
-
-To check if Bun is installed:
-```bash
-bun --version
-```
-
-If you do not have Bun installed:
-* **macOS & Linux**:
-  ```bash
-  curl -fsSL https://bun.sh/install | bash
-  ```
-* **Windows (PowerShell)**:
-  ```powershell
-  powershell -c "irm bun.sh/install.ps1 | iex"
-  ```
-*(After installing Bun, restart your terminal so `bun` is available on your `PATH`.)*
-
-### 3. Windows PowerShell 5.1+ (Windows Only)
-* Required **only on Windows** to draw the DPI-aware notification area system tray icon.
-* **Execution Policy**: If your system restricts PowerShell scripts, enable local execution:
-  ```powershell
-  Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-  ```
-*(On macOS and Linux, the server detects non-Windows platforms automatically and skips the Windows tray initialization).*
-
-### 4. At Least One Supported AI Coding Harness
-You should have at least one AI coding harness installed and used on your machine so there are session logs to index (e.g. `~/.claude/` for Claude Code, `~/.local/share/opencode/` for OpenCode, `~/.gemini/` for Gemini/Antigravity, etc.).
-
----
-
-## Quick Setup & Installation
-
-### Option 1: Instant 1-Line Run (Recommended)
-With [Bun installed](#2-bun-runtime-v11), run Token Larper without cloning:
-```bash
-bunx token-larper
-```
-It starts in the background, opens the dashboard, and keeps running after you close the terminal. On Windows, quit it from the tray icon. On any platform:
-```bash
-bunx token-larper stop          # stop it
-bunx token-larper --foreground  # run in the terminal with logs instead
-bunx token-larper --help        # all options
-```
-The background server writes its output to `server.log` in the data folder.
-
----
-
-### Option 2: Clone from Source
-
-### Step 1: Get the Code
-Clone the repository (or click **Code → Download ZIP** on GitHub and extract it):
-```bash
-git clone https://github.com/YarooqH/token-larper.git
-cd token-larper
-```
-
-### Step 2: Install Dependencies
-Install the required packages using Bun:
-```bash
-bun install
-```
+* **Windows 10 or 11, macOS 12 or later, or Linux** (x64 or ARM64).
+* **[Bun](https://bun.sh) 1.1 or later.** Check with `bun --version`; install it with the commands in [Quick start](#quick-start). Restart your terminal afterwards so `bun` is on your `PATH`.
+* **Windows PowerShell 5.1** (Windows only, already installed), for the tray icon. If scripts are blocked, run `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`.
+* **At least one supported agent** that you've used, so there are session logs to read.
 
 ---
 
 ## Running Token Larper
 
-### On Windows
+### With `bunx` (recommended)
 
-#### Option A: Silent System Tray (Recommended)
-Launches windowless directly into your Windows System Tray without keeping a command prompt open:
-```powershell
-bun run tray
-```
-> **Shortcut**: You can also simply **double-click** `Start-TokenLarper.vbs` in File Explorer!
-
-* The **Burning t.** icon will appear in your notification tray.
-* Hover over the icon to see your real-time token count and cost estimate.
-* Left-click the icon for a compact usage popup with an **Open dashboard** button. Right-click it to sync or configure boot auto-start.
-
-#### Option B: Terminal Mode (Logs & Development)
-```powershell
-bun start          # Standard terminal launch
-bun run dev        # Live reload on changes
-```
-
----
-
-### On macOS & Linux
-
-#### Option A: Background Daemon
-Run the server detached in the background:
 ```bash
-nohup bun start > /dev/null 2>&1 &
+bunx token-larper               # start in the background and open the dashboard
+bunx token-larper stop          # stop it
+bunx token-larper --foreground  # run in this terminal with logs (Ctrl+C stops it)
+bunx token-larper --no-open     # start without opening the browser
+bunx token-larper --help        # all options
 ```
 
-#### Option B: Foreground Terminal Mode
+It keeps running after you close the terminal and writes its output to `server.log` in the [data folder](#data-folder). Running it again while it's already running just opens the dashboard; a newer version takes over from an older one on the same port.
+
+### From source
+
 ```bash
-bun start          # Standard launch
-bun run dev        # Live reload on changes
+git clone https://github.com/YarooqH/token-larper.git
+cd token-larper
+bun install
+bun start          # run in the terminal
+bun run dev        # restart on file changes
+bun run stop       # stop it
 ```
 
+On Windows, `bun run tray` (or double-clicking `Start-TokenLarper.vbs`) starts it with no console window, straight into the tray. On macOS and Linux, `nohup bun start > /dev/null 2>&1 &` runs it in the background.
+
+### The Windows tray icon
+
+* The **`t.`** icon appears in the notification area. Hover it for today's tokens and cost.
+* Left-click it for a popup with today, this week, all time, and your streak, and an **Open dashboard** button.
+* Right-click it to open the dashboard, **Sync Harnesses Now**, turn on **Start on Windows Boot** and **Auto-Open Browser on Boot**, or **Quit Token Larper**.
+
+Open the dashboard yourself at **[http://localhost:4269](http://localhost:4269)**.
+
 ---
 
-### Opening the Dashboard
-Open your browser and navigate to:
-👉 **[http://localhost:4269](http://localhost:4269)**
+## Limits
 
-*(On Windows, left-click the **`t.`** tray icon and select **Open dashboard**, or choose **Open Dashboard** from its right-click menu.)*
+The **Limits** tab shows the plans you're signed in to and how much of each is left. The **Quota** strip on the Overview and Tools tabs shows the same for paid plans in one compact list, and only a window that's running low gets a color.
+
+| Tool | What it shows | Where it comes from |
+| --- | --- | --- |
+| **Claude Code** | The 5-hour and weekly windows, per-model weekly limits, and extra usage. | Anthropic's usage endpoint, with the sign-in Claude Code saved. If that can't be read, the current 5-hour session rebuilt from your local logs, with its reset time but no percentage. |
+| **Codex** | The 5-hour and weekly windows, code review quota, and credits. | ChatGPT's usage endpoint, with the sign-in Codex saved. If that fails, the latest rate-limit reading in your Codex session logs. |
+| **GitHub Copilot** | Premium requests, chat, and completions for the month. | GitHub's Copilot endpoint, with the token GitHub Copilot saved. |
+| **Antigravity** | Each model's quota and AI credits. | Google's Cloud Code endpoint, with the sign-in Antigravity saved, falling back to the app's local state. |
+| **OpenCode Go** | The $12 5-hour, $30 weekly, and $60 monthly caps. | Worked out locally from your OpenCode and Pi sessions at OpenCode Go's list rates. Nothing is requested. |
+
+Token Larper only reads the sign-ins these tools have already saved. It never refreshes them, writes them, or sends them anywhere but the tool's own vendor. If you're signed in with more than one account (another `~/.claude*` or `~/.codex*` folder, or a second Antigravity profile), each account gets its own card.
+
+Free plans are hidden by default; **Show free** on the Limits tab brings them back. Readings refresh about once a minute while a tab that shows limits is open, and **Sync** refreshes them now. A tool whose lookup fails keeps its last reading, marked stale, for up to 15 minutes; after that it shows why the lookup failed instead of old numbers.
+
+The vendor endpoints aren't public APIs, so a tool can stop reporting if its vendor changes one. The rest of the dashboard doesn't depend on them.
 
 ---
 
-### Stopping Token Larper
-To cleanly stop the server:
-* **From the CLI (All Platforms)**:
-  ```bash
-  bunx token-larper stop   # or, from a clone: bun run stop
-  ```
-  *(Sends a graceful shutdown request to the local API on port 4269. If you changed the port, set `PORT` the same way first.)*
-* **From the Windows Tray**: Right-click the **`t.`** icon → Select **Quit Token Larper**.
+## Live mode
+
+Press **Live** in the top bar (or open `http://localhost:4269/#live`) to swap the dashboard for a single live screen. Press it again, or Esc, to go back. The full-screen button next to the time span fills the monitor.
+
+* **Tokens per minute**: the last 60 seconds, with the 5-minute average and how much of the prompt came from cache. The trace under it is the same rolling minute over the last 15 or 60 minutes, stacked by tool; hover it to read each tool at that moment.
+* **The tape**: every response as a tick at the moment its last token landed. Taller ticks wrote more output; hover one for its model, output, and speed.
+* **Output, Speed, Requests, Burn rate**: output tokens per minute, the median response's tok/s over 5 minutes, requests per minute, and the last 5 minutes' pace in dollars per hour at API list prices.
+* **By tool** and **By model**: tokens in the time span, what each is burning right now, its speed, and cost.
+* **Output speed**: each response as a dot, with the 5-minute median as a line.
+* **Sessions**: sessions that answered in the last 15 minutes, with tokens per minute now, context size (the latest prompt, cache included), speed, and cost over the last hour. **Responses** lists the newest 14.
+
+Live mode follows the session files of Claude Code, Codex, Pi, Gemini CLI, and Copilot CLI (with OpenTelemetry file export on) as they are written, reading only what was added since its last read, about once a second. Antigravity keeps each conversation in a SQLite database, so Live mode reads the steps added since its last read instead. It stops 30 seconds after you leave Live mode.
+
+### What Live mode can't see
+
+* **Claude chats.** Chats on claude.ai and in the Claude app aren't saved on your computer, so they never appear. Only the Code tab in the Claude app counts, since it runs Claude Code.
+* **Some tools.** OpenCode and the tools only ccusage reads (Amp, Droid, Goose, and the rest) aren't followed live. They show up in the dashboard after a sync.
+* **Responses in progress.** A response counts when its last token is logged, so a long one lands all at once and tokens per minute comes in bursts.
+* **More than an hour back.** Only the last hour is kept, read again from the session files when Token Larper starts.
+* **What you actually pay.** Costs and the burn rate use API list prices, even on a subscription. A model with no known price adds $0.
+* **Pure generation speed.** Speed includes the wait for the first token. Antigravity records times to the second, so its short steps read rough. Antigravity's thinking tokens count toward speed but, as in ccusage's totals, not toward token counts.
+
+Tokens include cache reads, the same as everywhere else in the dashboard, so they run far above what the model writes. The same list is on the Live screen: press **Limitations** in its header.
+
+---
+
+## Speed and tokens per minute
+
+The **Tools**, **Models**, and **Sessions** tabs show an approximate **Speed** column: output tokens per second, timed from when a request is sent to when its last token arrives. ccusage only reports totals, so Token Larper reads the timing from each tool's own session files. Hover a value for the median, p90, and number of responses behind it; a value from fewer than 10 responses is dimmed. On the Tools and Models tabs, Speed follows the date range; on the Sessions tab, each session shows its speed over its whole life.
+
+**Speed over time** on the Tools and Models tabs draws one line per tool or per model, per day, week, or month, so you can compare them as models and versions change. Switch between **Average** (all output tokens over all response time, the same as the Speed column) and **Median** (the middle response's speed), or to **Table** for the exact numbers. The Models chart shows the 7 models with the most responses in the range; pick a tool to compare only its models.
+
+Speed includes waiting for the first token, and that wait grows with the size of the context. A request with a 500K-token context can spend most of its time before any output appears, so Speed reads lower than a model's own generation speed and lower than providers' published figures. Treat it as how fast responses reach you, not a benchmark.
+
+| Tool | Where the timing comes from |
+| --- | --- |
+| OpenCode, Pi, Antigravity | The tool records when each request was sent and finished. OpenCode also records when the first output arrived, so its hover text adds the typical wait for it, and time spent running tools between model calls is left out. |
+| Claude Code, Codex, Gemini CLI | Inferred from the log line before each response (the prompt or a tool result) and the response's last line. |
+| Copilot CLI | Per request only with OpenTelemetry file export on (`COPILOT_OTEL_ENABLED=true`, `COPILOT_OTEL_EXPORTER_TYPE=file`). Without it, Copilot gets Tokens/min but no Speed. |
+
+Responses under 20 output tokens are left out of Speed, since they are almost all wait. **Tokens/min** on the Tools tab divides all of a tool's tokens, cache reads included, by the time it was working; gaps of more than 2 minutes between responses don't count. Other tools show a dash.
+
+The first read of the session files runs in the background and can take a few seconds per gigabyte. Results are saved per file in `throughput-cache.json` in the data folder, so later reads only open files that changed.
+
+---
+
+## Estimated prices
+
+When ccusage has no price for a model (a brand-new one, or usage through a flat-rate subscription), Token Larper estimates the cost from list prices. It downloads OpenRouter's public model price list once a day, keeps it in the data folder as `openrouter-pricing.json`, and prices any model on that list from it. Claude models it doesn't list use Anthropic's rates, built into the app. A model with neither has no price and is left out of estimates; nothing is guessed from its name. If the download fails, the last saved list is used.
+
+Switch **Cost** to **Estimate** to see the prices. The **Models** tab then adds a **Model prices** section with the price per 1M tokens (input, output, cache write, cache read) of every model you've used, which OpenRouter listing each one matched, where the prices come from, and when the list was last downloaded. The cost card on the Overview links to it with **How this is estimated**. In **Verified** mode there are no prices to show, because verified costs never use them.
+
+Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may go unpriced. Verified costs from ccusage are never changed.
+
+---
+
+## Hall of Larp
+
+The **Stats** tab is lifetime only; the date and tool filters don't apply to it. Hide it under **Settings → General → Show stats**.
+
+* **Day streak**: The tab opens on your streak and the last seven days, and the same streak sits in the header and the tray popup. Any usage keeps the streak going; the flame lights once today reaches 500K tokens.
+* **Streak freezes**: Every 500M lifetime tokens earns a freeze, up to 5 held. A freeze covers one missed day, so a short gap keeps the streak without adding a day to it. Freezes only cover a gap they were earned before, and a gap longer than the freezes you hold still breaks the streak (you keep the freezes).
+* **11 tiers**: From *Newcomer* (0 tokens) to *Legend* (100B tokens), shown as one rank row with your progress to the next tier.
+* **Rivals**: Made-up opponents at lifetime-token milestones, from *A curious intern* up.
+* **14 badges**: For things like late-night sessions, a $100 day, or using 5 different agents.
+* **Share card**: A 1200×630 PNG of your rank and stats. Project names and paths are never included.
+
+---
+
+## Settings
+
+Press the gear in the top bar, or the `,` key, to open Settings as a page of its own. **Dashboard** or Esc goes back to where you were. There's a search box, and each section has its own address (`#settings/privacy`) you can link to.
+
+* **Appearance**: Light, dark, or system mode; the style; base and accent colors; and importing a CSS theme.
+* **General**: Show or hide the Stats tab, **Start with Windows**, and **Open dashboard at sign-in**.
+* **Privacy**: **Screenshot mode**, **Offline mode**, the automatic update check, and when each network request last ran.
+* **About**: The version, **Check for updates**, and technical details such as the dashboard address.
+
+---
+
+## Privacy and network requests
+
+Token Larper never sends your prompts, token counts, costs, or project names anywhere. It has no telemetry. These are the requests it does make:
+
+| Request | When | What's sent | Turn it off |
+| --- | --- | --- | --- |
+| **Update check** to `registry.npmjs.org` | When the dashboard opens | Only the package name | **Settings → Privacy**, or Offline mode |
+| **Price list** from `openrouter.ai` | Once a day | Nothing but the request | Offline mode |
+| **Plan quotas** from Anthropic, ChatGPT, GitHub, and Google | At startup, then about once a minute while a tab that shows limits is open | Your saved sign-in for that tool, to that tool's own vendor | See below |
+
+**Offline mode** in **Settings → Privacy** (or starting with `TOKEN_LARPER_OFFLINE=1`) stops the update check and the price list download. It doesn't stop the plan quota lookups yet. To stop those, sign out of a tool or don't use the Limits tab and Quota strip.
+
+**Screenshot mode** in the same place replaces project names and folders with Project A, Project B, and so on, everywhere in the dashboard, for screenshots and screen shares.
+
+---
+
+## Supported agents
+
+Token Larper uses `ccusage` together with its own scanners to find and read session history from 18 coding agents:
+
+| Agent | Vendor | Folder it looks for |
+| :--- | :--- | :--- |
+| **Claude Code** | Anthropic | `~/.claude/` and `~/.claude.json` |
+| **Codex CLI** | OpenAI | `~/.codex/` |
+| **Antigravity** | Google DeepMind | `~/.gemini/antigravity/` |
+| **GitHub Copilot CLI** | GitHub | `~/.copilot/` (or `COPILOT_HOME`) |
+| **Gemini CLI** | Google | `~/.gemini/` |
+| **OpenCode** | SST / OpenCode | `~/.local/share/opencode/`, `~/.opencode/`, `%LOCALAPPDATA%\opencode` |
+| **pi-agent** | Pi | `~/.pi/` |
+| **Amp** | Sourcegraph | `~/.amp/`, `%LOCALAPPDATA%\amp` |
+| **Droid** | Factory | `~/.factory/`, `~/.droid/` |
+| **Codebuff** | Codebuff | `~/.codebuff/`, `%APPDATA%\codebuff` |
+| **Hermes Agent** | Nous Research | `~/.hermes/` |
+| **Goose** | Block | `~/.config/goose/`, `%APPDATA%\Block\goose` |
+| **Kilo Code** | Kilo | `~/.kilo/` |
+| **Kimi CLI** | Moonshot AI | `~/.kimi/` |
+| **Qwen Code** | Alibaba Cloud | `~/.qwen/` |
+| **OpenClaw** | OpenClaw | `~/.openclaw/` |
+| **Grok Build CLI** | xAI | `~/.grok/` |
+| **ZCode** | ZCode | `~/.zcode/` |
+
+---
+
+## Configuration
+
+### Port
+
+Token Larper uses port `4269`. If another program has it, it tries the next nine ports and uses the first free one. To pick your own:
+
+```bash
+PORT=5000 bunx token-larper           # macOS & Linux
+```
+
+```powershell
+$env:PORT = "5000"; bunx token-larper # Windows
+```
+
+Set `PORT` the same way when you run `stop`, so it reaches the right copy.
+
+### Data folder
+
+Settings and caches live outside the app folder, so updates keep them:
+
+| OS | Folder |
+| :--- | :--- |
+| Windows | `%LOCALAPPDATA%\TokenLarper` |
+| macOS | `~/Library/Application Support/TokenLarper` |
+| Linux | `$XDG_DATA_HOME/token-larper` (default `~/.local/share/token-larper`) |
+
+It holds `settings.json`, the theme, the saved day history (`daily-history.json`), the price list, the speed and limits caches, and `server.log`. Set `TOKEN_LARPER_DATA_DIR` to use another folder. Versions before 1.5.0 kept this data in `.cache` inside the app; it's copied over on first run.
+
+### Environment variables
+
+| Variable | What it does |
+| --- | --- |
+| `PORT` | The port to use (default `4269`). |
+| `TOKEN_LARPER_DATA_DIR` | Use this folder for settings and caches. |
+| `TOKEN_LARPER_OFFLINE=1` | Turn on Offline mode. The switch in Settings can't turn it off while this is set. |
+| `NO_TRAY=1` | Don't start the tray icon (it only starts on Windows anyway). Useful on a headless machine. |
+| `COPILOT_HOME` | Where Copilot CLI keeps its files, if not `~/.copilot`. |
+
+### Start at sign-in (Windows)
+
+Turn on **Start with Windows** in **Settings → General**, or **Start on Windows Boot** from the tray's right-click menu. **Open dashboard at sign-in** also opens the dashboard in your browser. This adds a `TokenLarper` entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` that starts the windowless launcher.
+
+### Updates
+
+When a new version is on npm, the dashboard shows a banner. **Update now** starts `bunx token-larper@latest` in the background; the new version replaces the running one on the same port and the dashboard reloads. You can also check from **Settings → About**, or turn automatic checks off in **Settings → Privacy**. A copy cloned from git updates with `git pull`.
 
 ---
 
@@ -227,7 +345,7 @@ Token Larper only reads your agents' logs, so removing it leaves your session hi
 
 ### 1. Turn off startup and stop it
 
-On Windows, if you turned on **Start with Windows**, turn it off in the dashboard under **Settings**, or right-click the tray icon and uncheck **Start on Windows Boot**. Then quit from the tray, or run:
+On Windows, if you turned on **Start with Windows**, turn it off in **Settings → General**, or right-click the tray icon and uncheck **Start on Windows Boot**. Then quit from the tray, or run:
 
 ```bash
 bunx token-larper stop
@@ -243,13 +361,13 @@ On macOS and Linux, stopping it is enough. If you set up your own LaunchAgent or
 
 ### 2. Delete the data folder
 
-This holds settings, caches, the downloaded price list, and `server.log`:
+This holds settings, caches, the saved day history, and `server.log`. Days that your agents have since pruned from their own logs exist only here, so they're gone once you delete it.
 
-| OS | Folder | Remove it with |
-| :--- | :--- | :--- |
-| Windows | `%LOCALAPPDATA%\TokenLarper` | `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\TokenLarper"` |
-| macOS | `~/Library/Application Support/TokenLarper` | `rm -rf ~/Library/Application\ Support/TokenLarper` |
-| Linux | `~/.local/share/token-larper` | `rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/token-larper"` |
+| OS | Remove it with |
+| :--- | :--- |
+| Windows | `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\TokenLarper"` |
+| macOS | `rm -rf ~/Library/Application\ Support/TokenLarper` |
+| Linux | `rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/token-larper"` |
 
 If you set `TOKEN_LARPER_DATA_DIR`, delete that folder instead.
 
@@ -263,227 +381,98 @@ Bun stays installed. If you only installed it for Token Larper, see [Bun's unins
 
 ---
 
-## Supported Harnesses (18 Agents)
+## Comparison with alternatives
 
-Token Larper utilizes `ccusage` v20+ paired with native deep scanners to automatically detect and index session history across 18 coding environments:
-
-| Harness | Vendor | Default Local Path Scanned |
-| :--- | :--- | :--- |
-| **Claude Code** | Anthropic | `~/.claude/` & `~/.claude.json` |
-| **Antigravity** | Google DeepMind | `%APPDATA%\antigravity-ide\` & `~/.gemini/` |
-| **Codex CLI** | OpenAI | `~/.codex/` |
-| **GitHub Copilot CLI** | GitHub / Microsoft | `~/.copilot-cli/` & `%LOCALAPPDATA%\GitHubCopilot` |
-| **Gemini CLI** | Google | `~/.gemini/` |
-| **OpenCode** | OpenCode | `~/.local/share/opencode/` & `%APPDATA%\opencode` |
-| **pi-agent** | Pi | `~/.pi/` & `~/.pi-agent/` |
-| **Goose** | Block | `~/.goose/` |
-| **Hermes** | Hermes AI | `~/.hermes/` |
-| **Amp** | Ampersand | `~/.amp/` |
-| **Droid** | Factory | `~/.droid/` |
-| **Codebuff** | Codebuff | `~/.codebuff/` |
-| **Kilo** | Kilo | `~/.kilo/` |
-| **Kimi** | Moonshot | `~/.kimi/` |
-| **Qwen** | Alibaba | `~/.qwen/` |
-| **OpenClaw** | OpenClaw | `~/.openclaw/` |
-| **Grok** | xAI | `~/.grok/` |
-| **ZCode** | ZCode | `~/.zcode/` |
-
----
-
-## Configuration & Features
-
-### Auto-Start on Windows Boot
-You can have Token Larper launch silently into the system tray every time you turn on your computer:
-1. Right-click the **`t.`** system tray icon.
-2. Click **Start on Windows Boot** to enable it.
-3. *(Optional)* Click **Auto-Open Browser on Boot** if you want your default browser to launch directly to the dashboard upon login.
-
-*(This registers a clean user entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\TokenLarper` running the windowless launcher).*
-
-### Custom Port
-By default, Token Larper runs on port `4269`. You can specify a custom port:
-* **macOS & Linux**:
-  ```bash
-  PORT=5000 bun start
-  ```
-* **Windows (PowerShell)**:
-  ```powershell
-  $env:PORT = "5000"; bun start
-  ```
-The port is also persisted in `settings.json` in the data folder (see below).
-
-### Data Folder
-Caches and settings live outside the app folder, so updates keep them:
-
-* **Windows**: `%LOCALAPPDATA%\TokenLarper`
-* **macOS**: `~/Library/Application Support/TokenLarper`
-* **Linux**: `$XDG_DATA_HOME/token-larper` (default `~/.local/share/token-larper`)
-
-Set `TOKEN_LARPER_DATA_DIR` to use another folder. Versions before 1.5.0 kept this data in `.cache` inside the app; it is copied over on first run.
-
-### Updates
-When a new version is on npm, the dashboard shows a banner. **Update now** starts `bunx token-larper@latest` in the background; the new version replaces the running one on the same port and the dashboard reloads. You can also check from **Settings → About**, or turn automatic checks off in **Settings → Privacy**. A copy cloned from git updates with `git pull`.
-
-### Estimated Prices
-When ccusage has no price for a model (a brand-new one, or usage through a flat-rate subscription), Token Larper estimates the cost from list prices. It downloads OpenRouter's public model price list once a day, keeps it in the data folder as `openrouter-pricing.json`, and prices any model on that list from it. Claude models it doesn't list use Anthropic's rates, built into the app. A model with neither has no price and is left out of estimates; nothing is guessed from its name. Only the price list is downloaded; nothing about your usage is sent, and if the download fails the last saved list is used.
-
-Switch **Cost** to **Estimate** to see the prices. The **Models** tab then adds a **Model prices** section with the price per 1M tokens (input, output, cache write, cache read) of every model you've used, which OpenRouter listing each one matched, where the prices come from, and when the list was last downloaded. The cost card on the Overview links to it with **How this is estimated**. In **Verified** mode there are no prices to show, because verified costs never use them.
-
-Estimates do not include OpenRouter's long-context surcharges, and a model name that OpenRouter spells differently may go unpriced. Verified costs from ccusage are never changed. Turn on **Offline mode** in **Settings → Privacy** (or set `TOKEN_LARPER_OFFLINE=1`) to skip the download and use only the saved list (if any) and the built-in rates.
-
-### Speed and Tokens per Minute
-The **Tools**, **Models**, and **Sessions** tabs show an approximate **Speed** column: output tokens per second, timed from when a request is sent to when its last token arrives. ccusage only reports totals, so Token Larper reads the timing from each tool's own session files. Hover a value for the median, p90, and number of responses behind it; a value from fewer than 10 responses is dimmed. On the Tools and Models tabs, Speed follows the date range; on the Sessions tab, each session shows its speed over its whole life.
-
-**Speed over time** on the Tools and Models tabs draws one line per tool or per model, per day, week, or month, so you can compare them as models and versions change. Switch between **Average** (all output tokens over all response time, the same as the Speed column) and **Median** (the middle response's speed), or to **Table** for the exact numbers. Values from fewer than 10 responses are dimmed. The Models chart shows the 7 models with the most responses in the range; pick a tool to compare only its models.
-
-Speed includes waiting for the first token, and that wait grows with the size of the context. A request with a 500K-token context can spend most of its time before any output appears, so Speed reads lower than a model's own generation speed and lower than providers' published figures. Treat it as how fast responses reach you, not a benchmark.
-
-| Tool | Where the timing comes from |
-| --- | --- |
-| OpenCode, Pi, Antigravity | The tool records when each request was sent and finished. OpenCode also records when the first output arrived, so its hover text adds the typical wait for it, and time spent running tools between model calls is left out. |
-| Claude Code, Codex, Gemini CLI | Inferred from the log line before each response (the prompt or a tool result) and the response's last line. |
-| Copilot CLI | Per request only with OpenTelemetry file export on (`COPILOT_OTEL_ENABLED=true`, `COPILOT_OTEL_EXPORTER_TYPE=file`). Without it, Copilot gets Tokens/min but no Speed. |
-
-Responses under 20 output tokens are left out of Speed, since they are almost all wait. **Tokens/min** on the Tools tab divides all of a tool's tokens, cache reads included, by the time it was working; gaps of more than 2 minutes between responses don't count. Other tools show a dash.
-
-The first read of the session files runs in the background and can take a few seconds per gigabyte. Results are saved per file in `throughput-cache.json` in the data folder, so later reads only open files that changed.
-
-### Live mode
-Press **Live** in the top bar (or open `http://localhost:4269/#live`) to swap the dashboard for a single live screen. Press it again, or Esc, to go back. The full-screen button next to the time span fills the monitor.
-
-* **Tokens per minute**: the last 60 seconds, with the 5-minute average and how much of the prompt came from cache. The trace under it is the same rolling minute over the last 15 or 60 minutes, stacked by tool; hover it to read each tool at that moment.
-* **The tape**: every response as a tick at the moment its last token landed. Taller ticks wrote more output; hover one for its model, output and speed.
-* **Output, Speed, Requests, Burn rate**: output tokens per minute, the median response's tok/s over 5 minutes, requests per minute, and the last 5 minutes' pace in dollars per hour at API list prices.
-* **By tool** and **By model**: tokens in the time span, what each is burning right now, its speed and cost.
-* **Output speed**: each response as a dot, with the 5-minute median as a line.
-* **Sessions**: sessions that answered in the last 15 minutes, with tokens per minute now, context size (the latest prompt, cache included), speed, and cost over the last hour. **Responses** lists the newest 14.
-
-Live mode follows the session files of Claude Code, Codex, Pi, Gemini CLI, and Copilot CLI (with OpenTelemetry file export on) as they are written, reading only what was added since its last read, about once a second. Antigravity keeps each conversation in a SQLite database, so Live mode reads the steps added since its last read instead. It stops 30 seconds after you leave Live mode.
-
-#### What Live mode can't see
-
-* **Claude chats.** Chats on claude.ai and in the Claude app aren't saved on your computer, so they never appear. Only the Code tab in the Claude app counts, since it runs Claude Code.
-* **Some tools.** OpenCode and the tools only ccusage reads (Amp, Droid, Goose and the rest) aren't followed live. They show up in the dashboard after a sync.
-* **Responses in progress.** A response counts when its last token is logged, so a long one lands all at once and tokens per minute comes in bursts.
-* **More than an hour back.** Only the last hour is kept, read again from the session files when Token Larper starts.
-* **What you actually pay.** Costs and the burn rate use API list prices, even on a subscription. A model with no known price adds $0.
-* **Pure generation speed.** Speed includes the wait for the first token. Antigravity records times to the second, so its short steps read rough. Antigravity's thinking tokens count toward speed but, as in ccusage's totals, not toward token counts.
-
-Tokens include cache reads, the same as everywhere else in the dashboard, so they run far above what the model writes. The same list is on the Live screen: press **Limitations** in its header.
-
-### Headless Server Mode
-If running on a remote headless server or Docker container, you can explicitly disable the tray icon (automatically disabled on macOS/Linux):
-```bash
-NO_TRAY=1 bun start
-```
-
----
-
-## Comparison with Alternatives
-
-| Dimension / Feature | Token Larper | LiteLLM / Portkey | Langfuse / Arize | `ccusage` CLI |
+| | Token Larper | LiteLLM / Portkey | Langfuse / Arize | `ccusage` CLI |
 | :--- | :---: | :---: | :---: | :---: |
-| **Telemetry Ingestion** | Passive local disk log scraping | HTTP Reverse Proxy | SDK / OTel Collector | Passive local disk log scraping |
-| **Setup Complexity** | One command with Bun (`bunx token-larper`) | High (custom proxy URLs) | High (SDK instrumenting) | Low (`npm i -g ccusage`) |
-| **Supports Flat Subscriptions (Pro/Max)** | ✅ Yes (Estimates LARP value) | ❌ No | ❌ No | ✅ Yes |
-| **User Interface** | Interactive Web + Native Tray | Cloud / Docker Web UI | Cloud / Self-hosted UI | Terminal tables only |
-| **Agent Auto-Detection** | ✅ 18+ coding harnesses | ❌ Manual per-tool proxy setup | ❌ Manual code changes | ✅ 18+ coding harnesses |
-| **100% Offline & Private** | ✅ Yes (Zero cloud telemetry) | ⚠️ Depends on deployment | ⚠️ Cloud or self-hosted DB | ✅ Yes |
-| **Gamification & Shareable Cards** | ✅ Yes (Hall of Larp) | ❌ No | ❌ No | ❌ No |
-
----
-
-## Hall of Larp (Rank & Gamification)
-
-Token Larper includes a dedicated **Stats** tab designed to celebrate your token burn. It opens on your day streak, with the last seven days, and the same streak sits in the header and in the tray popup:
-* **11 Lifetime Tiers**: Progress from *Newcomer* (0 tokens) to *Legend* (100B tokens), shown as a single rank row with your progress to the next tier.
-* **Rival Leaderboards**: Compete against quirky procedural AI rivals as your token count climbs.
-* **14 Achievements**: Unlock badges for late-night hacking sessions, burning $100+ in a single day, or harnessing 5+ different agents.
-* **Shareable Rank Card**: Generate and export a 1200×630 PNG badge to share on X/Twitter or Discord. Project paths and names are strictly sanitized and never included.
+| **How it gets data** | Reads local session logs | HTTP reverse proxy | SDK / OTel collector | Reads local session logs |
+| **Setup** | One command (`bunx token-larper`) | Custom proxy URLs per tool | Instrumenting your code | One command (`npx ccusage`) |
+| **Flat-rate plans (Pro/Max, Copilot)** | ✅ Estimated LARP value | ❌ | ❌ | ✅ |
+| **Remaining plan quota** | ✅ Limits tab | ❌ | ❌ | ❌ |
+| **Interface** | Web dashboard + Windows tray | Web UI (cloud or Docker) | Web UI (cloud or self-hosted) | Terminal tables |
+| **Agent detection** | ✅ 18 agents, automatic | ❌ Set up per tool | ❌ Code changes | ✅ 18 agents, automatic |
+| **Usage stays local** | ✅ | ⚠️ Depends on deployment | ⚠️ Cloud or self-hosted DB | ✅ |
+| **Streaks and share cards** | ✅ Hall of Larp | ❌ | ❌ | ❌ |
 
 ---
 
 ## Troubleshooting & FAQ
 
-### 1. How do I monitor Claude Code token usage and spend locally?
-Token Larper automatically scans `~/.claude/` for Claude Code session files and SQLite databases. It displays daily, weekly, and monthly token burns (input, output, cache creation, cache read) alongside verified costs without requiring Anthropic API keys.
+### How do I see my Claude Code token usage and spend locally?
+Run `bunx token-larper`. It reads Claude Code's session files in `~/.claude/` and shows daily, weekly, and monthly tokens (input, output, cache write, cache read) with their cost, without an Anthropic API key. The **Limits** tab shows how much of your 5-hour and weekly windows is left.
 
-### 2. Can I track tokens across multiple tools like Antigravity, Claude Code, and Codex in one place?
-Yes. Token Larper detects and aggregates usage across 18 supported coding harnesses simultaneously, allowing you to see your cross-agent total spend and filter by specific tools.
+### Can I track Antigravity, Claude Code, and Codex in one place?
+Yes. Every supported agent on your machine is counted together, and the tool filter narrows the dashboard to one.
 
-### 3. Why track local agent logs instead of using a reverse proxy like LiteLLM?
-Many modern coding agents (Claude Code, GitHub Copilot CLI, Antigravity) use OAuth subscriptions rather than raw pay-per-token API keys. Proxies cannot intercept or track these subscription agents without TLS decryption and custom protocol reverse-engineering. Token Larper solves this by reading the session logs the agents write directly to your local drive.
+### Why read local logs instead of using a proxy like LiteLLM?
+Many coding agents (Claude Code, GitHub Copilot CLI, Antigravity) sign in with a subscription rather than a pay-per-token API key. A proxy can't see that traffic without decrypting it. The agents already write every response to disk, so Token Larper reads that.
 
-### 4. `'bun' is not recognized as an internal or external command`
-* **Cause**: Bun was installed, but the current terminal session doesn't have `%USERPROFILE%\.bun\bin` in its `PATH`.
-* **Fix**: Close and reopen your terminal, or manually add it for your session:
-  ```powershell
-  $env:PATH += ";$env:USERPROFILE\.bun\bin"
-  ```
+### `'bun' is not recognized as an internal or external command`
+Bun is installed, but this terminal doesn't have `%USERPROFILE%\.bun\bin` on its `PATH`. Close and reopen the terminal, or add it for this session:
+```powershell
+$env:PATH += ";$env:USERPROFILE\.bun\bin"
+```
 
-### 5. `cannot be loaded because running scripts is disabled on this system`
-* **Cause**: Windows PowerShell default execution policy is preventing local scripts from running.
-* **Fix**: Open PowerShell as your standard user and run:
-  ```powershell
-  Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-  ```
+### `cannot be loaded because running scripts is disabled on this system`
+PowerShell's execution policy is blocking local scripts. Run:
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
 
-### 6. The system tray icon is not visible
-* **Cause**: Windows may have placed the icon inside the "hidden notification icons" overflow menu (the `^` arrow on the taskbar).
-* **Fix**: Click the `^` arrow next to your Windows clock, find the **Burning t.** icon, and drag it onto your main taskbar to keep it permanently visible.
+### The tray icon isn't visible
+Windows may have put it in the hidden icons menu. Click the `^` arrow next to the clock, find the **`t.`** icon, and drag it onto the taskbar.
 
-### 7. No tokens or sessions are showing up in the dashboard
-* **Cause**: Either no coding agents have been executed yet, or their logs are located in non-standard directories.
-* **Fix**: 
-  1. Run a quick session with one of your tools (e.g., `claude` or `antigravity`).
-  2. Right-click the system tray icon and click **Sync Harnesses Now (ccusage)**, or click the **Sync Now** button in the top right of the dashboard.
+### No tokens or sessions show up
+Use one of your agents for a moment, then press **Sync** in the top bar (or **Sync Harnesses Now** in the tray menu). If an agent keeps its files somewhere other than the folders in [Supported agents](#supported-agents), Token Larper won't find it.
 
-### 8. Port 4269 is already in use
-* **Fix**: Token Larper might already be running in the background. Stop it using:
-  ```powershell
-  bun run stop
-  ```
-  Or change the port:
-  ```powershell
-  $env:PORT = "4500"
-  bun start
-  ```
+### A tool is missing from the Limits tab
+Limits only appear for tools you're signed in to with a subscription: Claude Code, Codex, GitHub Copilot, Antigravity, or OpenCode Go. Free plans are hidden until you press **Show free**. If a card says its quota couldn't be read, sign in to that tool again; Token Larper never refreshes a sign-in itself.
+
+### The dashboard isn't on port 4269
+Another program had the port, so Token Larper moved to the next free one; the address is printed when it starts and shown under **Settings → About → Technical details**. If an older copy of Token Larper is holding the port, stop it with `bunx token-larper stop`, or pick a port with `PORT`.
 
 ---
 
-## Project Architecture
+## Project layout
 
 ```
-tokenlarper/
-├── Start-TokenLarper.vbs      # Windowless silent launcher for Windows
-├── package.json              # Scripts & dependencies
+token-larper/
+├── bin/cli.js                 # bunx entry: start in the background, stop, --foreground
+├── Start-TokenLarper.vbs      # Windowless launcher for Windows
 ├── scripts/
-│   ├── run-server.ps1        # PowerShell background watchdog & port resolver
-│   ├── launch-silent.vbs     # VBS helper for boot auto-start
-│   ├── tray-host.ps1         # Native DPI-aware Windows Forms system tray host
-│   └── launch-on-default-desktop.ps1 # WinSta0\Default desktop trampoline
+│   ├── run-server.ps1         # Windows background watchdog and port resolver
+│   ├── launch-silent.vbs      # Helper for start at sign-in
+│   ├── tray-host.ps1          # DPI-aware Windows Forms tray host
+│   └── build-client.ts        # Builds the dashboard into dist/
 ├── src/
-│   ├── server.ts             # Bun HTTP & WebSocket server + client bundler
-│   ├── ccusage.ts            # 18-harness telemetry reader & cost calculation engine
-│   ├── tray/                 # System tray lifecycle management & IPC (windows.ts)
-│   ├── startup.ts            # Windows registry boot integration
-│   ├── projects.ts           # Workspace & Git repository deduplication
-│   ├── types.ts              # TypeScript interfaces & data contracts
-│   └── client/               # React 19 Frontend Dashboard
-│       ├── App.tsx           # Layout, navigation, date ranges, and global state
-│       ├── charts.tsx        # Stacked SVG bar & trend charts
-│       ├── views/            # Overview, Tools, Models, Sessions, Projects, Stats
-│       └── styles.css        # Custom responsive CSS design system (Dark/Light)
+│   ├── server.ts              # Bun HTTP server and local API
+│   ├── ccusage.ts             # Reads the 18 agents through ccusage and adds our own scanners
+│   ├── dailyHistory.ts        # Keeps every day ccusage has reported
+│   ├── limits/                # Plan quotas for the Limits tab
+│   ├── live/                  # Follows session files for Live mode
+│   ├── throughput/            # Speed and tokens per minute
+│   ├── pricing.ts             # OpenRouter price list and estimates
+│   ├── projects.ts            # Groups sessions by repository
+│   ├── settings.ts            # Offline mode and other saved settings
+│   ├── updates.ts             # npm update check
+│   ├── startup.ts             # Windows start at sign-in
+│   ├── tray/                  # Tray lifecycle and IPC
+│   └── client/                # React 19 dashboard
+│       ├── App.tsx            # Layout, tabs, date ranges, and global state
+│       ├── views/             # Overview, Limits, Tools, Models, Projects, Sessions, Stats, Live
+│       ├── components/        # Settings page, charts, pickers, and shared pieces
+│       ├── lib/               # Rank and streaks, live data, prices, screenshot mode
+│       └── styles.css         # Styles and themes
+└── llms.txt                   # Summary for AI assistants
 ```
 
 ---
 
-## Acknowledgments & Credits
+## Acknowledgments
 
-Token Larper is built directly on top of the work of the open-source community:
-* **[`ccusage`](https://github.com/ccusage/ccusage)** — The core telemetry engine powering local session scraping, token counting, and cost calculations across AI coding harnesses.
-* **[Bun](https://bun.sh)** — Fast all-in-one JavaScript runtime and bundler.
-* **[Lucide Icons](https://lucide.dev)** — Clean and consistent iconography for the web dashboard.
+* **[`ccusage`](https://github.com/ccusage/ccusage)**: The engine behind reading session logs, counting tokens, and verified costs across coding agents.
+* **[Bun](https://bun.sh)**: The runtime, bundler, and SQLite driver.
+* **[Lucide](https://lucide.dev)**: The dashboard's icons.
 
 ---
 
