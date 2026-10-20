@@ -31,11 +31,11 @@ describe("settings search", () => {
 
   test("the section name finds everything in that section", () => {
     expect(ids("about")).toEqual(["updates", "details"]);
-    expect(ids("privacy")).toEqual(["screenshot", "offline", "auto-check", "price-list"]);
+    expect(ids("privacy")).toEqual(["screenshot", "offline", "auto-check", "price-list", "quota-lookups"]);
   });
 
   test("a network search finds every setting that makes a request", () => {
-    expect(ids("network")).toEqual(["offline", "auto-check", "price-list"]);
+    expect(ids("network")).toEqual(["offline", "auto-check", "price-list", "quota-lookups"]);
   });
 
   test("gives nothing for text that matches no setting", () => {

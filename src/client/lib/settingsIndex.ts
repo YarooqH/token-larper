@@ -16,6 +16,7 @@ export type SettingId =
   | "offline"
   | "auto-check"
   | "price-list"
+  | "quota-lookups"
   | "updates"
   | "details";
 
@@ -50,9 +51,10 @@ export const SETTING_ENTRIES: readonly SettingEntry[] = [
   { id: "autostart", section: "general", label: "Start with Windows", keywords: "startup boot login sign in launch autostart registry" },
   { id: "browser", section: "general", label: "Open dashboard at sign-in", keywords: "startup boot login browser launch" },
   { id: "screenshot", section: "privacy", label: "Screenshot mode", keywords: "hide names projects folders paths redact blur private share streaming demo recording" },
-  { id: "offline", section: "privacy", label: "Offline mode", keywords: "network internet connection requests price list updates npm openrouter download airplane" },
+  { id: "offline", section: "privacy", label: "Offline mode", keywords: "network internet connection requests price list updates npm openrouter download airplane quota limits" },
   { id: "auto-check", section: "privacy", label: "Check for updates automatically", keywords: "update npm registry version network request" },
   { id: "price-list", section: "privacy", label: "Price list download", keywords: "openrouter prices models network request estimate cost daily" },
+  { id: "quota-lookups", section: "privacy", label: "Plan quota lookups", keywords: "limits quota plan subscription anthropic openai chatgpt github copilot google antigravity credentials network request" },
   { id: "updates", section: "about", label: "Check for updates", keywords: "version upgrade update now release npm latest" },
   { id: "details", section: "about", label: "Technical details", keywords: "port address launcher path registry dashboard url" },
 ];

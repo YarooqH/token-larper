@@ -1,9 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import type { HarnessLimitCard } from "../types.ts";
 import {
   CLAUDE_SIGN_IN_EXPIRED_MESSAGE,
+  LIMITS_OFFLINE_MESSAGE,
   buildAntigravityLimitCard,
   buildClaudeSignInExpiredCard,
+  buildLimitsOfflineCard,
   buildOpenCodeGoLimitCard,
   clampPercent,
   estimateOpenCodeGoCost,
@@ -20,6 +23,7 @@ import {
   parseCodexRolloutRateLimits,
   parseCodexWhamUsage,
   parseCopilotUsage,
+  requestQuota,
   withTimeout,
 } from "./index.ts";
 
@@ -439,5 +443,56 @@ describe("antigravity account selection", () => {
     expect(staleItems).toHaveLength(2);
     expect(staleItems[0]?.stale).toBe(true);
     expect(staleItems[1]?.stale).toBe(true);
+  });
+});
+
+describe("offline mode", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  const stubFetch = () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      urls.push(String(input));
+      return new Response("{}");
+    }) as typeof fetch;
+    return urls;
+  };
+
+  test("requestQuota sends nothing while offline", async () => {
+    const urls = stubFetch();
+    await expect(requestQuota("https://api.github.com/copilot_internal/user", {}, true)).rejects.toThrow(LIMITS_OFFLINE_MESSAGE);
+    expect(urls).toEqual([]);
+  });
+
+  test("requestQuota makes the request while online", async () => {
+    const urls = stubFetch();
+    const res = await requestQuota("https://chatgpt.com/backend-api/wham/usage", {}, false);
+    expect(res.ok).toBe(true);
+    expect(urls).toEqual(["https://chatgpt.com/backend-api/wham/usage"]);
+  });
+
+  test("every vendor request in the limits module goes through requestQuota", () => {
+    const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+    expect(source.split("fetch(")).toHaveLength(2);
+    const start = source.indexOf("export async function requestQuota");
+    const gate = source.slice(start, source.indexOf("export function buildLimitsOfflineCard"));
+    expect(gate).toContain("fetch(");
+  });
+
+  test("an offline card has no numbers and no error, and is kept over a stale snapshot", () => {
+    const card = buildLimitsOfflineCard({ id: "copilot", harness: "copilot", name: "Copilot", vendor: "GitHub", account: "octo" });
+    expect(card.offline).toBe(true);
+    expect(card.windows).toEqual([]);
+    expect(card.error).toBeUndefined();
+
+    const now = Date.parse("2026-10-14T12:00:00Z");
+    const cached = makeCard("copilot", new Date(now - 60_000).toISOString());
+    const items = mergeWithCache(new Map([["copilot", cached]]), new Map([["copilot", [card]]]), now);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.offline).toBe(true);
+    expect(items[0]?.stale).toBeUndefined();
   });
 });

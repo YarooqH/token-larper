@@ -323,6 +323,10 @@ function StripRow({
     tone = " is-session";
     value = "Session";
     note = countdown ? (countdown === RESETTING_NOW ? "Session ended" : `Ends in ${countdown}`) : "Session ended";
+  } else if (card.offline) {
+    tone = " is-empty";
+    value = "Offline";
+    note = "Offline mode is on";
   } else {
     tone = card.error ? " is-error" : " is-empty";
     value = card.error ? "Unavailable" : "No data";
@@ -480,6 +484,14 @@ function CardStatus({ card, unavailable, nowMs }: { card: HarnessLimitCard; unav
       </span>
     );
   }
+  if (card.offline && card.windows.length === 0) {
+    return (
+      <span className="limit-status">
+        <i aria-hidden="true" />
+        Offline
+      </span>
+    );
+  }
   if (card.stale) {
     const age = formatAge(card.staleSince, nowMs);
     return (
@@ -530,6 +542,8 @@ function LimitCard({ card, nowMs }: { card: HarnessLimitCard; nowMs: number }) {
 
       {unavailable ? (
         <p className="limit-error-line">{card.error}</p>
+      ) : windows.length === 0 && card.offline ? (
+        <p className="limit-none">Offline mode is on. Turn it off in Settings → Privacy to check this quota.</p>
       ) : windows.length === 0 && card.block ? (
         <BlockRow block={card.block} nowMs={nowMs} />
       ) : windows.length === 0 ? (
