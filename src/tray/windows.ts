@@ -316,11 +316,14 @@ $notifyIcon.Add_MouseClick({
   }
 })
 
-function Update-TrayStatus([bool]$popupOpen = $false) {
+# PowerShell scoping lets everything this calls see its parameter, so it must not reuse a
+# control's name: a $popupOpen parameter hid the "Open dashboard" link from Set-PopupTheme
+# and from a popup opened while a refresh was still waiting on the server.
+function Update-TrayStatus([bool]$forPopup = $false) {
   try {
     # Opening the popup asks the server for a fresh snapshot, which can take a few seconds.
-    $uri = if ($popupOpen) { "$BaseUrl/api/tray-status?popup=1" } else { "$BaseUrl/api/tray-status" }
-    $st = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec $(if ($popupOpen) { 6 } else { 4 })
+    $uri = if ($forPopup) { "$BaseUrl/api/tray-status?popup=1" } else { "$BaseUrl/api/tray-status" }
+    $st = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec $(if ($forPopup) { 6 } else { 4 })
     if ($null -ne $st) {
       $itemStats.Text = $st.summaryText
       $tooltip = "Token Larper: $($st.shortTooltip)"
@@ -340,7 +343,7 @@ function Update-TrayStatus([bool]$popupOpen = $false) {
       $itemBoot.Checked = [bool]$st.bootEnabled
       $itemOpenOnBoot.Checked = [bool]$st.openBrowserOnBoot
       # The rescan outlasted the request: look again once it has had time to finish.
-      if ($popupOpen -and $st.refreshing) {
+      if ($forPopup -and $st.refreshing) {
         $script:refetchTimer.Stop()
         $script:refetchTimer.Start()
       }
