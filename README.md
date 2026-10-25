@@ -29,6 +29,10 @@
   <a href="#troubleshooting--faq">FAQ</a>
 </p>
 
+<video src="https://github.com/user-attachments/assets/104c8036-694e-474b-81e1-d33576f2cc30" controls playsinline poster="https://raw.githubusercontent.com/YarooqH/token-larper/main/docs/media/overview.jpg" width="820">
+  <a href="docs/media/walkthrough.mp4">Watch the 20-second walkthrough</a>
+</video>
+
 Token Larper reads the session logs that Claude Code, Codex, Antigravity, GitHub Copilot CLI, OpenCode, and 13 other coding agents already write to your disk, and turns them into a dashboard at `localhost:4269`. Your prompts and usage stay on your machine. It runs on Windows, macOS, and Linux, and on Windows it also sits in the system tray.
 
 It's built on top of [`ccusage`](https://github.com/ccusage/ccusage), which does the log parsing, token counting, and pricing. Token Larper adds the dashboard, subscription limits, Live mode, model speed, project grouping, the tray icon, and the Hall of Larp.
@@ -61,11 +65,7 @@ It starts in the background and opens the dashboard. Stop it with `bunx token-la
 
 ## A quick tour
 
-The screens below use sample data. No local sessions or project names are included.
-
-<video src="https://github.com/user-attachments/assets/104c8036-694e-474b-81e1-d33576f2cc30" controls playsinline poster="https://raw.githubusercontent.com/YarooqH/token-larper/main/docs/media/overview.jpg" width="820">
-  <a href="docs/media/walkthrough.mp4">Watch the 20-second walkthrough</a>
-</video>
+The video above and the screens below use sample data. No local sessions or project names are included.
 
 | Usage breakdown | Projects |
 | --- | --- |
