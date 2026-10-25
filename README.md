@@ -476,6 +476,12 @@ token-larper/
 
 ---
 
+## Contributing
+
+Bug reports, fixes, and support for more agents are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) to get set up, and please follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security problem, see [SECURITY.md](SECURITY.md).
+
+---
+
 ## License
 
-MIT © Token Larper Contributors
+MIT © Token Larper Contributors. See [LICENSE](LICENSE).

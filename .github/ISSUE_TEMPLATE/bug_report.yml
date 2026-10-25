@@ -1,0 +1,85 @@
+name: Bug report
+description: Something in Token Larper isn't working as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please search the [open issues](https://github.com/YarooqH/token-larper/issues) first.
+
+        Don't paste your real token counts, costs, or project names. Turn on **Screenshot mode** in **Settings → Privacy** before taking screenshots. For security problems, use the private report link on the issue chooser instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, and what did you see?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Limits tab
+        2. ...
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Token Larper version
+      description: Shown under Settings → About.
+      placeholder: 1.25.7
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: how-run
+    attributes:
+      label: How do you run it?
+      options:
+        - bunx token-larper
+        - From a git clone
+        - Windows tray / Start-TokenLarper.vbs
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: bun
+    attributes:
+      label: Bun version
+      description: Output of `bun --version`.
+    validations:
+      required: false
+  - type: input
+    id: agents
+    attributes:
+      label: Coding agents involved
+      description: Which tools' usage is affected, if it matters.
+      placeholder: Claude Code, Codex
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: |
+        `server.log` in the data folder often helps (see the README under "Data folder"). Remove anything private first.
+      render: text
+    validations:
+      required: false

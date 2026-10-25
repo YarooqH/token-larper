@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an improvement, or ask for a coding agent to be supported.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please search the [open issues](https://github.com/YarooqH/token-larper/issues) first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you're trying to do and where Token Larper gets in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+    validations:
+      required: false
+  - type: input
+    id: agent
+    attributes:
+      label: Coding agent (if this is a support request)
+      description: Where it writes its session logs helps a lot.
+    validations:
+      required: false
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd be willing to open a pull request for this.
+          required: false
