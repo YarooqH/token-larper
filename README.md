@@ -18,6 +18,7 @@
 </p>
 
 <p align="center">
+  <a href="https://yarooqh.github.io/token-larper/"><strong>Try the live demo</strong></a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#a-quick-tour">A quick tour</a> ·
   <a href="#limits">Limits</a> ·
