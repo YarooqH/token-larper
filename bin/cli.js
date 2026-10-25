@@ -30,9 +30,26 @@ function dataDir() {
   return join(process.env.XDG_DATA_HOME || join(home, ".local", "share"), "token-larper");
 }
 
+function bunVersion(bun) {
+  const run = spawnSync(bun, ["--version"], { encoding: "utf8", windowsHide: true });
+  return run.status === 0 ? run.stdout.trim() : null;
+}
+
 function bunPath() {
   if (typeof Bun !== "undefined") return process.execPath;
-  if (spawnSync("bun", ["--version"], { stdio: "ignore", windowsHide: true }).status === 0) return "bun";
+  // Right after installing Bun, only new terminals have it on PATH, so also look where
+  // the installer puts it.
+  const installed = join(process.env.BUN_INSTALL || join(homedir(), ".bun"), "bin", process.platform === "win32" ? "bun.exe" : "bun");
+  for (const bun of ["bun", installed]) {
+    const version = bunVersion(bun);
+    if (!version) continue;
+    const [major, minor] = version.split(".").map(Number);
+    if (major > 1 || (major === 1 && minor >= 1)) return bun;
+    console.error(`🔥 Token Larper needs Bun 1.1 or later, and this is Bun ${version}.`);
+    console.error("\nUpdate it, then run this again:");
+    console.error("     bun upgrade\n");
+    process.exit(1);
+  }
   console.error("🔥 Token Larper runs on Bun (v1.1+), and Bun isn't installed.");
   console.error("\n1. Install Bun:");
   if (process.platform === "win32") {
@@ -40,8 +57,10 @@ function bunPath() {
   } else {
     console.error("     curl -fsSL https://bun.sh/install | bash");
   }
-  console.error("\n2. Restart your terminal, then run:");
-  console.error("     bunx token-larper");
+  console.error("\n2. Run this again:");
+  console.error("     npx token-larper");
+  console.error("\nWant a look first? The live demo runs in your browser with made-up numbers:");
+  console.error("     https://yarooqh.github.io/token-larper/");
   console.error("\nMore info: https://github.com/YarooqH/token-larper#quick-start\n");
   process.exit(1);
 }
@@ -81,9 +100,9 @@ async function stop() {
   console.log("Stopped Token Larper.");
 }
 
-async function foreground() {
+async function foreground(bun) {
   if (typeof Bun !== "undefined") return import(serverScript);
-  const child = spawnSync("bun", [serverScript], { stdio: "inherit", cwd: rootDir });
+  const child = spawnSync(bun, [serverScript], { stdio: "inherit", cwd: rootDir });
   process.exit(child.status ?? 0);
 }
 
@@ -183,8 +202,7 @@ if (args.includes("--help") || args.includes("-h")) {
 } else if (args[0] === "stop") {
   await stop();
 } else if (args.includes("--foreground") || args.includes("-f")) {
-  bunPath();
-  await foreground();
+  await foreground(bunPath());
 } else {
   await background(!args.includes("--no-open") && process.env.TOKEN_LARPER_NO_BROWSER !== "1");
 }
