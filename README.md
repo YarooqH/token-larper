@@ -55,6 +55,8 @@ bunx token-larper
 
 It starts in the background and opens the dashboard. Stop it with `bunx token-larper stop`.
 
+`npx token-larper` works too, without restarting your terminal after installing Bun. If Bun is missing, it tells you how to get it.
+
 ---
 
 ## A quick tour
