@@ -1209,7 +1209,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 
 /* Settings are a page of their own, not an overlay: a search field and the section list on
    the left, the open section beside it. Search results replace the section while a query is typed. */
-.settings-page { width: 100%; max-width: 980px; margin: 0 auto; padding-bottom: 8px; }
+.settings-page { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 980px; margin: 0 auto; padding-bottom: 8px; }
 .sp-head { display: flex; align-items: center; gap: 14px; padding: 22px 0 18px; }
 .sp-head h2 { font-size: 22px; letter-spacing: -0.02em; }
 .sp-head h2:focus { outline: none; }
@@ -1226,7 +1226,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
   font: 11px/1.5 var(--mono);
   text-align: center;
 }
-.sp-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 40px; align-items: start; padding-top: 4px; }
+.sp-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 40px; align-items: start; padding: 4px 0 40px; }
 .sp-nav { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 2px; }
 .sp-nav button {
   display: flex;
@@ -1257,7 +1257,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .sp-content .settings-details { border-top: 1px solid var(--border); }
 .sp-content .inline-error { margin-bottom: 14px; }
 .sp-content .style-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-.sp-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 40px; padding: 14px 0; border-top: 1px solid var(--border); }
+.sp-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding: 14px 0; border-top: 1px solid var(--border); }
 .sp-foot > span { color: var(--text-3); font-size: 12px; }
 .setting-copy .setting-meta { margin-top: 5px; color: var(--text-3); font-size: 12px; }
 .setting-error { color: var(--error-text); }
