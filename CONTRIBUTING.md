@@ -62,6 +62,7 @@ Common types are `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `ci`, and `c
 * **Windows, macOS, and Linux all matter.** Test on the one you have, and say in the pull request what you couldn't check. Don't assume path separators or shells.
 * **Don't run a second copy against your own data while testing the tray or startup code.** Set `TOKEN_LARPER_DATA_DIR` to a scratch folder and `PORT` to a free port. The Windows start-at-sign-in setting writes to the registry.
 * **Line endings.** The repository stores LF. If your editor or Git rewrites files as CRLF on Windows, that's fine, but don't commit whole-file line-ending changes.
+* **The live demo** at [yarooqh.github.io/token-larper](https://yarooqh.github.io/token-larper/) is the real dashboard with made-up data from `demo/fixtures.ts`. `bun demo/build.ts` builds it into `demo/dist/`, and it redeploys on every merge to main. If you add an API endpoint, answer it in `demo/mock-api.ts` too.
 * **Adding a supported agent** usually means changes in `src/ccusage.ts` (usage), possibly `src/limits/` (plan quotas), and the agent list in the README and `llms.txt`.
 
 ## License
