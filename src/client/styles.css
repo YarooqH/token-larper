@@ -1683,7 +1683,7 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 .lm-tip-foot { margin-top: 10px; overflow: hidden; color: var(--text-2); text-overflow: ellipsis; white-space: nowrap; }
 
 /* A coding tool's mark (see ToolMark.tsx), or a lettered badge for tools without one. */
-.tool-mark { display: inline-block; flex: 0 0 auto; color: var(--text-2); }
+.tool-mark { display: inline-block; flex: 0 0 auto; color: var(--text); }
 .tool-mark-letter {
   display: inline-grid;
   place-items: center;
@@ -1695,6 +1695,8 @@ html[data-theme="dark"] .toggle.on .toggle-knob { background: var(--accent-ink);
 }
 /* A color swatch for chart series that aren't a tool (token types, "Other"). */
 .series-swatch { display: inline-block; width: 10px; height: 10px; flex: 0 0 10px; border-radius: 3px; }
+/* A tool series' key in charts: the swatch carries the series color, the mark its brand colors. */
+.series-key { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; }
 .lm-median { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; opacity: 0.7; }
 
 .lm-session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 12px; }

@@ -58,7 +58,7 @@ export function ToolTag({ id }: { id: HarnessId }) {
   );
 }
 
-/** A tool's mark in its chart color, named for screen readers; for spots without room for the name. */
+/** A tool's mark, named for screen readers; for spots without room for the name. */
 export function HarnessMark({ id, size }: { id: HarnessId; size?: number }) {
   const { seriesOf, nameOf } = useDashboard();
   return <ToolMark harness={id} name={nameOf(id)} color={seriesOf(id).color} size={size} />;
