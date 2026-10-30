@@ -147,13 +147,14 @@ describe("Live mode", () => {
     }
   });
 
-  test("session cards show the tool's mark in its color and the model id, without dots", () => {
+  test("session cards show the tool's mark in its brand colors and the model id, without dots", () => {
     const names = (id: string) => ({ claude: "Claude Code", codex: "Codex CLI" })[id] ?? id;
     const html = render(<LiveBoard feed={feed([event({}), event({ id: "e2", session: "s2", harness: "codex", model: "gpt-5.5", at: NOW - 3 * 60_000 })])} />, { nameOf: names as never });
     const cards = html.slice(html.indexOf('class="lm-session-grid"'), html.indexOf('class="lm-panel lm-feed"'));
     expect(cards).toContain('role="img" aria-label="Claude Code"');
     expect(cards).toContain('role="img" aria-label="Codex CLI"');
-    expect(cards).toContain('style="color:#888888"');
+    expect(cards).toContain('fill="#D97757"');
+    expect(cards).not.toContain("color:#888888");
     expect(cards).toContain("<code>claude-opus-5-5</code>");
     expect(cards).toContain("<code>gpt-5.5</code>");
     expect(cards).not.toContain("lm-dot");
